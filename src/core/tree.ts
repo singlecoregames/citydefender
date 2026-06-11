@@ -1,4 +1,5 @@
 import { applyMod, baseStats, type DerivedStats, type StatMod } from './stats';
+import type { TurretKind } from './types';
 
 export type TreeBranch = 'core' | 'cannon' | 'economy' | 'city' | 'automation';
 
@@ -236,60 +237,152 @@ export const TREE: readonly TreeNode[] = [
     effects: [{ stat: 'cityHitRadius', op: 'mul', value: -0.06 }],
   },
 
-  // ── Automation branch (downwards): self-firing turrets ─────────────────
+  // ── Automation branch (downwards): six turret kinds at fixed positions.
+  //    Buying level 1 deploys the turret; further levels boost its damage.
+  //    Global nodes (Power/Overdrive/Long Barrel) multiply every turret. ──
   {
-    id: 'auto_turret',
-    name: 'Auto-Turret',
-    description: '+1 automated turret that fires on its own',
+    id: 'turret_gatling',
+    name: 'Gatling',
+    description: 'Deploy a Gatling turret: fast single-target fire (lvl = +30% dmg)',
     branch: 'automation',
     col: 0,
     row: 2,
-    maxLevel: 5,
+    maxLevel: 4,
     baseCost: 180,
     costGrowth: 1.9,
     requires: ['core'],
-    effects: [{ stat: 'turretCount', op: 'add', value: 1 }],
+    effects: [],
   },
   {
     id: 'turret_power',
     name: 'Turret Power',
-    description: '+1 turret damage',
+    description: '+15% all turret damage',
     branch: 'automation',
     col: -1,
-    row: 3,
-    maxLevel: 5,
+    row: 2,
+    maxLevel: 6,
     baseCost: 130,
-    costGrowth: 1.7,
-    requires: ['auto_turret'],
-    effects: [{ stat: 'turretDamage', op: 'add', value: 1 }],
+    costGrowth: 1.6,
+    requires: ['turret_gatling'],
+    effects: [{ stat: 'turretDamageMul', op: 'mul', value: 0.15 }],
   },
   {
     id: 'turret_speed',
     name: 'Overdrive',
-    description: '+15% turret fire rate',
+    description: '+12% all turret fire rate',
     branch: 'automation',
     col: 1,
-    row: 3,
+    row: 2,
     maxLevel: 6,
     baseCost: 110,
     costGrowth: 1.6,
-    requires: ['auto_turret'],
-    effects: [{ stat: 'turretFireRate', op: 'mul', value: 0.15 }],
+    requires: ['turret_gatling'],
+    effects: [{ stat: 'turretFireRateMul', op: 'mul', value: 0.12 }],
+  },
+  {
+    id: 'turret_flak',
+    name: 'Flak',
+    description: 'Deploy a Flak turret: air-burst area damage vs swarms',
+    branch: 'automation',
+    col: -1,
+    row: 3,
+    maxLevel: 4,
+    baseCost: 320,
+    costGrowth: 1.9,
+    requires: ['turret_gatling'],
+    effects: [],
+  },
+  {
+    id: 'turret_laser',
+    name: 'Laser',
+    description: 'Deploy a Laser turret: short range, never misses',
+    branch: 'automation',
+    col: 1,
+    row: 3,
+    maxLevel: 4,
+    baseCost: 380,
+    costGrowth: 1.9,
+    requires: ['turret_gatling'],
+    effects: [],
+  },
+  {
+    id: 'turret_tesla',
+    name: 'Tesla',
+    description: 'Deploy a Tesla coil: chain lightning, last line of defence',
+    branch: 'automation',
+    col: 0,
+    row: 4,
+    maxLevel: 4,
+    baseCost: 450,
+    costGrowth: 1.9,
+    requires: ['turret_flak', 'turret_laser'],
+    effects: [],
+  },
+  {
+    id: 'turret_missile',
+    name: 'Missile Pod',
+    description: 'Deploy a Missile Pod: slow homing shots that never lose their prey',
+    branch: 'automation',
+    col: -2,
+    row: 4,
+    maxLevel: 4,
+    baseCost: 600,
+    costGrowth: 1.9,
+    requires: ['turret_flak'],
+    effects: [],
+  },
+  {
+    id: 'turret_railgun',
+    name: 'Railgun',
+    description: 'Deploy a Railgun: piercing line shot through everything',
+    branch: 'automation',
+    col: 2,
+    row: 4,
+    maxLevel: 4,
+    baseCost: 750,
+    costGrowth: 1.9,
+    requires: ['turret_laser'],
+    effects: [],
   },
   {
     id: 'turret_range',
     name: 'Long Barrel',
-    description: '+12% turret range',
+    description: '+12% all turret range',
     branch: 'automation',
     col: 0,
-    row: 4,
+    row: 3,
     maxLevel: 5,
     baseCost: 90,
     costGrowth: 1.55,
-    requires: ['turret_power', 'turret_speed'],
-    effects: [{ stat: 'turretRange', op: 'mul', value: 0.12 }],
+    requires: ['turret_gatling'],
+    effects: [{ stat: 'turretRangeMul', op: 'mul', value: 0.12 }],
   },
 ];
+
+/** Map of turret tree-node ids to the turret kind they deploy. */
+export const TURRET_NODES: Record<string, TurretKind> = {
+  turret_gatling: 'gatling',
+  turret_flak: 'flak',
+  turret_laser: 'laser',
+  turret_missile: 'missile',
+  turret_railgun: 'railgun',
+  turret_tesla: 'tesla',
+};
+
+export interface TurretSpec {
+  kind: TurretKind;
+  level: number;
+}
+
+/** Derive the deployed turret list (kind + node level) from tree levels. */
+export function turretsFromTree(levels: TreeLevels): TurretSpec[] {
+  const out: TurretSpec[] = [];
+  for (const [nodeId, kind] of Object.entries(TURRET_NODES)) {
+    const lvl = levels[nodeId] ?? 0;
+    if (lvl > 0) out.push({ kind, level: lvl });
+  }
+  return out;
+}
 
 export function getNode(id: string): TreeNode | undefined {
   return TREE.find((n) => n.id === id);

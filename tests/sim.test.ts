@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { interceptDirection, rotate } from '../src/core/aiming';
-import { CANNON, EXPLOSION, TICK_RATE, TURRET } from '../src/core/balance';
+import { CANNON, EXPLOSION, TICK_RATE, TURRETS } from '../src/core/balance';
 import { EXPLOSION_TOTAL_SECONDS } from '../src/core/explosion';
 import { defaultNightConfig, Sim } from '../src/core/sim';
 import { baseStats } from '../src/core/stats';
-import type { Command } from '../src/core/types';
+import type { Command, TurretKind } from '../src/core/types';
 
 function run(sim: Sim, ticks: number, commandsAt: Map<number, Command[]> = new Map()): void {
   for (let i = 0; i < ticks; i++) {
@@ -196,50 +196,61 @@ describe('cities and night flow', () => {
 });
 
 describe('automated turrets', () => {
-  function configWith(stats: Partial<ReturnType<typeof baseStats>>) {
+  function configWithTurrets(
+    turrets: { kind: TurretKind; level: number }[],
+    stats: Partial<ReturnType<typeof baseStats>> = {},
+  ) {
     const cfg = defaultNightConfig(1);
+    cfg.turrets = turrets;
     cfg.stats = { ...cfg.stats, ...stats };
+    cfg.waves = []; // no natural spawns in these controlled tests
     return cfg;
   }
 
-  it('deploys turretCount turrets at slot positions', () => {
-    const sim = new Sim(1, configWith({ turretCount: 2 }));
-    expect(sim.state.turrets).toHaveLength(2);
-    expect(sim.state.turrets[0]!.x).toBe(TURRET.slotXs[0]);
-  });
-
-  it('a turret fires at and kills an in-range enemy', () => {
-    const sim = new Sim(1, configWith({ turretCount: 1, turretDamage: 5 }));
-    const turret = sim.state.turrets[0]!;
+  function spawnEnemy(
+    sim: Sim,
+    id: number,
+    pos: { x: number; y: number },
+    vel = { x: 0, y: 0 },
+    hp = 1,
+  ) {
     sim.state.enemies.push({
-      id: 9999,
+      id,
       kind: 'ballistic',
-      pos: { x: turret.x + 10, y: 30 },
-      origin: { x: turret.x + 10, y: 100 },
-      vel: { x: 0, y: 0 },
-      hp: 3,
-      maxHp: 3,
+      pos: { ...pos },
+      origin: { x: pos.x, y: 100 },
+      vel: { ...vel },
+      hp,
+      maxHp: hp,
       scrapReward: 5,
     });
+  }
+
+  it('deploys each owned kind at its predetermined position', () => {
+    const sim = new Sim(1, configWithTurrets([
+      { kind: 'gatling', level: 1 },
+      { kind: 'tesla', level: 2 },
+    ]));
+    expect(sim.state.turrets).toHaveLength(2);
+    expect(sim.state.turrets[0]!.x).toBe(TURRETS.gatling.x);
+    expect(sim.state.turrets[1]!.x).toBe(TURRETS.tesla.x);
+    expect(sim.state.turrets[1]!.level).toBe(2);
+  });
+
+  it('a gatling fires at and kills an in-range enemy', () => {
+    const sim = new Sim(1, configWithTurrets([{ kind: 'gatling', level: 1 }], { turretDamageMul: 5 }));
+    const turret = sim.state.turrets[0]!;
+    spawnEnemy(sim, 9999, { x: turret.x + 10, y: 30 }, { x: 0, y: 0 }, 3);
     const scrapBefore = sim.state.scrap;
-    run(sim, TICK_RATE * 2);
+    run(sim, TICK_RATE * 3);
     expect(sim.state.enemies.find((e) => e.id === 9999)).toBeUndefined();
     expect(sim.state.scrap).toBeGreaterThan(scrapBefore);
   });
 
   it('does not fire at enemies beyond turret range', () => {
-    const sim = new Sim(1, configWith({ turretCount: 1, turretRange: 20 }));
+    const sim = new Sim(1, configWithTurrets([{ kind: 'gatling', level: 1 }]));
     const turret = sim.state.turrets[0]!;
-    sim.state.enemies.push({
-      id: 8888,
-      kind: 'ballistic',
-      pos: { x: turret.x + 80, y: 90 },
-      origin: { x: turret.x + 80, y: 100 },
-      vel: { x: 0, y: 0 },
-      hp: 1,
-      maxHp: 1,
-      scrapReward: 5,
-    });
+    spawnEnemy(sim, 8888, { x: turret.x + 80, y: 90 });
     run(sim, TICK_RATE);
     expect(sim.state.projectiles).toHaveLength(0);
     expect(sim.state.enemies.find((e) => e.id === 8888)).toBeDefined();
@@ -257,27 +268,71 @@ describe('automated turrets', () => {
     // trail behind it; lead aim should land most shots despite the spread.
     let kills = 0;
     for (let seed = 1; seed <= 10; seed++) {
-      const sim = new Sim(seed, (() => {
-        const cfg = defaultNightConfig(1);
-        cfg.stats = { ...cfg.stats, turretCount: 1, turretDamage: 1 };
-        cfg.waves = []; // no natural spawns
-        return cfg;
-      })());
+      const sim = new Sim(seed, configWithTurrets([{ kind: 'gatling', level: 1 }]));
       const turret = sim.state.turrets[0]!;
-      sim.state.enemies.push({
-        id: 7777,
-        kind: 'ballistic',
-        pos: { x: turret.x - 25, y: 55 },
-        origin: { x: turret.x - 25, y: 100 },
-        vel: { x: 10, y: -14 },
-        hp: 1,
-        maxHp: 1,
-        scrapReward: 5,
-      });
+      spawnEnemy(sim, 7777, { x: turret.x - 25, y: 55 }, { x: 10, y: -14 });
       run(sim, TICK_RATE * 4);
       if (!sim.state.enemies.some((e) => e.id === 7777)) kills++;
     }
     expect(kills).toBeGreaterThanOrEqual(7);
+  });
+
+  it('laser never misses an in-range enemy and emits a beam', () => {
+    const sim = new Sim(1, configWithTurrets([{ kind: 'laser', level: 1 }]));
+    const turret = sim.state.turrets[0]!;
+    spawnEnemy(sim, 6666, { x: turret.x + 15, y: 25 }, { x: 8, y: -8 });
+    let sawBeam = false;
+    for (let i = 0; i < TICK_RATE * 2; i++) {
+      for (const ev of sim.step([])) {
+        if (ev.type === 'beam' && ev.kind === 'laser') sawBeam = true;
+      }
+    }
+    expect(sawBeam).toBe(true);
+    expect(sim.state.enemies.find((e) => e.id === 6666)).toBeUndefined();
+  });
+
+  it('flak shell bursts into an explosion that damages a cluster', () => {
+    const sim = new Sim(1, configWithTurrets([{ kind: 'flak', level: 1 }]));
+    const turret = sim.state.turrets[0]!;
+    // A tight, stationary cluster inside flak range.
+    spawnEnemy(sim, 5551, { x: turret.x + 5, y: 40 });
+    spawnEnemy(sim, 5552, { x: turret.x + 8, y: 41 });
+    spawnEnemy(sim, 5553, { x: turret.x + 6, y: 38 });
+    run(sim, TICK_RATE * 6);
+    const survivors = sim.state.enemies.filter((e) => e.id >= 5551 && e.id <= 5553);
+    expect(survivors.length).toBeLessThan(3); // at least part of the cluster died
+  });
+
+  it('railgun pierces multiple enemies along one line', () => {
+    const sim = new Sim(1, configWithTurrets([{ kind: 'railgun', level: 1 }]));
+    const turret = sim.state.turrets[0]!;
+    // Three stationary enemies stacked along the vertical above the railgun.
+    spawnEnemy(sim, 4441, { x: turret.x, y: 30 });
+    spawnEnemy(sim, 4442, { x: turret.x, y: 50 });
+    spawnEnemy(sim, 4443, { x: turret.x, y: 70 });
+    run(sim, TICK_RATE);
+    const survivors = sim.state.enemies.filter((e) => e.id >= 4441 && e.id <= 4443);
+    expect(survivors).toHaveLength(0); // one shot took the whole column
+  });
+
+  it('tesla chains to nearby enemies but not distant ones', () => {
+    const sim = new Sim(1, configWithTurrets([{ kind: 'tesla', level: 1 }]));
+    const turret = sim.state.turrets[0]!;
+    spawnEnemy(sim, 3331, { x: turret.x + 5, y: 20 }); // in range
+    spawnEnemy(sim, 3332, { x: turret.x + 12, y: 24 }); // chain jump
+    spawnEnemy(sim, 3333, { x: turret.x + 60, y: 80 }); // far outside everything
+    run(sim, TICK_RATE);
+    expect(sim.state.enemies.find((e) => e.id === 3331)).toBeUndefined();
+    expect(sim.state.enemies.find((e) => e.id === 3332)).toBeUndefined();
+    expect(sim.state.enemies.find((e) => e.id === 3333)).toBeDefined();
+  });
+
+  it('missile homes onto a moving target', () => {
+    const sim = new Sim(1, configWithTurrets([{ kind: 'missile', level: 1 }]));
+    const turret = sim.state.turrets[0]!;
+    spawnEnemy(sim, 2221, { x: turret.x - 30, y: 70 }, { x: 6, y: -6 }, 2);
+    run(sim, TICK_RATE * 6);
+    expect(sim.state.enemies.find((e) => e.id === 2221)).toBeUndefined();
   });
 });
 

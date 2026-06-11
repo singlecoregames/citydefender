@@ -1,4 +1,4 @@
-import { CANNON, CITY, ECONOMY, EXPLOSION, TURRET } from './balance';
+import { CANNON, CITY, ECONOMY, EXPLOSION } from './balance';
 
 /**
  * The fully-resolved numbers a single night's sim runs on. Base values come
@@ -20,12 +20,11 @@ export interface DerivedStats {
   cityMaxHp: number;
   /** How close an enemy impact must be to damage a city (smaller = safer). */
   cityHitRadius: number;
-  /** Number of automated turrets deployed (0 = fully manual). */
-  turretCount: number;
-  turretDamage: number;
-  /** Turret shots per second. */
-  turretFireRate: number;
-  turretRange: number;
+  /** Global multipliers applied to every deployed turret (which turrets exist
+   *  is decided by the tree's turret nodes, not by stats). */
+  turretDamageMul: number;
+  turretFireRateMul: number;
+  turretRangeMul: number;
 }
 
 export type StatKey = keyof DerivedStats;
@@ -50,10 +49,9 @@ export function baseStats(): DerivedStats {
     nightBonusMul: 1,
     cityMaxHp: CITY.hp,
     cityHitRadius: CITY.hitRadius,
-    turretCount: 0,
-    turretDamage: TURRET.baseDamage,
-    turretFireRate: TURRET.baseFireRate,
-    turretRange: TURRET.baseRange,
+    turretDamageMul: 1,
+    turretFireRateMul: 1,
+    turretRangeMul: 1,
   };
 }
 

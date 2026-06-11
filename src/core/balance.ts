@@ -2,6 +2,7 @@
  * Every tunable number in one place. The balance simulator (tools/sim)
  * sweeps these; gameplay code must not contain magic numbers.
  */
+import type { TurretKind } from './types';
 
 /** Simulation runs at a fixed 60Hz regardless of render framerate. */
 export const TICK_RATE = 60;
@@ -33,23 +34,51 @@ export const EXPLOSION = {
   damage: 1,
 } as const;
 
-/** Automated turrets (M4). Each owned turret occupies the next free slot. */
+/** Shared turret constants. */
 export const TURRET = {
   y: 2,
-  /** Slot x-positions, filled in order as turretCount rises. */
-  slotXs: [-80, 80, -45, 45, 0] as readonly number[],
-  projectileSpeed: 95,
-  /** A projectile within this distance of an enemy hits it. */
+  /** A contact projectile within this distance of an enemy hits it. */
   projectileHitRadius: 3.5,
-  baseDamage: 1,
-  /** Shots per second. */
-  baseFireRate: 1.1,
-  /** Targeting range in world units. */
-  baseRange: 58,
-  /** Random aim error (degrees, ± uniform) applied to each lead-aimed shot.
-   *  Far targets miss more; close targets nearly always get hit. */
-  aimSpreadDeg: 3.5,
+  /** Per-node-level damage bonus: damage × (1 + levelDamageBonus × (level-1)). */
+  levelDamageBonus: 0.3,
 } as const;
+
+export interface TurretKindSpec {
+  /** Fixed deploy position for this turret kind. */
+  x: number;
+  /** Shots (or bursts/beam ticks) per second. */
+  fireRate: number;
+  damage: number;
+  range: number;
+  /** Ballistic kinds: projectile flight speed. */
+  projectileSpeed?: number;
+  /** Ballistic kinds: random aim error in ± degrees. */
+  spreadDeg?: number;
+  /** Flak: radius of the air-burst explosion. */
+  burstRadius?: number;
+  /** Missile: homing flight speed. */
+  homingSpeed?: number;
+  /** Railgun: enemies within this distance of the ray are hit. */
+  pierceWidth?: number;
+  /** Tesla: max chained targets and jump distance between them. */
+  chainCount?: number;
+  chainRadius?: number;
+}
+
+/**
+ * The six turret kinds. Distinct roles: gatling = cheap single-target dps,
+ * flak = area denial vs swarms, laser = never-miss counter to tough enemies,
+ * missile = guaranteed slow homing kill, railgun = piercing burst, tesla =
+ * short-range last line of defence.
+ */
+export const TURRETS: Record<TurretKind, TurretKindSpec> = {
+  gatling: { x: -45, fireRate: 1.1, damage: 1, range: 58, projectileSpeed: 95, spreadDeg: 3.5 },
+  flak: { x: 45, fireRate: 0.45, damage: 1, range: 70, projectileSpeed: 70, spreadDeg: 5, burstRadius: 5 },
+  laser: { x: -80, fireRate: 0.8, damage: 1, range: 45 },
+  missile: { x: 80, fireRate: 0.4, damage: 2, range: 85, homingSpeed: 38 },
+  railgun: { x: -15, fireRate: 0.22, damage: 4, range: 95, pierceWidth: 3, spreadDeg: 1 },
+  tesla: { x: 15, fireRate: 0.7, damage: 1, range: 30, chainCount: 4, chainRadius: 18 },
+};
 
 export const CITY = {
   count: 3,

@@ -11,7 +11,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { CANNON, WORLD } from '../core/balance';
 import { explosionRadius } from '../core/explosion';
-import type { GameEvent, GameState, Vec2 } from '../core/types';
+import type { GameEvent, GameState, TurretKind, Vec2 } from '../core/types';
 import { Particles } from './particles';
 
 /** Internal render is 360px tall; on a 16:9 screen that's exactly 640x360.
@@ -29,7 +29,6 @@ const COLORS = {
   city: 0x49d17a,
   cityDead: 0x3a2630,
   cannon: 0x4aa0ff,
-  turret: 0x36e0b0,
   projectile: 0xaef0ff,
   interceptorTrail: 0x2f6fb0,
   interceptorHead: 0xbfe0ff,
@@ -39,6 +38,24 @@ const COLORS = {
   explosion: 0xffd24a,
   explosionRing: 0xff8c2a,
 } as const;
+
+/** Per-kind turret body colors (also used for their projectiles/beams). */
+const TURRET_COLORS: Record<TurretKind, number> = {
+  gatling: 0x36e0b0,
+  flak: 0xffa030,
+  laser: 0xff6a4a,
+  missile: 0xffdc50,
+  railgun: 0xe8f4ff,
+  tesla: 0x7ae0ff,
+};
+
+const BEAM_COLORS = { laser: 0xff6a4a, railgun: 0xe8f4ff, tesla: 0x7ae0ff } as const;
+
+interface BeamFx {
+  line: THREE.Line;
+  ttl: number;
+  maxTtl: number;
+}
 
 interface EnemyView {
   head: THREE.Mesh;
@@ -66,6 +83,7 @@ export class Renderer {
   private readonly turretMeshes = new Map<number, THREE.Mesh>();
   private readonly projectileViews = new Map<number, THREE.Mesh>();
   private readonly cityMeshes: THREE.Mesh[] = [];
+  private readonly beams: BeamFx[] = [];
 
   private readonly particles = new Particles();
   private shake = 0;
@@ -78,8 +96,6 @@ export class Renderer {
   private readonly discGeo = new THREE.CircleGeometry(1, 32);
   private readonly ringGeo = new THREE.RingGeometry(0.92, 1, 32);
   private readonly enemyHeadMat = new THREE.MeshBasicMaterial({ color: COLORS.enemyHead });
-  private readonly turretMat = new THREE.MeshBasicMaterial({ color: COLORS.turret });
-  private readonly projectileMat = new THREE.MeshBasicMaterial({ color: COLORS.projectile });
   private readonly interceptorHeadMat = new THREE.MeshBasicMaterial({
     color: COLORS.interceptorHead,
   });
@@ -126,6 +142,43 @@ export class Renderer {
     for (const ev of events) {
       if (ev.type === 'cityHit') this.shake = Math.max(this.shake, 1.6);
       if (ev.type === 'groundImpact') this.shake = Math.max(this.shake, 0.5);
+      if (ev.type === 'beam') this.spawnBeam(ev.kind, ev.points);
+    }
+  }
+
+  /** Short-lived glowing polyline for laser/railgun/tesla shots. */
+  private spawnBeam(kind: 'laser' | 'railgun' | 'tesla', points: Vec2[]): void {
+    const geo = new THREE.BufferGeometry();
+    const arr = new Float32Array(points.length * 3);
+    points.forEach((p, i) => {
+      arr[i * 3] = p.x;
+      arr[i * 3 + 1] = p.y;
+      arr[i * 3 + 2] = 2.5;
+    });
+    geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    const mat = new THREE.LineBasicMaterial({
+      color: BEAM_COLORS[kind],
+      transparent: true,
+      opacity: 0.9,
+    });
+    const line = new THREE.Line(geo, mat);
+    this.scene.add(line);
+    const ttl = kind === 'railgun' ? 0.22 : 0.13;
+    this.beams.push({ line, ttl, maxTtl: ttl });
+  }
+
+  private updateBeams(dt: number): void {
+    for (let i = this.beams.length - 1; i >= 0; i--) {
+      const b = this.beams[i]!;
+      b.ttl -= dt;
+      if (b.ttl <= 0) {
+        this.scene.remove(b.line);
+        b.line.geometry.dispose();
+        (b.line.material as THREE.Material).dispose();
+        this.beams.splice(i, 1);
+      } else {
+        (b.line.material as THREE.LineBasicMaterial).opacity = 0.9 * (b.ttl / b.maxTtl);
+      }
     }
   }
 
@@ -141,6 +194,7 @@ export class Renderer {
     this.syncInterceptors(state);
     this.syncExplosions(state);
     this.particles.update(dt);
+    this.updateBeams(dt);
     this.applyShake();
     this.composer.render();
   }
@@ -228,7 +282,10 @@ export class Renderer {
     // Turrets are created once per night and don't move; just create on demand.
     for (const t of state.turrets) {
       if (this.turretMeshes.has(t.id)) continue;
-      const mesh = new THREE.Mesh(this.roundedGeo, this.turretMat);
+      const mesh = new THREE.Mesh(
+        this.roundedGeo,
+        new THREE.MeshBasicMaterial({ color: TURRET_COLORS[t.kind] }),
+      );
       mesh.scale.set(6, 6, 1);
       mesh.position.set(t.x, t.y + 1, 1.5);
       this.scene.add(mesh);
@@ -240,6 +297,7 @@ export class Renderer {
       for (const [id, mesh] of this.turretMeshes) {
         if (!ids.has(id)) {
           this.scene.remove(mesh);
+          (mesh.material as THREE.Material).dispose();
           this.turretMeshes.delete(id);
         }
       }
@@ -252,16 +310,23 @@ export class Renderer {
       seen.add(p.id);
       let mesh = this.projectileViews.get(p.id);
       if (!mesh) {
-        mesh = new THREE.Mesh(this.roundedGeo, this.projectileMat);
-        mesh.scale.set(1.6, 1.6, 1);
+        mesh = new THREE.Mesh(
+          this.roundedGeo,
+          new THREE.MeshBasicMaterial({ color: TURRET_COLORS[p.kind] }),
+        );
+        const size = p.kind === 'missile' ? 2.6 : p.kind === 'flak' ? 2 : 1.6;
+        mesh.scale.set(size, size, 1);
         this.scene.add(mesh);
         this.projectileViews.set(p.id, mesh);
       }
       mesh.position.set(p.pos.x, p.pos.y, 2);
+      // Missiles leave a particle trail like the enemy/interceptor shots.
+      if (p.kind === 'missile') this.particles.emit(p.pos.x, p.pos.y);
     }
     for (const [id, mesh] of this.projectileViews) {
       if (!seen.has(id)) {
         this.scene.remove(mesh);
+        (mesh.material as THREE.Material).dispose();
         this.projectileViews.delete(id);
       }
     }

@@ -3,7 +3,7 @@ import { nightSeed, type RunState } from './core/run';
 import { loadRun, saveRun } from './core/save';
 import { Sim, type NightConfig } from './core/sim';
 import type { Command } from './core/types';
-import { resolveStats } from './core/tree';
+import { resolveStats, turretsFromTree } from './core/tree';
 import { generateNight } from './core/waves';
 import { WebStore } from './platform/store';
 import { Renderer } from './render/renderer';
@@ -29,7 +29,12 @@ const dayScreen = new DayScreen(
 );
 
 function nightConfigFor(r: RunState): NightConfig {
-  return { night: r.night, waves: generateNight(r.night), stats: resolveStats(r.upgrades) };
+  return {
+    night: r.night,
+    waves: generateNight(r.night),
+    stats: resolveStats(r.upgrades),
+    turrets: turretsFromTree(r.upgrades),
+  };
 }
 
 function startNight(r: RunState): Sim {
