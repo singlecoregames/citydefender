@@ -115,10 +115,13 @@ export const NIGHT_SCALING = {
   /** Enemies in wave w of night n = round((baseCount + w) * countGrowth^n). */
   baseCount: 5,
   countGrowth: 1.09,
-  /** Per-night multipliers applied to enemy hp / speed / reward. */
-  hpGrowth: 1.08,
+  /** Per-night enemy hp = round((1 + hpLinearPerNight*(n-1)) * hpGrowth^(n-1)).
+   *  A linear term plus the exponential makes hp climb sooner and harder, so
+   *  raw turret dps can't trivialise mid/late nights. */
+  hpGrowth: 1.13,
+  hpLinearPerNight: 0.12,
   speedGrowth: 1.035,
-  rewardGrowth: 1.12,
+  rewardGrowth: 1.13,
   /** Spawn interval shrinks as nights progress (denser spawns). */
   spawnIntervalBase: [0.85, 1.3] as readonly [number, number],
   spawnIntervalFloor: 0.32,

@@ -25,6 +25,13 @@ export interface DerivedStats {
   turretDamageMul: number;
   turretFireRateMul: number;
   turretRangeMul: number;
+  /** Per-kind special upgrades (added on top of the kind's base spec). */
+  teslaChainBonus: number; // extra chain jumps
+  missileSalvoBonus: number; // extra missiles fired per volley
+  railgunPierceBonus: number; // extra ray width
+  flakRadiusMul: number; // burst radius multiplier
+  laserDamageMul: number; // laser-only damage multiplier (tick dps)
+  gatlingFireRateMul: number; // gatling-only fire rate multiplier
 }
 
 export type StatKey = keyof DerivedStats;
@@ -52,6 +59,12 @@ export function baseStats(): DerivedStats {
     turretDamageMul: 1,
     turretFireRateMul: 1,
     turretRangeMul: 1,
+    teslaChainBonus: 0,
+    missileSalvoBonus: 0,
+    railgunPierceBonus: 0,
+    flakRadiusMul: 1,
+    laserDamageMul: 1,
+    gatlingFireRateMul: 1,
   };
 }
 

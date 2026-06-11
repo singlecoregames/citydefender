@@ -334,6 +334,43 @@ describe('automated turrets', () => {
     run(sim, TICK_RATE * 6);
     expect(sim.state.enemies.find((e) => e.id === 2221)).toBeUndefined();
   });
+
+  it('tesla chain bonus extends the number of jumps', () => {
+    // Five enemies in a chainable row; base tesla reaches 4, +1 bonus reaches 5.
+    const make = (bonus: number) => {
+      const sim = new Sim(1, configWithTurrets([{ kind: 'tesla', level: 1 }], {
+        teslaChainBonus: bonus,
+      }));
+      const tx = sim.state.turrets[0]!.x;
+      for (let i = 0; i < 5; i++) spawnEnemy(sim, 100 + i, { x: tx + 4 + i * 10, y: 22 });
+      sim.step([]);
+      return sim.state.enemies.filter((e) => e.id >= 100 && e.id <= 104).length;
+    };
+    expect(make(0)).toBe(1); // 5 - 4 hit = 1 survivor
+    expect(make(1)).toBe(0); // 5 - 5 hit = 0 survivors
+  });
+
+  it('missile salvo bonus fires multiple missiles per volley', () => {
+    const sim = new Sim(1, configWithTurrets([{ kind: 'missile', level: 1 }], {
+      missileSalvoBonus: 2,
+    }));
+    const tx = sim.state.turrets[0]!.x;
+    for (let i = 0; i < 3; i++) spawnEnemy(sim, 200 + i, { x: tx + i * 6, y: 60 }, { x: 0, y: 0 }, 5);
+    sim.step([]);
+    expect(sim.state.projectiles.filter((p) => p.kind === 'missile')).toHaveLength(3);
+  });
+
+  it('railgun pierce bonus widens the hit line', () => {
+    const sim = new Sim(1, configWithTurrets([{ kind: 'railgun', level: 1 }], {
+      railgunPierceBonus: 6,
+    }));
+    const tx = sim.state.turrets[0]!.x;
+    // Enemies offset sideways from the vertical ray — only hit with extra width.
+    spawnEnemy(sim, 300, { x: tx, y: 40 });
+    spawnEnemy(sim, 301, { x: tx + 7, y: 42 });
+    run(sim, TICK_RATE);
+    expect(sim.state.enemies.filter((e) => e.id >= 300 && e.id <= 301)).toHaveLength(0);
+  });
 });
 
 describe('intercept solver', () => {

@@ -177,7 +177,8 @@ export class Sim {
         this.cfg.stats.turretDamageMul;
       const fired = this.fireTurret(turret, range, damage);
       if (fired) {
-        turret.cooldown += 1 / (spec.fireRate * this.cfg.stats.turretFireRateMul);
+        const kindRate = turret.kind === 'gatling' ? this.cfg.stats.gatlingFireRateMul : 1;
+        turret.cooldown += 1 / (spec.fireRate * this.cfg.stats.turretFireRateMul * kindRate);
       } else {
         turret.cooldown = 0; // stay ready; retry next tick
       }
@@ -217,27 +218,36 @@ export class Sim {
           damage,
           ttl: 6,
           fuse: flight,
-          burstRadius: spec.burstRadius!,
+          burstRadius: spec.burstRadius! * this.cfg.stats.flakRadiusMul,
         });
         return true;
       }
       case 'laser': {
         // Instant single-target hit; never misses.
-        this.damageEnemy(target, damage);
+        this.damageEnemy(target, damage * this.cfg.stats.laserDamageMul);
         s.events.push({ type: 'beam', kind: 'laser', points: [origin, { ...target.pos }] });
         return true;
       }
       case 'missile': {
-        const dir = norm({ x: target.pos.x - origin.x, y: target.pos.y - origin.y });
-        s.projectiles.push({
-          id: s.nextId++,
-          kind: 'missile',
-          pos: { ...origin },
-          vel: { x: dir.x * spec.homingSpeed!, y: dir.y * spec.homingSpeed! },
-          damage,
-          ttl: 8,
-          targetId: target.id,
-        });
+        // Salvo: one homing missile per target, leading with the most-
+        // progressed enemies; extra missiles re-target the primary.
+        const salvo = 1 + this.cfg.stats.missileSalvoBonus;
+        const targets = this.selectTargets(origin, range, salvo);
+        for (let k = 0; k < salvo; k++) {
+          const tgt = targets[k] ?? target;
+          const dir = norm({ x: tgt.pos.x - origin.x, y: tgt.pos.y - origin.y });
+          // Fan extra missiles out slightly so they don't perfectly overlap.
+          const fan = rotate(dir, ((k - (salvo - 1) / 2) * 10 * Math.PI) / 180);
+          s.projectiles.push({
+            id: s.nextId++,
+            kind: 'missile',
+            pos: { ...origin },
+            vel: { x: fan.x * spec.homingSpeed!, y: fan.y * spec.homingSpeed! },
+            damage,
+            ttl: 8,
+            targetId: tgt.id,
+          });
+        }
         return true;
       }
       case 'railgun': {
@@ -253,7 +263,7 @@ export class Sim {
           const along = rx * dir.x + ry * dir.y;
           if (along < 0) return false;
           const off = Math.abs(rx * dir.y - ry * dir.x);
-          return off <= spec.pierceWidth!;
+          return off <= spec.pierceWidth! + this.cfg.stats.railgunPierceBonus;
         });
         for (const e of hits) this.damageEnemy(e, damage);
         const reach = WORLD.height * 1.6;
@@ -268,7 +278,8 @@ export class Sim {
         // Chain lightning: jump up to chainCount targets, each within
         // chainRadius of the previous one.
         const chain: EnemyMissile[] = [target];
-        while (chain.length < spec.chainCount!) {
+        const maxChain = spec.chainCount! + this.cfg.stats.teslaChainBonus;
+        while (chain.length < maxChain) {
           const last = chain[chain.length - 1]!;
           let next: EnemyMissile | null = null;
           let bestD = spec.chainRadius!;
@@ -316,6 +327,14 @@ export class Sim {
       }
     }
     return best;
+  }
+
+  /** The `count` most-progressed enemies within range (for missile salvos). */
+  private selectTargets(origin: Vec2, range: number, count: number): EnemyMissile[] {
+    return this.state.enemies
+      .filter((e) => dist(origin, e.pos) <= range)
+      .sort((a, b) => a.pos.y - b.pos.y || a.id - b.id)
+      .slice(0, count);
   }
 
   private moveProjectiles(): void {
