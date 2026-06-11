@@ -4,7 +4,13 @@
  * night; defeats retry the same night). Produces one record per night played.
  */
 import { BOSS_NIGHT_INTERVAL, ECONOMY, TICK_RATE } from '../../src/core/balance';
-import { dawnInterest, newRun, nightSeed, type RunState } from '../../src/core/run';
+import {
+  dawnInterest,
+  firstClearCores,
+  newRun,
+  nightSeed,
+  type RunState,
+} from '../../src/core/run';
 import { Sim, type NightConfig } from '../../src/core/sim';
 import {
   abilitiesFromTree,
@@ -147,6 +153,7 @@ export function simulateRun(options: Partial<SimulateOptions> = {}): RunReport {
     run.scrap += dawnInterest(run.scrap, resolveStats(run.upgrades).scrapInterestRate);
     run.data += result.dataEarned;
     if (result.outcome === 'victory') {
+      if (thisNight > run.bestNight) run.cores += firstClearCores(thisNight);
       run.bestNight = Math.max(run.bestNight, run.night);
       run.night += 1;
       attempt = 1;

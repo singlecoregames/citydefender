@@ -1,5 +1,5 @@
 import { BOSS_NIGHT_INTERVAL, DT } from './core/balance';
-import { dawnInterest, nightSeed, type RunState } from './core/run';
+import { dawnInterest, firstClearCores, nightSeed, type RunState } from './core/run';
 import { loadRun, saveRun } from './core/save';
 import { Sim, type NightConfig } from './core/sim';
 import type { Command } from './core/types';
@@ -65,6 +65,7 @@ function resolveNight(outcome: 'victory' | 'defeat', scrapEarned: number, dataEa
   run.scrap += dawnInterest(run.scrap, resolveStats(run.upgrades).scrapInterestRate);
   run.data += dataEarned;
   if (outcome === 'victory') {
+    if (clearedNight > run.bestNight) run.cores += firstClearCores(clearedNight);
     run.bestNight = Math.max(run.bestNight, run.night);
     run.night += 1;
   }

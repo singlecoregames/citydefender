@@ -33,7 +33,10 @@ export function generateNight(night: number): WaveSpec[] {
   const count = waveCountForNight(night);
   for (let w = 0; w < count; w++) {
     waves.push({
-      count: Math.round((s.baseCount + w) * Math.pow(s.countGrowth, night - 1)),
+      count: Math.min(
+        s.maxWaveCount,
+        Math.round((s.baseCount + w) * Math.pow(s.countGrowth, night - 1)),
+      ),
       spawnIntervalRange: [
         Math.max(s.spawnIntervalFloor, lo * intervalScale - w * 0.04),
         Math.max(s.spawnIntervalFloor + 0.1, hi * intervalScale - w * 0.05),

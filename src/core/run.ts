@@ -1,3 +1,4 @@
+import { FIRST_CLEAR } from './balance';
 import type { TreeLevels } from './tree';
 
 /** Persistent meta-game state spanning many nights (the "run"). A single
@@ -41,4 +42,10 @@ export function nightSeed(run: RunState): number {
 /** Compound Interest node: bonus scrap paid at dawn on the unspent bank. */
 export function dawnInterest(scrap: number, rate: number): number {
   return rate > 0 ? Math.floor(scrap * rate) : 0;
+}
+
+/** Cores paid for clearing `night` for the first time (0 before fromNight). */
+export function firstClearCores(night: number): number {
+  if (night < FIRST_CLEAR.fromNight) return 0;
+  return FIRST_CLEAR.base + Math.floor(night / FIRST_CLEAR.scaleNights);
 }
