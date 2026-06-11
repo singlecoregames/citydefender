@@ -120,7 +120,7 @@ export const CITY = {
 export const ENEMY = {
   ballistic: { speed: 9, hp: 1, scrapReward: 5 },
   /** Small, fast, fragile — comes in groups. */
-  swarmer: { speed: 17, hp: 1, scrapReward: 2 },
+  swarmer: { speed: 15.3, hp: 1, scrapReward: 2 },
   /** Splits into 2 swarmers on death. */
   splitter: { speed: 8, hp: 2, scrapReward: 6, childCount: 2 },
   /** Heals back up if left alone for regenDelay seconds. */
@@ -205,9 +205,10 @@ export const NIGHT_SCALING = {
   countGrowth: 1.09,
   /** Per-night enemy hp = round((1 + hpLinearPerNight*(n-1)) * hpGrowth^(n-1)).
    *  A linear term plus the exponential makes hp climb sooner and harder, so
-   *  raw turret dps can't trivialise mid/late nights. */
+   *  raw turret dps can't trivialise mid/late nights. The linear term governs
+   *  how *early* the ramp bites — kept gentle so nights 1–10 stay readable. */
   hpGrowth: 1.12,
-  hpLinearPerNight: 0.08,
+  hpLinearPerNight: 0.05,
   speedGrowth: 1.035,
   rewardGrowth: 1.13,
   /** Spawn interval shrinks as nights progress (denser spawns). */
