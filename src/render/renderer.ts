@@ -11,7 +11,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { CANNON, WORLD } from '../core/balance';
 import { explosionRadius } from '../core/explosion';
-import type { GameEvent, GameState, TurretKind, Vec2 } from '../core/types';
+import type { EnemyKind, GameEvent, GameState, TurretKind, Vec2 } from '../core/types';
 import { Particles } from './particles';
 
 /** Internal render is 360px tall; on a 16:9 screen that's exactly 640x360.
@@ -50,6 +50,24 @@ const TURRET_COLORS: Record<TurretKind, number> = {
 };
 
 const BEAM_COLORS = { laser: 0xff6a4a, railgun: 0xe8f4ff, tesla: 0x7ae0ff } as const;
+
+/** Per-kind enemy colours. */
+const ENEMY_COLORS: Record<EnemyKind, number> = {
+  ballistic: 0xff5042,
+  swarmer: 0xff9a5a,
+  splitter: 0xc060ff,
+  regenerator: 0x5ad07a,
+  phase: 0x60c8ff,
+  carrier: 0xd0304a,
+};
+
+/** Base render size per enemy kind, with a capped hp-based bonus so late-game
+ *  high-hp enemies read as bigger without ballooning off-screen. */
+function enemySize(kind: EnemyKind, maxHp: number): number {
+  const base =
+    kind === 'swarmer' ? 2.2 : kind === 'carrier' ? 9 : kind === 'regenerator' ? 4.4 : 3.8;
+  return base * (1 + Math.min(1.2, (maxHp - 1) * 0.03));
+}
 
 interface BeamFx {
   line: THREE.Line;
@@ -95,7 +113,6 @@ export class Renderer {
   private readonly roundedGeo = roundedRectGeometry(1, 1, 0.3);
   private readonly discGeo = new THREE.CircleGeometry(1, 32);
   private readonly ringGeo = new THREE.RingGeometry(0.92, 1, 32);
-  private readonly enemyHeadMat = new THREE.MeshBasicMaterial({ color: COLORS.enemyHead });
   private readonly interceptorHeadMat = new THREE.MeshBasicMaterial({
     color: COLORS.interceptorHead,
   });
@@ -338,19 +355,27 @@ export class Renderer {
       seen.add(e.id);
       let view = this.enemyViews.get(e.id);
       if (!view) {
-        view = { head: new THREE.Mesh(this.roundedGeo, this.enemyHeadMat) };
-        // Tougher enemies are visibly chunkier so high-hp targets read clearly.
-        const sz = 3.8 + (e.maxHp - 1) * 0.7;
+        // Per-kind colour; per-enemy material so phased enemies can fade.
+        const mat = new THREE.MeshBasicMaterial({
+          color: ENEMY_COLORS[e.kind],
+          transparent: true,
+          opacity: 1,
+        });
+        view = { head: new THREE.Mesh(this.roundedGeo, mat) };
+        const sz = enemySize(e.kind, e.maxHp);
         view.head.scale.set(sz, sz, 1);
         this.scene.add(view.head);
         this.enemyViews.set(e.id, view);
       }
       view.head.position.set(e.pos.x, e.pos.y, 2);
-      this.particles.emit(e.pos.x, e.pos.y);
+      // Phase Walkers fade out (and stop trailing) while untargetable.
+      (view.head.material as THREE.MeshBasicMaterial).opacity = e.phased ? 0.28 : 1;
+      if (!e.phased) this.particles.emit(e.pos.x, e.pos.y);
     }
     for (const [id, view] of this.enemyViews) {
       if (!seen.has(id)) {
         this.scene.remove(view.head);
+        (view.head.material as THREE.Material).dispose();
         this.enemyViews.delete(id);
       }
     }

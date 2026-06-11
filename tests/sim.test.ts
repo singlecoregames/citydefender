@@ -4,7 +4,8 @@ import { CANNON, EXPLOSION, TICK_RATE, TURRETS } from '../src/core/balance';
 import { EXPLOSION_TOTAL_SECONDS } from '../src/core/explosion';
 import { defaultNightConfig, Sim } from '../src/core/sim';
 import { baseStats } from '../src/core/stats';
-import type { Command, TurretKind } from '../src/core/types';
+import { enemyPool } from '../src/core/waves';
+import type { Command, EnemyKind, TurretKind } from '../src/core/types';
 
 function run(sim: Sim, ticks: number, commandsAt: Map<number, Command[]> = new Map()): void {
   for (let i = 0; i < ticks; i++) {
@@ -370,6 +371,105 @@ describe('automated turrets', () => {
     spawnEnemy(sim, 301, { x: tx + 7, y: 42 });
     run(sim, TICK_RATE);
     expect(sim.state.enemies.filter((e) => e.id >= 300 && e.id <= 301)).toHaveLength(0);
+  });
+});
+
+describe('enemy kinds', () => {
+  function nightConfig(night: number) {
+    const cfg = defaultNightConfig(night);
+    cfg.waves = [];
+    return cfg;
+  }
+
+  function inject(sim: Sim, kind: EnemyKind, over: Partial<import('../src/core/types').EnemyMissile> = {}) {
+    const e: import('../src/core/types').EnemyMissile = {
+      id: 555,
+      kind,
+      pos: { x: 0, y: 50 },
+      origin: { x: 0, y: 100 },
+      vel: { x: 0, y: -8 },
+      hp: 4,
+      maxHp: 4,
+      scrapReward: 5,
+      ...over,
+    };
+    if (kind === 'phase') {
+      e.phased = false;
+      e.phaseTimer = 1.5;
+    }
+    if (kind === 'regenerator') e.regenTimer = 0;
+    if (kind === 'carrier') e.spawnTimer = 1.6;
+    sim.state.enemies.push(e);
+    return e;
+  }
+
+  it('splitter spawns two children on death', () => {
+    const sim = new Sim(1, nightConfig(5));
+    const splitter = inject(sim, 'splitter', { hp: 2, maxHp: 2, vel: { x: 0, y: 0 } });
+    // Kill it with an already-grown explosion; check children the same tick
+    // (a lingering blast would also catch the fresh children next tick).
+    sim.state.explosions.push({
+      id: 1,
+      pos: { ...splitter.pos },
+      age: 0.3,
+      maxRadius: 8,
+      damage: 10,
+      hitEnemyIds: [],
+    });
+    run(sim, 1);
+    expect(sim.state.enemies.find((e) => e.id === 555)).toBeUndefined();
+    const children = sim.state.enemies.filter((e) => e.kind === 'swarmer');
+    expect(children).toHaveLength(2);
+  });
+
+  it('regenerator heals when left alone and resets on hit', () => {
+    const sim = new Sim(1, nightConfig(7));
+    const regen = inject(sim, 'regenerator', { hp: 2, maxHp: 6, vel: { x: 0, y: 0 } });
+    run(sim, TICK_RATE * 2); // past the regen delay
+    expect(regen.hp).toBeGreaterThan(2);
+    const healed = regen.hp;
+    // A hit should interrupt and lower it below the healed value.
+    sim.state.explosions.push({
+      id: 1,
+      pos: { ...regen.pos },
+      age: 0,
+      maxRadius: 8,
+      damage: 1,
+      hitEnemyIds: [],
+    });
+    run(sim, 3);
+    expect(regen.hp).toBeLessThan(healed);
+  });
+
+  it('phase walker is invulnerable and untargetable while phased', () => {
+    const sim = new Sim(1, nightConfig(9));
+    const phase = inject(sim, 'phase', { hp: 5, maxHp: 5, vel: { x: 0, y: 0 } });
+    phase.phased = true;
+    phase.phaseTimer = 10; // stays phased for the test
+    const before = phase.hp;
+    sim.state.explosions.push({
+      id: 1,
+      pos: { ...phase.pos },
+      age: 0,
+      maxRadius: 8,
+      damage: 3,
+      hitEnemyIds: [],
+    });
+    run(sim, 4);
+    expect(phase.hp).toBe(before); // took no damage while phased
+  });
+
+  it('carrier sheds swarmers as it descends', () => {
+    const sim = new Sim(1, nightConfig(12));
+    inject(sim, 'carrier', { hp: 10, maxHp: 10, pos: { x: 0, y: 60 }, vel: { x: 0, y: -4 } });
+    run(sim, TICK_RATE * 4);
+    expect(sim.state.enemies.some((e) => e.kind === 'swarmer')).toBe(true);
+  });
+
+  it('enemy pool widens with the night number', () => {
+    expect(enemyPool(1).map((p) => p.kind)).toEqual(['ballistic']);
+    expect(enemyPool(12).map((p) => p.kind)).toContain('carrier');
+    expect(enemyPool(12).map((p) => p.kind)).toContain('phase');
   });
 });
 

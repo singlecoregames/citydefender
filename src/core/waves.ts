@@ -1,4 +1,5 @@
 import { NIGHT_SCALING } from './balance';
+import type { EnemyKind } from './types';
 
 /** One wave of a night: how many enemies and how fast they spawn, plus the
  *  per-night strength multipliers applied to each enemy in the wave. */
@@ -43,4 +44,26 @@ export function generateNight(night: number): WaveSpec[] {
     });
   }
   return waves;
+}
+
+export interface EnemyWeight {
+  kind: EnemyKind;
+  weight: number;
+}
+
+/**
+ * Weighted pool of enemy kinds available on a given night. New kinds unlock as
+ * nights progress; ballistic stays common early then thins out so later nights
+ * feel varied. The sim's director draws from this each spawn.
+ */
+export function enemyPool(night: number): EnemyWeight[] {
+  const pool: EnemyWeight[] = [{ kind: 'ballistic', weight: 10 }];
+  if (night >= 3) pool.push({ kind: 'swarmer', weight: 5 });
+  if (night >= 5) pool.push({ kind: 'splitter', weight: 5 });
+  if (night >= 7) pool.push({ kind: 'regenerator', weight: 4 });
+  if (night >= 9) pool.push({ kind: 'phase', weight: 4 });
+  if (night >= 12) pool.push({ kind: 'carrier', weight: 2 });
+  // Thin out plain ballistics once the roster fills in.
+  if (night >= 10) pool[0]!.weight = 5;
+  return pool;
 }

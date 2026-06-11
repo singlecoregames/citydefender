@@ -63,9 +63,17 @@ export interface Explosion {
   hitEnemyIds: number[];
 }
 
+export type EnemyKind =
+  | 'ballistic'
+  | 'swarmer'
+  | 'splitter'
+  | 'regenerator'
+  | 'phase'
+  | 'carrier';
+
 export interface EnemyMissile {
   id: number;
-  kind: 'ballistic';
+  kind: EnemyKind;
   pos: Vec2;
   /** Spawn point, kept so the renderer can draw the full trail line. */
   origin: Vec2;
@@ -73,6 +81,13 @@ export interface EnemyMissile {
   hp: number;
   maxHp: number;
   scrapReward: number;
+  /** Phase Walker: toggles untargetable/invulnerable on a timer. */
+  phased?: boolean;
+  phaseTimer?: number;
+  /** Regenerator: seconds since last damaged (heals once past the delay). */
+  regenTimer?: number;
+  /** Carrier: seconds until it sheds another swarmer. */
+  spawnTimer?: number;
 }
 
 /** One-shot occurrences emitted during a tick, consumed by render/audio. */

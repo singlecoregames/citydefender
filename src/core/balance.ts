@@ -90,12 +90,21 @@ export const CITY = {
 } as const;
 
 export const ENEMY = {
-  ballistic: {
-    speed: 9,
-    hp: 1,
-    scrapReward: 5,
-  },
+  ballistic: { speed: 9, hp: 1, scrapReward: 5 },
+  /** Small, fast, fragile — comes in groups. */
+  swarmer: { speed: 17, hp: 1, scrapReward: 2 },
+  /** Splits into 2 swarmers on death. */
+  splitter: { speed: 8, hp: 2, scrapReward: 6, childCount: 2 },
+  /** Heals back up if left alone for regenDelay seconds. */
+  regenerator: { speed: 7, hp: 5, scrapReward: 9, regenDelay: 1.4, regenPerSec: 3 },
+  /** Periodically goes untargetable/invulnerable. */
+  phase: { speed: 8.5, hp: 2, scrapReward: 7, phaseInterval: 1.5, phaseDuration: 0.7 },
+  /** Slow, tanky; drips out swarmers as it descends. */
+  carrier: { speed: 4, hp: 10, scrapReward: 22, spawnInterval: 1.6 },
 } as const;
+
+/** How many swarmers spawn together when a swarm spawn is chosen. */
+export const SWARMER_GROUP = 4;
 
 export const ECONOMY = {
   /** Multiplier applied to all scrap when a night ends in defeat. */

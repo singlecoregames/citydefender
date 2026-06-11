@@ -4,14 +4,25 @@
  * directory — the renderer, the tests and the balance simulator all drive
  * this same code.
  */
-import { CANNON, CITY, DT, ECONOMY, ENEMY, TURRET, TURRETS, WAVE_BREAK_SECONDS, WORLD } from './balance';
+import {
+  CANNON,
+  CITY,
+  DT,
+  ECONOMY,
+  ENEMY,
+  SWARMER_GROUP,
+  TURRET,
+  TURRETS,
+  WAVE_BREAK_SECONDS,
+  WORLD,
+} from './balance';
 import { interceptDirection, rotate } from './aiming';
 import { explosionIsDone, explosionIsLethal, explosionRadius } from './explosion';
 import { Rng } from './rng';
 import { baseStats, type DerivedStats } from './stats';
 import type { TurretSpec } from './tree';
-import type { Command, EnemyMissile, GameEvent, GameState, Turret, Vec2 } from './types';
-import { generateNight, type WaveSpec } from './waves';
+import type { Command, EnemyKind, EnemyMissile, GameEvent, GameState, Turret, Vec2 } from './types';
+import { enemyPool, generateNight, type WaveSpec } from './waves';
 
 /** Everything a single night's sim needs beyond its RNG seed. */
 export interface NightConfig {
@@ -51,6 +62,7 @@ export class Sim {
 
     this.regenAmmo();
     this.runDirector();
+    this.updateEnemyBehavior();
     this.updateTurrets();
     this.moveProjectiles();
     this.moveInterceptors();
@@ -118,7 +130,7 @@ export class Sim {
       d.done = true;
       return;
     }
-    this.spawnBallistic(wave);
+    this.spawnFromPool(wave);
     d.spawnedInWave++;
     if (d.spawnedInWave >= wave.count) {
       d.waveIndex++;
@@ -134,13 +146,35 @@ export class Sim {
     }
   }
 
-  private spawnBallistic(wave: WaveSpec): void {
+  /** Pick a kind from the night's pool and spawn it (swarmers come in groups). */
+  private spawnFromPool(wave: WaveSpec): void {
+    const kind = this.chooseEnemyKind();
+    if (kind === 'swarmer') {
+      for (let i = 0; i < SWARMER_GROUP; i++) this.spawnEnemy('swarmer', wave);
+    } else {
+      this.spawnEnemy(kind, wave);
+    }
+  }
+
+  private chooseEnemyKind(): EnemyKind {
+    const pool = enemyPool(this.cfg.night);
+    const total = pool.reduce((a, p) => a + p.weight, 0);
+    let r = this.rng.next() * total;
+    for (const p of pool) {
+      r -= p.weight;
+      if (r <= 0) return p.kind;
+    }
+    return 'ballistic';
+  }
+
+  /** Spawn one enemy of a kind, descending toward a (usually living) city. */
+  private spawnEnemy(kind: EnemyKind, wave: WaveSpec): EnemyMissile {
     const s = this.state;
+    const spec = ENEMY[kind];
     const origin: Vec2 = {
       x: this.rng.range(-WORLD.halfWidth * 0.95, WORLD.halfWidth * 0.95),
       y: WORLD.height,
     };
-    // Aim at a living city most of the time, otherwise a random ground point.
     const living = s.cities.filter((c) => c.hp > 0);
     let targetX: number;
     if (living.length > 0 && this.rng.next() < 0.7) {
@@ -149,17 +183,81 @@ export class Sim {
       targetX = this.rng.range(-WORLD.halfWidth * 0.9, WORLD.halfWidth * 0.9);
     }
     const dir = norm({ x: targetX - origin.x, y: -WORLD.height });
-    const hp = Math.max(1, Math.round(ENEMY.ballistic.hp * wave.hpScale));
-    const speed = ENEMY.ballistic.speed * wave.speedScale;
-    s.enemies.push({
+    const hp = Math.max(1, Math.round(spec.hp * wave.hpScale));
+    const speed = spec.speed * wave.speedScale;
+    const enemy: EnemyMissile = {
       id: s.nextId++,
-      kind: 'ballistic',
+      kind,
       pos: { ...origin },
       origin,
       vel: { x: dir.x * speed, y: dir.y * speed },
       hp,
       maxHp: hp,
-      scrapReward: Math.max(1, Math.round(ENEMY.ballistic.scrapReward * wave.rewardScale)),
+      scrapReward: Math.max(1, Math.round(spec.scrapReward * wave.rewardScale)),
+    };
+    if (kind === 'phase') {
+      enemy.phased = false;
+      enemy.phaseTimer = ENEMY.phase.phaseInterval;
+    } else if (kind === 'regenerator') {
+      enemy.regenTimer = 0;
+    } else if (kind === 'carrier') {
+      enemy.spawnTimer = ENEMY.carrier.spawnInterval;
+    }
+    s.enemies.push(enemy);
+    return enemy;
+  }
+
+  /** Per-tick special behaviour: phasing, regeneration, carrier spawning. */
+  private updateEnemyBehavior(): void {
+    const s = this.state;
+    for (const e of s.enemies) {
+      switch (e.kind) {
+        case 'phase': {
+          e.phaseTimer! -= DT;
+          if (e.phaseTimer! <= 0) {
+            e.phased = !e.phased;
+            e.phaseTimer = e.phased ? ENEMY.phase.phaseDuration : ENEMY.phase.phaseInterval;
+          }
+          break;
+        }
+        case 'regenerator': {
+          e.regenTimer! += DT;
+          if (e.regenTimer! >= ENEMY.regenerator.regenDelay && e.hp < e.maxHp) {
+            e.hp = Math.min(e.maxHp, e.hp + ENEMY.regenerator.regenPerSec * DT);
+          }
+          break;
+        }
+        case 'carrier': {
+          e.spawnTimer! -= DT;
+          if (e.spawnTimer! <= 0 && e.pos.y > 8) {
+            this.spawnChild('swarmer', e, 1.4);
+            e.spawnTimer! += ENEMY.carrier.spawnInterval;
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  /** Spawn a child enemy at a parent's position (carrier shedding, splitter
+   *  death). Inherits a fraction of the parent's hp scaling via its own base. */
+  private spawnChild(kind: 'swarmer', parent: EnemyMissile, speedMul: number): void {
+    const s = this.state;
+    const spec = ENEMY[kind];
+    const hpScale = parent.maxHp / Math.max(1, ENEMY[parent.kind].hp);
+    const hp = Math.max(1, Math.round(spec.hp * hpScale));
+    const angle = this.rng.range(-0.5, 0.5);
+    const dir = rotate({ x: 0, y: -1 }, angle);
+    const speed = spec.speed * speedMul;
+    s.enemies.push({
+      id: s.nextId++,
+      kind,
+      pos: { x: parent.pos.x, y: parent.pos.y },
+      origin: { x: parent.pos.x, y: parent.pos.y },
+      vel: { x: dir.x * speed, y: dir.y * speed },
+      hp,
+      maxHp: hp,
+      scrapReward: Math.max(1, spec.scrapReward),
     });
   }
 
@@ -321,6 +419,7 @@ export class Sim {
   private selectTarget(origin: Vec2, range: number): EnemyMissile | null {
     let best: EnemyMissile | null = null;
     for (const e of this.state.enemies) {
+      if (e.phased) continue; // can't be targeted while phased
       if (dist(origin, e.pos) > range) continue;
       if (!best || e.pos.y < best.pos.y || (e.pos.y === best.pos.y && e.id < best.id)) {
         best = e;
@@ -332,7 +431,7 @@ export class Sim {
   /** The `count` most-progressed enemies within range (for missile salvos). */
   private selectTargets(origin: Vec2, range: number, count: number): EnemyMissile[] {
     return this.state.enemies
-      .filter((e) => dist(origin, e.pos) <= range)
+      .filter((e) => !e.phased && dist(origin, e.pos) <= range)
       .sort((a, b) => a.pos.y - b.pos.y || a.id - b.id)
       .slice(0, count);
   }
@@ -391,6 +490,7 @@ export class Sim {
         let hit: EnemyMissile | null = null;
         let hitDist: number = TURRET.projectileHitRadius;
         for (const e of s.enemies) {
+          if (e.phased) continue;
           const d = dist(p.pos, e.pos);
           if (d <= hitDist) {
             hit = e;
@@ -409,10 +509,15 @@ export class Sim {
    *  Shared by explosions, projectiles and instant-hit turrets. */
   private damageEnemy(enemy: EnemyMissile, dmg: number): void {
     const s = this.state;
+    if (enemy.phased) return; // Phase Walker is invulnerable while phased
+    if (enemy.kind === 'regenerator') enemy.regenTimer = 0; // interrupt healing
     enemy.hp -= dmg;
     if (enemy.hp <= 0) {
       const index = s.enemies.indexOf(enemy);
       if (index >= 0) s.enemies.splice(index, 1);
+      if (enemy.kind === 'splitter') {
+        for (let i = 0; i < ENEMY.splitter.childCount; i++) this.spawnChild('swarmer', enemy, 1.6);
+      }
       const reward = this.scaledScrap(enemy.scrapReward);
       s.scrap += reward;
       s.events.push({ type: 'enemyKilled', pos: { ...enemy.pos }, reward });
