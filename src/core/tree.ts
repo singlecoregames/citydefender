@@ -1,7 +1,7 @@
 import { applyMod, baseStats, type DerivedStats, type StatMod } from './stats';
 import type { TurretKind } from './types';
 
-export type TreeBranch = 'core' | 'cannon' | 'economy' | 'city' | 'automation';
+export type TreeBranch = 'core' | 'cannon' | 'economy' | 'city' | 'automation' | 'tech';
 
 /**
  * A single skill-tree node. Effects are declarative stat modifiers applied
@@ -447,6 +447,47 @@ export const TREE: readonly TreeNode[] = [
     effects: [{ stat: 'railgunPierceBonus', op: 'add', value: 2 }],
   },
 
+  // ── Tech branch (upper-left): manual abilities, cooldown-based ─────────
+  {
+    id: 'ability_emp',
+    name: 'EMP',
+    description: 'Manual: freeze every enemy on screen briefly. Levels cut cooldown / extend freeze',
+    branch: 'tech',
+    col: -2,
+    row: -2,
+    maxLevel: 5,
+    baseCost: 120,
+    costGrowth: 1.7,
+    requires: ['core'],
+    effects: [],
+  },
+  {
+    id: 'ability_megabomb',
+    name: 'Mega Bomb',
+    description: 'Manual: one huge explosion across the field. Levels add radius / damage / cut cooldown',
+    branch: 'tech',
+    col: -3,
+    row: -2,
+    maxLevel: 5,
+    baseCost: 150,
+    costGrowth: 1.7,
+    requires: ['core'],
+    effects: [],
+  },
+  {
+    id: 'ability_slowmo',
+    name: 'Time Dilation',
+    description: 'Manual: slow all enemies for a few seconds. Levels extend duration / cut cooldown',
+    branch: 'tech',
+    col: -3,
+    row: -3,
+    maxLevel: 5,
+    baseCost: 140,
+    costGrowth: 1.7,
+    requires: ['ability_emp'],
+    effects: [],
+  },
+
   // ── Core-powered nodes (paid in ◆ Cores from bosses) ───────────────────
   {
     id: 'overcharge_matrix',
@@ -515,6 +556,21 @@ export function turretsFromTree(levels: TreeLevels): TurretSpec[] {
     if (lvl > 0) out.push({ kind, level: lvl });
   }
   return out;
+}
+
+/** Ability node levels (0 = not owned), keyed by ability kind. */
+export interface AbilityLevels {
+  emp: number;
+  megabomb: number;
+  slowmo: number;
+}
+
+export function abilitiesFromTree(levels: TreeLevels): AbilityLevels {
+  return {
+    emp: levels['ability_emp'] ?? 0,
+    megabomb: levels['ability_megabomb'] ?? 0,
+    slowmo: levels['ability_slowmo'] ?? 0,
+  };
 }
 
 export function getNode(id: string): TreeNode | undefined {

@@ -3,10 +3,11 @@ import { nightSeed, type RunState } from './core/run';
 import { loadRun, saveRun } from './core/save';
 import { Sim, type NightConfig } from './core/sim';
 import type { Command } from './core/types';
-import { resolveStats, turretsFromTree } from './core/tree';
+import { abilitiesFromTree, resolveStats, turretsFromTree } from './core/tree';
 import { generateNight } from './core/waves';
 import { WebStore } from './platform/store';
 import { Renderer } from './render/renderer';
+import { AbilityBar } from './ui/abilitybar';
 import { DayScreen } from './ui/dayscreen';
 import { Hud } from './ui/hud';
 
@@ -14,6 +15,9 @@ const container = document.getElementById('app')!;
 const renderer = new Renderer(container);
 const hud = new Hud();
 const store = new WebStore();
+const abilityBar = new AbilityBar((kind) => {
+  if (sim.state.phase === 'playing') pending.push({ type: 'ability', ability: kind });
+});
 
 let run: RunState = loadRun(store);
 let sim: Sim = startNight(run);
@@ -34,11 +38,13 @@ function nightConfigFor(r: RunState): NightConfig {
     waves: generateNight(r.night),
     stats: resolveStats(r.upgrades),
     turrets: turretsFromTree(r.upgrades),
+    abilities: abilitiesFromTree(r.upgrades),
     boss: r.night % BOSS_NIGHT_INTERVAL === 0,
   };
 }
 
 function startNight(r: RunState): Sim {
+  abilityBar.setOwned(abilitiesFromTree(r.upgrades));
   return new Sim(nightSeed(r), nightConfigFor(r));
 }
 
@@ -94,6 +100,7 @@ function frame(now: number): void {
 
   renderer.render(sim.state);
   hud.render(sim.state, run.scrap + (nightResolved ? 0 : sim.state.scrap), run.cores);
+  abilityBar.render(sim.state);
   requestAnimationFrame(frame);
 }
 

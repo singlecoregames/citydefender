@@ -5,6 +5,7 @@
  * this same code.
  */
 import {
+  ABILITIES,
   BOSS,
   BOSS_NIGHT_INTERVAL,
   CANNON,
@@ -22,8 +23,17 @@ import { interceptDirection, rotate } from './aiming';
 import { explosionIsDone, explosionIsLethal, explosionRadius } from './explosion';
 import { Rng } from './rng';
 import { baseStats, type DerivedStats } from './stats';
-import type { TurretSpec } from './tree';
-import type { Command, EnemyKind, EnemyMissile, GameEvent, GameState, Turret, Vec2 } from './types';
+import type { AbilityLevels, TurretSpec } from './tree';
+import type {
+  AbilityKind,
+  Command,
+  EnemyKind,
+  EnemyMissile,
+  GameEvent,
+  GameState,
+  Turret,
+  Vec2,
+} from './types';
 
 /** Enemy kinds the wave director can spawn (everything except the boss). */
 type SpawnableKind = Exclude<EnemyKind, 'boss'>;
@@ -36,6 +46,8 @@ export interface NightConfig {
   stats: DerivedStats;
   /** Deployed turrets (kind + node level), derived from the skill tree. */
   turrets: TurretSpec[];
+  /** Manual ability node levels (0 = not owned). */
+  abilities: AbilityLevels;
   /** Whether a boss appears this night. */
   boss: boolean;
 }
@@ -47,6 +59,7 @@ export function defaultNightConfig(night = 1): NightConfig {
     waves: generateNight(night),
     stats: baseStats(),
     turrets: [],
+    abilities: { emp: 0, megabomb: 0, slowmo: 0 },
     boss: night % BOSS_NIGHT_INTERVAL === 0,
   };
 }
@@ -78,8 +91,10 @@ export class Sim {
 
     for (const cmd of commands) {
       if (cmd.type === 'fire') this.fire(cmd.x, cmd.y);
+      else if (cmd.type === 'ability') this.useAbility(cmd.ability);
     }
 
+    this.tickAbilities();
     this.regenAmmo();
     this.runDirector();
     this.updateEnemyBehavior();
@@ -128,6 +143,66 @@ export class Sim {
       c.ammo++;
       c.reloadTimer += this.cfg.stats.reloadSeconds;
     }
+  }
+
+  // --- manual abilities (Tech branch) ---
+
+  private tickAbilities(): void {
+    const a = this.state.ability;
+    a.cooldown.emp = Math.max(0, a.cooldown.emp - DT);
+    a.cooldown.megabomb = Math.max(0, a.cooldown.megabomb - DT);
+    a.cooldown.slowmo = Math.max(0, a.cooldown.slowmo - DT);
+    a.empFreeze = Math.max(0, a.empFreeze - DT);
+    a.slowmo = Math.max(0, a.slowmo - DT);
+  }
+
+  private useAbility(kind: AbilityKind): void {
+    const s = this.state;
+    const level = this.cfg.abilities[kind];
+    if (level <= 0) return; // not owned
+    if (s.ability.cooldown[kind] > 0) return; // still cooling down
+
+    if (kind === 'emp') {
+      const spec = ABILITIES.emp;
+      s.ability.empFreeze = spec.freeze + spec.freezePerLevel * (level - 1);
+      s.ability.cooldown.emp = Math.max(
+        spec.minCooldown,
+        spec.baseCooldown - spec.cooldownPerLevel * (level - 1),
+      );
+      s.events.push({ type: 'abilityUsed', ability: 'emp' });
+    } else if (kind === 'megabomb') {
+      const spec = ABILITIES.megabomb;
+      const pos: Vec2 = { x: 0, y: spec.y };
+      s.explosions.push({
+        id: s.nextId++,
+        pos: { ...pos },
+        age: 0,
+        maxRadius: spec.radius + spec.radiusPerLevel * (level - 1),
+        damage: spec.damage + spec.damagePerLevel * (level - 1),
+        hitEnemyIds: [],
+      });
+      s.ability.cooldown.megabomb = Math.max(
+        spec.minCooldown,
+        spec.baseCooldown - spec.cooldownPerLevel * (level - 1),
+      );
+      s.events.push({ type: 'abilityUsed', ability: 'megabomb', pos });
+    } else {
+      const spec = ABILITIES.slowmo;
+      s.ability.slowmo = spec.duration + spec.durationPerLevel * (level - 1);
+      s.ability.cooldown.slowmo = Math.max(
+        spec.minCooldown,
+        spec.baseCooldown - spec.cooldownPerLevel * (level - 1),
+      );
+      s.events.push({ type: 'abilityUsed', ability: 'slowmo' });
+    }
+  }
+
+  /** Time multiplier applied to enemy motion/behaviour: 0 while EMP-frozen,
+   *  slowmo factor while Time Dilation is active, else 1. */
+  private enemyTimeScale(): number {
+    if (this.state.ability.empFreeze > 0) return 0;
+    if (this.state.ability.slowmo > 0) return ABILITIES.slowmo.factor;
+    return 1;
   }
 
   // --- wave director ---
@@ -248,15 +323,18 @@ export class Sim {
     s.events.push({ type: 'bossSpawned' });
   }
 
-  /** Per-tick special behaviour: phasing, regeneration, minion spawning. */
+  /** Per-tick special behaviour: phasing, regeneration, minion spawning.
+   *  EMP/Time Dilation slow these timers too (frozen enemies don't act). */
   private updateEnemyBehavior(): void {
     const s = this.state;
+    const dt = DT * this.enemyTimeScale();
+    if (dt === 0) return; // fully frozen: no behaviour this tick
     for (const e of s.enemies) {
       switch (e.kind) {
         case 'boss': {
           // Decelerate to a hover height so the fight has room.
           if (e.pos.y <= BOSS.hoverY && e.vel.y < 0) e.vel.y = -BOSS.speed * 0.25;
-          e.spawnTimer! -= DT;
+          e.spawnTimer! -= dt;
           if (e.spawnTimer! <= 0) {
             this.spawnChild('swarmer', e, 1.3);
             e.spawnTimer! += BOSS.spawnInterval;
@@ -264,7 +342,7 @@ export class Sim {
           break;
         }
         case 'phase': {
-          e.phaseTimer! -= DT;
+          e.phaseTimer! -= dt;
           if (e.phaseTimer! <= 0) {
             e.phased = !e.phased;
             e.phaseTimer = e.phased ? ENEMY.phase.phaseDuration : ENEMY.phase.phaseInterval;
@@ -272,14 +350,14 @@ export class Sim {
           break;
         }
         case 'regenerator': {
-          e.regenTimer! += DT;
+          e.regenTimer! += dt;
           if (e.regenTimer! >= ENEMY.regenerator.regenDelay && e.hp < e.maxHp) {
-            e.hp = Math.min(e.maxHp, e.hp + ENEMY.regenerator.regenPerSec * DT);
+            e.hp = Math.min(e.maxHp, e.hp + ENEMY.regenerator.regenPerSec * dt);
           }
           break;
         }
         case 'carrier': {
-          e.spawnTimer! -= DT;
+          e.spawnTimer! -= dt;
           if (e.spawnTimer! <= 0 && e.pos.y > 8) {
             this.spawnChild('swarmer', e, 1.4);
             e.spawnTimer! += ENEMY.carrier.spawnInterval;
@@ -610,10 +688,11 @@ export class Sim {
 
   private moveEnemies(): void {
     const s = this.state;
+    const dt = DT * this.enemyTimeScale(); // EMP freezes, Time Dilation slows
     for (let i = s.enemies.length - 1; i >= 0; i--) {
       const e = s.enemies[i]!;
-      e.pos.x += e.vel.x * DT;
-      e.pos.y += e.vel.y * DT;
+      e.pos.x += e.vel.x * dt;
+      e.pos.y += e.vel.y * dt;
       if (e.pos.y <= 0) {
         s.enemies.splice(i, 1);
         this.handleGroundImpact(e);
@@ -712,6 +791,11 @@ function createInitialState(cfg: NightConfig): GameState {
     })),
     projectiles: [],
     scrap: 0,
+    ability: {
+      cooldown: { emp: 0, megabomb: 0, slowmo: 0 },
+      empFreeze: 0,
+      slowmo: 0,
+    },
     director: {
       waveIndex: 0,
       totalWaves: cfg.waves.length,

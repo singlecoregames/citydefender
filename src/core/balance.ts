@@ -109,6 +109,40 @@ export const ENEMY = {
 /** How many swarmers spawn together when a swarm spawn is chosen. */
 export const SWARMER_GROUP = 4;
 
+/** Manual abilities (Tech branch). Each unlock node level reduces cooldown and
+ *  boosts effect; level 0 = not owned. */
+export const ABILITIES = {
+  emp: {
+    /** Cooldown seconds at level 1, reduced per extra level. */
+    baseCooldown: 18,
+    cooldownPerLevel: 1.6,
+    minCooldown: 8,
+    /** Freeze duration (s) at level 1, extended per level. */
+    freeze: 1.6,
+    freezePerLevel: 0.25,
+  },
+  megabomb: {
+    baseCooldown: 22,
+    cooldownPerLevel: 1.6,
+    minCooldown: 10,
+    radius: 28,
+    radiusPerLevel: 3,
+    damage: 6,
+    damagePerLevel: 3,
+    /** Detonation height (world y). */
+    y: 42,
+  },
+  slowmo: {
+    baseCooldown: 20,
+    cooldownPerLevel: 1.5,
+    minCooldown: 10,
+    /** Enemy speed multiplier while active. */
+    factor: 0.4,
+    duration: 4,
+    durationPerLevel: 0.6,
+  },
+} as const;
+
 /** Boss appears every BOSS_NIGHT_INTERVAL nights (N10, 20, 30…). */
 export const BOSS_NIGHT_INTERVAL = 10;
 

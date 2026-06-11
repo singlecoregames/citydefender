@@ -525,6 +525,72 @@ describe('boss nights', () => {
   });
 });
 
+describe('abilities', () => {
+  function abilityConfig(levels: { emp?: number; megabomb?: number; slowmo?: number }) {
+    const cfg = defaultNightConfig(1);
+    cfg.waves = [];
+    cfg.abilities = { emp: levels.emp ?? 0, megabomb: levels.megabomb ?? 0, slowmo: levels.slowmo ?? 0 };
+    return cfg;
+  }
+
+  function addEnemy(sim: Sim, id: number, pos: { x: number; y: number }, vel: { x: number; y: number }, hp = 1) {
+    sim.state.enemies.push({
+      id, kind: 'ballistic', pos: { ...pos }, origin: { x: pos.x, y: 100 },
+      vel: { ...vel }, hp, maxHp: hp, scrapReward: 5,
+    });
+  }
+
+  it('an unowned ability does nothing', () => {
+    const sim = new Sim(1, abilityConfig({}));
+    sim.step([{ type: 'ability', ability: 'emp' }]);
+    expect(sim.state.ability.empFreeze).toBe(0);
+    expect(sim.state.ability.cooldown.emp).toBe(0);
+  });
+
+  it('EMP freezes enemies and goes on cooldown', () => {
+    const sim = new Sim(1, abilityConfig({ emp: 1 }));
+    addEnemy(sim, 1, { x: 0, y: 60 }, { x: 0, y: -20 });
+    sim.step([{ type: 'ability', ability: 'emp' }]);
+    expect(sim.state.ability.empFreeze).toBeGreaterThan(0);
+    expect(sim.state.ability.cooldown.emp).toBeGreaterThan(0);
+    const yAfterUse = sim.state.enemies[0]!.pos.y;
+    run(sim, 10); // frozen: should not move
+    expect(sim.state.enemies[0]!.pos.y).toBeCloseTo(yAfterUse, 5);
+  });
+
+  it('cannot fire an ability while it is cooling down', () => {
+    const sim = new Sim(1, abilityConfig({ emp: 1 }));
+    sim.step([{ type: 'ability', ability: 'emp' }]);
+    const cd = sim.state.ability.cooldown.emp;
+    sim.step([{ type: 'ability', ability: 'emp' }]); // ignored
+    expect(sim.state.ability.cooldown.emp).toBeLessThanOrEqual(cd);
+    expect(sim.state.ability.cooldown.emp).toBeGreaterThan(cd - 0.1);
+  });
+
+  it('Mega Bomb spawns an explosion that clears enemies', () => {
+    const sim = new Sim(1, abilityConfig({ megabomb: 1 }));
+    addEnemy(sim, 1, { x: 0, y: 42 }, { x: 0, y: 0 });
+    addEnemy(sim, 2, { x: 8, y: 44 }, { x: 0, y: 0 });
+    sim.step([{ type: 'ability', ability: 'megabomb' }]);
+    expect(sim.state.explosions.length).toBeGreaterThan(0);
+    run(sim, 30);
+    expect(sim.state.enemies.length).toBe(0);
+  });
+
+  it('Time Dilation slows enemies for a while', () => {
+    const slow = new Sim(1, abilityConfig({ slowmo: 1 }));
+    const normal = new Sim(1, abilityConfig({ slowmo: 1 }));
+    addEnemy(slow, 1, { x: 0, y: 60 }, { x: 0, y: -20 });
+    addEnemy(normal, 1, { x: 0, y: 60 }, { x: 0, y: -20 });
+    slow.step([{ type: 'ability', ability: 'slowmo' }]);
+    normal.step([]); // no ability
+    run(slow, 30);
+    run(normal, 30);
+    // The slowed enemy travelled less far (higher y remaining).
+    expect(slow.state.enemies[0]!.pos.y).toBeGreaterThan(normal.state.enemies[0]!.pos.y);
+  });
+});
+
 describe('intercept solver', () => {
   it('aims ahead of a crossing target', () => {
     // Target moving right; correct lead must aim to the right of its position.

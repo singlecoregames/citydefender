@@ -104,6 +104,7 @@ export class Renderer {
   private readonly projectileViews = new Map<number, THREE.Mesh>();
   private readonly cityMeshes: THREE.Mesh[] = [];
   private readonly beams: BeamFx[] = [];
+  private readonly empRings: { mesh: THREE.Mesh; ttl: number; maxTtl: number }[] = [];
 
   private readonly particles = new Particles();
   private shake = 0;
@@ -162,6 +163,38 @@ export class Renderer {
       if (ev.type === 'cityHit') this.shake = Math.max(this.shake, 1.6);
       if (ev.type === 'groundImpact') this.shake = Math.max(this.shake, 0.5);
       if (ev.type === 'beam') this.spawnBeam(ev.kind, ev.points);
+      if (ev.type === 'abilityUsed') {
+        if (ev.ability === 'emp') this.spawnEmpRing();
+        if (ev.ability === 'megabomb') this.shake = Math.max(this.shake, 2.4);
+      }
+    }
+  }
+
+  /** Big cyan ring sweeping across the field when EMP fires. */
+  private spawnEmpRing(): void {
+    const mesh = new THREE.Mesh(
+      this.ringGeo,
+      new THREE.MeshBasicMaterial({ color: 0x80e0ff, transparent: true, opacity: 0.9 }),
+    );
+    mesh.position.set(0, WORLD.height / 2, 4);
+    this.scene.add(mesh);
+    this.empRings.push({ mesh, ttl: 0.5, maxTtl: 0.5 });
+    this.shake = Math.max(this.shake, 1.2);
+  }
+
+  private updateEmpRings(dt: number): void {
+    for (let i = this.empRings.length - 1; i >= 0; i--) {
+      const r = this.empRings[i]!;
+      r.ttl -= dt;
+      if (r.ttl <= 0) {
+        this.scene.remove(r.mesh);
+        (r.mesh.material as THREE.Material).dispose();
+        this.empRings.splice(i, 1);
+      } else {
+        const t = 1 - r.ttl / r.maxTtl;
+        r.mesh.scale.setScalar(8 + t * 150);
+        (r.mesh.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - t);
+      }
     }
   }
 
@@ -214,6 +247,7 @@ export class Renderer {
     this.syncExplosions(state);
     this.particles.update(dt);
     this.updateBeams(dt);
+    this.updateEmpRings(dt);
     this.applyShake();
     this.composer.render();
   }

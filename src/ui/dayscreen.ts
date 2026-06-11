@@ -18,6 +18,7 @@ const BRANCH_COLOR: Record<TreeBranch, string> = {
   economy: '#ffdc50',
   city: '#49d17a',
   automation: '#b46cff',
+  tech: '#ff60c0',
 };
 
 /**

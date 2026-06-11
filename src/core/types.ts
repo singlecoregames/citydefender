@@ -104,9 +104,14 @@ export type GameEvent =
   | { type: 'waveStarted'; waveIndex: number }
   | { type: 'bossSpawned' }
   | { type: 'bossKilled'; cores: number }
+  | { type: 'abilityUsed'; ability: AbilityKind; pos?: Vec2 }
   | { type: 'nightEnded'; outcome: 'victory' | 'defeat'; scrapEarned: number };
 
-export type Command = { type: 'fire'; x: number; y: number };
+export type Command =
+  | { type: 'fire'; x: number; y: number }
+  | { type: 'ability'; ability: AbilityKind };
+
+export type AbilityKind = 'emp' | 'megabomb' | 'slowmo';
 
 export type NightPhase = 'playing' | 'ended';
 
@@ -129,6 +134,15 @@ export interface GameState {
   turrets: Turret[];
   projectiles: TurretProjectile[];
   scrap: number;
+  /** Manual ability state (Tech branch). Cooldowns count down to 0 (ready);
+   *  the two timers are how long the active effects last. */
+  ability: {
+    cooldown: { emp: number; megabomb: number; slowmo: number };
+    /** Enemies frozen (EMP) for this many more seconds. */
+    empFreeze: number;
+    /** Enemies move slowed (Time Dilation) for this many more seconds. */
+    slowmo: number;
+  };
   /** Wave director state. */
   director: {
     waveIndex: number;
