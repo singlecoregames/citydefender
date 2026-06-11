@@ -143,6 +143,67 @@ body {
   height: 100%;
 }
 
+.node-tooltip {
+  position: absolute;
+  z-index: 5;
+  width: 200px;
+  padding: 9px 11px;
+  background: rgba(14, 16, 26, 0.97);
+  border: 1px solid #4a5172;
+  border-radius: 7px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  text-align: left;
+}
+
+.node-tooltip.hidden {
+  display: none;
+}
+
+.node-tooltip .tt-name {
+  font-size: 14px;
+  color: #eef2ff;
+  margin-bottom: 3px;
+}
+
+.node-tooltip .tt-desc {
+  font-size: 12px;
+  color: #aab2cc;
+  margin-bottom: 6px;
+}
+
+.node-tooltip .tt-status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.node-tooltip .tt-buy {
+  color: #ffdc50;
+}
+
+.node-tooltip .tt-hint {
+  color: #49d17a;
+  font-size: 11px;
+}
+
+.node-tooltip .tt-poor {
+  color: #c98a5a;
+}
+
+.node-tooltip .tt-locked {
+  color: #8890a8;
+}
+
+.node-tooltip .tt-max {
+  color: #49d17a;
+}
+
+.node-tooltip .tt-core {
+  color: #cfd6e8;
+}
+
 .zoom-controls {
   position: absolute;
   right: 10px;

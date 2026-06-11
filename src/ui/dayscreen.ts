@@ -33,6 +33,9 @@ export class DayScreen {
   private run: RunState | null = null;
 
   private viewport!: SVGGElement;
+  private tooltipEl!: HTMLDivElement;
+  /** Node currently showing its tooltip; a second tap on it buys. */
+  private selectedId: string | null = null;
   private readonly nodeEls = new Map<string, { box: SVGRectElement; cost: SVGTextElement }>();
   private readonly lineEls: { line: SVGLineElement; to: TreeNode }[] = [];
   private built = false;
@@ -73,6 +76,8 @@ export class DayScreen {
     // Unhide first so the container has a measurable size for centring.
     this.root.classList.remove('hidden');
     if (!this.built) this.buildTree();
+    this.selectedId = null;
+    this.hideTooltip();
     this.refresh();
   }
 
@@ -147,7 +152,11 @@ export class DayScreen {
 
       g.addEventListener('click', () => {
         if (this.dragMoved) return; // this was a pan/pinch, not a tap
-        this.tryBuy(node);
+        if (this.selectedId !== node.id) {
+          this.select(node); // first tap: show the tooltip
+        } else {
+          this.tryBuy(node); // second tap on the same node: buy
+        }
       });
 
       viewport.appendChild(g);
@@ -155,6 +164,11 @@ export class DayScreen {
     }
 
     this.shopEl.replaceChildren(svg);
+
+    this.tooltipEl = document.createElement('div');
+    this.tooltipEl.className = 'node-tooltip hidden';
+    this.shopEl.appendChild(this.tooltipEl);
+
     this.addZoomButtons();
     this.enablePanZoom();
 
@@ -170,6 +184,7 @@ export class DayScreen {
 
   private applyTransform(): void {
     this.viewport.setAttribute('transform', `translate(${this.tx},${this.ty}) scale(${this.scale})`);
+    this.positionTooltip();
   }
 
   private zoomAround(px: number, py: number, factor: number): void {
@@ -291,6 +306,67 @@ export class DayScreen {
     this.shopEl.appendChild(wrap);
   }
 
+  // --- tooltip (tap to show, tap again to buy) ---
+
+  private select(node: TreeNode): void {
+    this.selectedId = node.id;
+    this.updateTooltipContent();
+    this.tooltipEl.classList.remove('hidden');
+    this.positionTooltip();
+  }
+
+  private hideTooltip(): void {
+    if (this.tooltipEl) this.tooltipEl.classList.add('hidden');
+  }
+
+  private updateTooltipContent(): void {
+    const run = this.run!;
+    const node = TREE.find((n) => n.id === this.selectedId);
+    if (!node) return;
+    const level = run.upgrades[node.id] ?? 0;
+    const cost = nextCost(node, level);
+
+    let status: string;
+    if (node.branch === 'core') {
+      status = '<span class="tt-core">Command core</span>';
+    } else if (cost === null) {
+      status = `<span class="tt-max">✓ Maxed (${level}/${node.maxLevel})</span>`;
+    } else if (!isUnlocked(node, run.upgrades)) {
+      status = '<span class="tt-locked">🔒 Locked — unlock its prerequisite first</span>';
+    } else if (run.scrap >= cost) {
+      status =
+        `<span class="tt-buy">⬡ ${cost} · Lvl ${level}/${node.maxLevel}</span>` +
+        '<span class="tt-hint">Tap again to buy</span>';
+    } else {
+      status = `<span class="tt-poor">⬡ ${cost} · need more scrap (Lvl ${level}/${node.maxLevel})</span>`;
+    }
+
+    this.tooltipEl.innerHTML =
+      `<div class="tt-name">${node.name}</div>` +
+      `<div class="tt-desc">${node.description}</div>` +
+      `<div class="tt-status">${status}</div>`;
+  }
+
+  /** Keep the tooltip pinned above the selected node as the view pans/zooms. */
+  private positionTooltip(): void {
+    if (!this.selectedId || this.tooltipEl.classList.contains('hidden')) return;
+    const node = TREE.find((n) => n.id === this.selectedId);
+    if (!node) return;
+    const p = this.nodePx(node);
+    const cx = this.tx + p.x * this.scale;
+    const nodeTop = this.ty + (p.y - NODE_H / 2) * this.scale;
+
+    const w = this.tooltipEl.offsetWidth;
+    const h = this.tooltipEl.offsetHeight;
+    const cw = this.shopEl.clientWidth;
+    let left = cx - w / 2;
+    left = Math.max(6, Math.min(cw - w - 6, left));
+    let top = nodeTop - h - 10;
+    if (top < 6) top = this.ty + (p.y + NODE_H / 2) * this.scale + 10; // flip below
+    this.tooltipEl.style.left = `${left}px`;
+    this.tooltipEl.style.top = `${top}px`;
+  }
+
   // --- state refresh ---
 
   private refresh(): void {
@@ -351,6 +427,8 @@ export class DayScreen {
     run.upgrades[node.id] = level + 1;
     this.onPurchase(run);
     this.refresh();
+    this.updateTooltipContent(); // reflect new level / next cost / maxed
+    this.positionTooltip();
   }
 }
 
