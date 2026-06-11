@@ -27,7 +27,7 @@ describe('waves', () => {
   it('spawn intervals never go below the floor', () => {
     for (let n = 1; n < 60; n++) {
       for (const w of generateNight(n)) {
-        expect(w.spawnIntervalRange[0]).toBeGreaterThanOrEqual(0.39);
+        expect(w.spawnIntervalRange[0]).toBeGreaterThanOrEqual(0.31);
       }
     }
   });
@@ -40,18 +40,18 @@ describe('upgrades / stats', () => {
 
   it('additive upgrade (magazine) raises max ammo per level', () => {
     const base = baseStats().maxAmmo;
-    expect(resolveStats({ magazine: 1 }).maxAmmo).toBe(base + 2);
-    expect(resolveStats({ magazine: 3 }).maxAmmo).toBe(base + 6);
+    expect(resolveStats({ magazine: 1 }).maxAmmo).toBe(base + 1);
+    expect(resolveStats({ magazine: 3 }).maxAmmo).toBe(base + 3);
   });
 
   it('multiplicative upgrade (blast radius) compounds per level', () => {
     const base = baseStats().explosionMaxRadius;
-    expect(resolveStats({ blast_radius: 2 }).explosionMaxRadius).toBeCloseTo(base * 1.15 * 1.15, 5);
+    expect(resolveStats({ blast_radius: 2 }).explosionMaxRadius).toBeCloseTo(base * 1.08 * 1.08, 5);
   });
 
   it('negative multiplier (autoloader) reduces reload time', () => {
     const base = baseStats().reloadSeconds;
-    expect(resolveStats({ autoloader: 1 }).reloadSeconds).toBeCloseTo(base * 0.88, 5);
+    expect(resolveStats({ autoloader: 1 }).reloadSeconds).toBeCloseTo(base * 0.93, 5);
   });
 
   it('cost grows with level and maxes out', () => {

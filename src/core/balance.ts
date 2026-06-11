@@ -58,22 +58,24 @@ export const ECONOMY = {
   nightCompleteBonusGrowth: 1.15,
 } as const;
 
-/** How a night's wave layout and enemy strength scale with the night number. */
+/** How a night's wave layout and enemy strength scale with the night number.
+ *  Tuned so nights 1–3 stay gentle (exponentials start near 1) but the curve
+ *  climbs hard after that — count and speed are the main pressure. */
 export const NIGHT_SCALING = {
   /** Waves in night n = baseWaves + floor(n / nightsPerExtraWave). */
   baseWaves: 3,
   nightsPerExtraWave: 2,
   /** Enemies in wave w of night n = round((baseCount + w) * countGrowth^n). */
   baseCount: 5,
-  countGrowth: 1.05,
+  countGrowth: 1.09,
   /** Per-night multipliers applied to enemy hp / speed / reward. */
-  hpGrowth: 1.1,
-  speedGrowth: 1.02,
+  hpGrowth: 1.08,
+  speedGrowth: 1.035,
   rewardGrowth: 1.12,
-  /** Spawn interval shrinks slightly as nights progress (faster spawns). */
+  /** Spawn interval shrinks as nights progress (denser spawns). */
   spawnIntervalBase: [0.85, 1.3] as readonly [number, number],
-  spawnIntervalFloor: 0.4,
-  spawnIntervalDecayPerNight: 0.98,
+  spawnIntervalFloor: 0.32,
+  spawnIntervalDecayPerNight: 0.965,
 } as const;
 
 /** Seconds of breathing room between waves. */
