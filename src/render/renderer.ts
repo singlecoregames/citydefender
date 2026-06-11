@@ -92,6 +92,7 @@ interface ExplosionView {
 }
 
 export class Renderer {
+  private readonly container: HTMLElement;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.OrthographicCamera;
@@ -126,6 +127,7 @@ export class Renderer {
   });
 
   constructor(container: HTMLElement) {
+    this.container = container;
     // antialias off + low internal resolution + CSS nearest upscaling = crisp pixels.
     this.renderer = new THREE.WebGLRenderer({ antialias: false });
     this.renderer.setPixelRatio(1);
@@ -145,6 +147,12 @@ export class Renderer {
     this.scene.add(this.particles.points);
     this.resize();
     window.addEventListener('resize', () => this.resize());
+    // Rotating a phone fires 'orientationchange' before layout settles, so
+    // re-measure on the next frame as well to catch the final dimensions.
+    window.addEventListener('orientationchange', () => {
+      this.resize();
+      requestAnimationFrame(() => this.resize());
+    });
   }
 
   /** Convert a pointer event position to world coordinates. */
@@ -507,8 +515,11 @@ export class Renderer {
   }
 
   private resize(): void {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    // Measure the canvas's actual displayed box (the container fills the screen
+    // edge-to-edge via CSS), so the camera aspect matches exactly what's on
+    // screen — no stretch — even with safe-area insets in standalone PWA mode.
+    const w = this.container.clientWidth || window.innerWidth;
+    const h = this.container.clientHeight || window.innerHeight;
     const aspect = w / h;
 
     // Render into a low-res buffer; CSS (image-rendering: pixelated) upscales it

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Full-bleed background so the icon is safe to mask (round/squircle). -->
+  <rect width="512" height="512" fill="#0a0a12"/>
+  <!-- Ground line -->
+  <rect x="96" y="372" width="320" height="10" rx="5" fill="#3a3a48"/>
+  <!-- Three cities (green blocks) -->
+  <rect x="150" y="332" width="40" height="40" rx="8" fill="#49d17a"/>
+  <rect x="236" y="332" width="40" height="40" rx="8" fill="#49d17a"/>
+  <rect x="322" y="332" width="40" height="40" rx="8" fill="#49d17a"/>
+  <!-- Central cannon -->
+  <rect x="232" y="300" width="48" height="32" rx="8" fill="#4aa0ff"/>
+  <rect x="246" y="268" width="20" height="40" rx="8" fill="#4aa0ff"/>
+  <!-- Interceptor arc -->
+  <path d="M256 280 Q336 150 392 132" fill="none" stroke="#2f6fb0" stroke-width="8" stroke-linecap="round" stroke-dasharray="2 18"/>
+  <!-- Incoming enemy missile (red) with trail -->
+  <path d="M150 130 L220 220" stroke="#7a2030" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="220" cy="220" r="14" fill="#ff5042"/>
+  <!-- Detonation burst -->
+  <circle cx="392" cy="132" r="30" fill="#ffd24a"/>
+  <circle cx="392" cy="132" r="40" fill="none" stroke="#ff8c2a" stroke-width="6"/>
+</svg>

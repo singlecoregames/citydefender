@@ -17,6 +17,9 @@
   업스케일, 둥근 사각형 도형, 흰 파티클 트레일, 체크무늬 배경, 은은한 블룸. 외부 에셋 0
 - 배포: GitHub Pages(자동, repo public 전환됨) →
   `https://singlecoregames.github.io/citydefender/` (모바일 테스트용)
+- PWA: manifest.webmanifest + icon.svg, standalone/landscape, `viewport-fit=cover`
+  + apple 메타(black-translucent)로 모바일 가로 풀스크린(노치 아래까지 풀블리드).
+  렌더러는 window 대신 컨테이너 실측으로 카메라 종횡비를 맞춤
 
 ## 완료된 마일스톤
 - **M0/M1** 스캐폴딩 + Missile Command 코어(수동 캐논, 재생 탄창, 팽창 폭발, 도시)
