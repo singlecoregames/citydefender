@@ -324,6 +324,19 @@ export const TREE: readonly TreeNode[] = [
     effects: [],
   },
   {
+    id: 'bld_decoy',
+    name: 'Decoy Beacon',
+    description: 'Deploy: lures 30% of enemies to aim at it instead of cities (lvl = +8%)',
+    branch: 'city',
+    col: 4,
+    row: 1,
+    maxLevel: 4,
+    baseCost: 280,
+    costGrowth: 1.8,
+    requires: ['compact'],
+    effects: [],
+  },
+  {
     id: 'bld_repair',
     name: 'Repair Bay',
     description: 'Deploy: repairs 1 city HP every 40s (lvl shortens the timer)',
@@ -579,6 +592,71 @@ export const TREE: readonly TreeNode[] = [
     effects: [],
   },
   {
+    id: 'ability_surge',
+    name: 'Scrap Surge',
+    description: 'Manual: double all scrap earned for 10s. Levels extend duration / cut cooldown',
+    branch: 'tech',
+    col: -2,
+    row: -1,
+    maxLevel: 5,
+    baseCost: 160,
+    costGrowth: 1.7,
+    requires: ['ability_emp'],
+    effects: [],
+  },
+  {
+    id: 'bld_radar',
+    name: 'Radar Array',
+    description: 'Deploy: tightens every turret’s aim (-15% spread per lvl)',
+    branch: 'tech',
+    col: -2,
+    row: -3,
+    maxLevel: 4,
+    baseCost: 350,
+    costGrowth: 1.9,
+    requires: ['ability_emp'],
+    effects: [],
+  },
+  {
+    id: 'doppler_tracking',
+    name: 'Doppler Tracking',
+    description: 'Radar lets turrets hit phased enemies',
+    branch: 'tech',
+    col: -2,
+    row: -4,
+    maxLevel: 1,
+    baseCost: 600,
+    costGrowth: 1,
+    requires: ['bld_radar'],
+    effects: [{ stat: 'dopplerTracking', op: 'add', value: 1 }],
+  },
+  {
+    id: 'bld_jammer',
+    name: 'Jammer Tower',
+    description: 'Deploy: enemies inside its field are slowed (lvl = stronger)',
+    branch: 'tech',
+    col: -4,
+    row: -4,
+    maxLevel: 4,
+    baseCost: 380,
+    costGrowth: 1.9,
+    requires: ['ability_slowmo'],
+    effects: [],
+  },
+  {
+    id: 'wide_spectrum',
+    name: 'Wide Spectrum',
+    description: '+20% Jammer field radius',
+    branch: 'tech',
+    col: -5,
+    row: -4,
+    maxLevel: 3,
+    baseCost: 250,
+    costGrowth: 1.7,
+    requires: ['bld_jammer'],
+    effects: [{ stat: 'jammerRadiusMul', op: 'mul', value: 0.2 }],
+  },
+  {
     id: 'flux_capacitor',
     name: 'Flux Capacitor',
     description: '-8% all ability cooldowns',
@@ -695,6 +773,9 @@ export const BUILDING_NODES: Record<string, BuildingKind> = {
   bld_harvester: 'harvester',
   bld_shield: 'shield',
   bld_repair: 'repair',
+  bld_radar: 'radar',
+  bld_jammer: 'jammer',
+  bld_decoy: 'decoy',
 };
 
 export interface BuildingSpec {
@@ -717,6 +798,7 @@ export interface AbilityLevels {
   emp: number;
   megabomb: number;
   slowmo: number;
+  surge: number;
 }
 
 export function abilitiesFromTree(levels: TreeLevels): AbilityLevels {
@@ -724,6 +806,7 @@ export function abilitiesFromTree(levels: TreeLevels): AbilityLevels {
     emp: levels['ability_emp'] ?? 0,
     megabomb: levels['ability_megabomb'] ?? 0,
     slowmo: levels['ability_slowmo'] ?? 0,
+    surge: levels['ability_surge'] ?? 0,
   };
 }
 

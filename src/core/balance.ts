@@ -99,6 +99,12 @@ export const BUILDINGS: Record<BuildingKind, BuildingKindSpec> = {
   shield: { x: -70 },
   /** Repair Bay: heals 1 city HP every `interval` seconds (shrinks with level). */
   repair: { x: 70 },
+  /** Radar Array: tightens every turret's aim spread. */
+  radar: { x: -55 },
+  /** Jammer Tower: slows enemies inside its field. */
+  jammer: { x: 55 },
+  /** Decoy Beacon: lures a share of enemies to target it instead of cities. */
+  decoy: { x: 90 },
 } as const;
 
 /** Per-kind building tuning, separate from positions for the balance sim. */
@@ -106,6 +112,12 @@ export const BUILDING_TUNING = {
   harvester: { scrapPerSecPerLevel: 0.8 },
   shield: { chargesBase: 2, chargesPerLevel: 1 },
   repair: { intervalBase: 40, intervalPerLevel: 7, intervalMin: 18, healAmount: 1 },
+  /** Aim spread is multiplied by spreadMulPerLevel^level (lvl 4 ≈ −48%). */
+  radar: { spreadMulPerLevel: 0.85 },
+  /** Slow = slowBase + slowPerLevel×(lvl−1), applied inside radius. */
+  jammer: { radius: 45, slowBase: 0.12, slowPerLevel: 0.06 },
+  /** Each spawn rolls pullBase + pullPerLevel×(lvl−1) to aim at the decoy. */
+  decoy: { pullBase: 0.3, pullPerLevel: 0.08, jitter: 6 },
 } as const;
 
 export const CITY = {
@@ -165,6 +177,15 @@ export const ABILITIES = {
     factor: 0.4,
     duration: 4,
     durationPerLevel: 0.6,
+  },
+  surge: {
+    baseCooldown: 30,
+    cooldownPerLevel: 2,
+    minCooldown: 16,
+    /** Scrap multiplier while active. */
+    factor: 2,
+    duration: 10,
+    durationPerLevel: 1,
   },
 } as const;
 

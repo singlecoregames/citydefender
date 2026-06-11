@@ -526,10 +526,15 @@ describe('boss nights', () => {
 });
 
 describe('abilities', () => {
-  function abilityConfig(levels: { emp?: number; megabomb?: number; slowmo?: number }) {
+  function abilityConfig(levels: { emp?: number; megabomb?: number; slowmo?: number; surge?: number }) {
     const cfg = defaultNightConfig(1);
     cfg.waves = [];
-    cfg.abilities = { emp: levels.emp ?? 0, megabomb: levels.megabomb ?? 0, slowmo: levels.slowmo ?? 0 };
+    cfg.abilities = {
+      emp: levels.emp ?? 0,
+      megabomb: levels.megabomb ?? 0,
+      slowmo: levels.slowmo ?? 0,
+      surge: levels.surge ?? 0,
+    };
     return cfg;
   }
 
@@ -603,7 +608,7 @@ describe('phase-1 utility nodes (sim hooks)', () => {
     const mk = (mul: number) => {
       const cfg = defaultNightConfig(1);
       cfg.waves = [];
-      cfg.abilities = { emp: 1, megabomb: 0, slowmo: 0 };
+      cfg.abilities = { emp: 1, megabomb: 0, slowmo: 0, surge: 0 };
       cfg.stats = { ...cfg.stats, abilityCooldownMul: mul };
       return new Sim(1, cfg);
     };
@@ -756,6 +761,102 @@ describe('support buildings', () => {
     run(sim, TICK_RATE * 45);
     expect(sim.state.cities[0]!.hp).toBe(2); // capped at max, not overhealed
     expect(sim.state.cities[1]!.hp).toBe(0); // stays dead (no revive)
+  });
+});
+
+describe('phase-3 buildings and Scrap Surge', () => {
+  type BKind = 'harvester' | 'shield' | 'repair' | 'radar' | 'jammer' | 'decoy';
+  function cfgWith(buildings: { kind: BKind; level: number }[] = []) {
+    const cfg = defaultNightConfig(1);
+    cfg.waves = [];
+    cfg.buildings = buildings;
+    return cfg;
+  }
+
+  it('Jammer Tower slows enemies inside its field', () => {
+    const JAMMER_X = 55;
+    const mk = (jam: boolean) => {
+      const sim = new Sim(1, cfgWith(jam ? [{ kind: 'jammer', level: 1 }] : []));
+      sim.state.enemies.push({
+        id: 9001, kind: 'ballistic', pos: { x: JAMMER_X, y: 35 }, origin: { x: JAMMER_X, y: 100 },
+        vel: { x: 0, y: -10 }, hp: 1, maxHp: 1, scrapReward: 5,
+      });
+      return sim;
+    };
+    const jammed = mk(true);
+    const free = mk(false);
+    run(jammed, TICK_RATE * 2);
+    run(free, TICK_RATE * 2);
+    // Slowed enemy fell less far (12% slow → ~2.4 units less over 2s).
+    expect(jammed.state.enemies[0]!.pos.y).toBeGreaterThan(free.state.enemies[0]!.pos.y + 1.5);
+  });
+
+  it('Doppler Tracking lets turret fire hurt phased enemies', () => {
+    const mk = (doppler: boolean) => {
+      const cfg = cfgWith([{ kind: 'radar', level: 1 }]);
+      cfg.turrets = [{ kind: 'laser', level: 1 }];
+      if (doppler) cfg.stats = { ...cfg.stats, dopplerTracking: 1 };
+      const sim = new Sim(1, cfg);
+      // A phased enemy parked inside laser range (laser at x=-80, range 45).
+      sim.state.enemies.push({
+        id: 9001, kind: 'phase', pos: { x: -80, y: 30 }, origin: { x: -80, y: 100 },
+        vel: { x: 0, y: 0 }, hp: 1, maxHp: 2, scrapReward: 7,
+        phased: true, phaseTimer: 9999,
+      });
+      return sim;
+    };
+    const withDoppler = mk(true);
+    const without = mk(false);
+    run(withDoppler, TICK_RATE * 3);
+    run(without, TICK_RATE * 3);
+    expect(withDoppler.state.enemies).toHaveLength(0); // killed through phase
+    expect(without.state.enemies).toHaveLength(1); // untouchable without it
+  });
+
+  it('Decoy Beacon redirects a share of spawns toward the beacon', () => {
+    const DECOY_X = 90;
+    const wave = { count: 40, spawnIntervalRange: [0.05, 0.06] as [number, number], hpScale: 1, speedScale: 1, rewardScale: 1 };
+    const landingXs = (decoy: boolean): number[] => {
+      const cfg = cfgWith(decoy ? [{ kind: 'decoy', level: 4 }] : []); // 54% pull
+      cfg.waves = [{ ...wave }];
+      const sim = new Sim(7, cfg);
+      const xs: number[] = [];
+      for (let i = 0; i < TICK_RATE * 10 && xs.length < 30; i++) {
+        sim.step([]);
+        for (const e of sim.state.enemies) {
+          if (xs.length >= 30) break;
+          // Project the dive to the ground: x at y=0.
+          const t = e.pos.y / -e.vel.y;
+          if (e.vel.y < 0) xs.push(e.pos.x + e.vel.x * t);
+        }
+        sim.state.enemies.length = 0; // measure each spawn once
+      }
+      return xs;
+    };
+    const near = (xs: number[]) => xs.filter((x) => Math.abs(x - DECOY_X) <= 8).length;
+    const withDecoy = near(landingXs(true));
+    const without = near(landingXs(false));
+    // 54% of 30 spawns ≈ 16 expected near the decoy; ~0–2 by chance without.
+    expect(withDecoy).toBeGreaterThanOrEqual(8);
+    expect(withDecoy).toBeGreaterThan(without + 5);
+  });
+
+  it('Scrap Surge doubles kill scrap while active', () => {
+    const cfg = cfgWith();
+    cfg.abilities = { emp: 0, megabomb: 0, slowmo: 0, surge: 1 };
+    const sim = new Sim(1, cfg);
+    sim.state.enemies.push({
+      id: 9001, kind: 'ballistic', pos: { x: 0, y: 50 }, origin: { x: 0, y: 100 },
+      vel: { x: 0, y: 0 }, hp: 1, maxHp: 1, scrapReward: 5,
+    });
+    sim.state.explosions.push({
+      id: 9000, pos: { x: 0, y: 50 }, age: 0,
+      maxRadius: EXPLOSION.maxRadius, damage: 1, hitEnemyIds: [],
+    });
+    sim.step([{ type: 'ability', ability: 'surge' }]);
+    run(sim, Math.ceil(EXPLOSION_TOTAL_SECONDS * TICK_RATE));
+    expect(sim.state.scrap).toBe(10); // 5 × surge factor 2
+    expect(sim.state.ability.cooldown.surge).toBeGreaterThan(0);
   });
 });
 

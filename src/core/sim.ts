@@ -67,7 +67,7 @@ export function defaultNightConfig(night = 1): NightConfig {
     stats: baseStats(),
     turrets: [],
     buildings: [],
-    abilities: { emp: 0, megabomb: 0, slowmo: 0 },
+    abilities: { emp: 0, megabomb: 0, slowmo: 0, surge: 0 },
     boss: night % BOSS_NIGHT_INTERVAL === 0,
   };
 }
@@ -78,11 +78,45 @@ export class Sim {
   private readonly cfg: NightConfig;
   private bossNeedsSpawn: boolean;
 
+  // Building-derived modifiers, resolved once per night (buildings are static).
+  /** Aim-spread multiplier from the Radar Array (1 = no radar). */
+  private readonly spreadMul: number;
+  /** Jammer Tower slow field (null = not deployed). */
+  private readonly jammerField: { x: number; y: number; radius: number; factor: number } | null;
+  /** Decoy Beacon lure (null = not deployed). */
+  private readonly decoyLure: { x: number; chance: number } | null;
+
   constructor(seed: number, config: NightConfig = defaultNightConfig()) {
     this.rng = new Rng(seed);
     this.cfg = config;
     this.bossNeedsSpawn = config.boss;
     this.state = createInitialState(config);
+
+    const radar = config.buildings.find((b) => b.kind === 'radar');
+    this.spreadMul = radar
+      ? Math.pow(BUILDING_TUNING.radar.spreadMulPerLevel, radar.level)
+      : 1;
+    const jammer = config.buildings.find((b) => b.kind === 'jammer');
+    this.jammerField = jammer
+      ? {
+          x: BUILDINGS.jammer.x,
+          y: BUILDING.y,
+          radius: BUILDING_TUNING.jammer.radius * config.stats.jammerRadiusMul,
+          factor:
+            1 -
+            (BUILDING_TUNING.jammer.slowBase +
+              BUILDING_TUNING.jammer.slowPerLevel * (jammer.level - 1)),
+        }
+      : null;
+    const decoy = config.buildings.find((b) => b.kind === 'decoy');
+    this.decoyLure = decoy
+      ? {
+          x: BUILDINGS.decoy.x,
+          chance:
+            BUILDING_TUNING.decoy.pullBase +
+            BUILDING_TUNING.decoy.pullPerLevel * (decoy.level - 1),
+        }
+      : null;
   }
 
   /** Advance the simulation by exactly one tick (1/60s). */
@@ -161,8 +195,10 @@ export class Sim {
     a.cooldown.emp = Math.max(0, a.cooldown.emp - DT);
     a.cooldown.megabomb = Math.max(0, a.cooldown.megabomb - DT);
     a.cooldown.slowmo = Math.max(0, a.cooldown.slowmo - DT);
+    a.cooldown.surge = Math.max(0, a.cooldown.surge - DT);
     a.empFreeze = Math.max(0, a.empFreeze - DT);
     a.slowmo = Math.max(0, a.slowmo - DT);
+    a.surge = Math.max(0, a.surge - DT);
   }
 
   private useAbility(kind: AbilityKind): void {
@@ -192,12 +228,18 @@ export class Sim {
       s.ability.cooldown.megabomb =
         Math.max(spec.minCooldown, spec.baseCooldown - spec.cooldownPerLevel * (level - 1)) * cdMul;
       s.events.push({ type: 'abilityUsed', ability: 'megabomb', pos });
-    } else {
+    } else if (kind === 'slowmo') {
       const spec = ABILITIES.slowmo;
       s.ability.slowmo = spec.duration + spec.durationPerLevel * (level - 1);
       s.ability.cooldown.slowmo =
         Math.max(spec.minCooldown, spec.baseCooldown - spec.cooldownPerLevel * (level - 1)) * cdMul;
       s.events.push({ type: 'abilityUsed', ability: 'slowmo' });
+    } else {
+      const spec = ABILITIES.surge;
+      s.ability.surge = spec.duration + spec.durationPerLevel * (level - 1);
+      s.ability.cooldown.surge =
+        Math.max(spec.minCooldown, spec.baseCooldown - spec.cooldownPerLevel * (level - 1)) * cdMul;
+      s.events.push({ type: 'abilityUsed', ability: 'surge' });
     }
   }
 
@@ -278,7 +320,11 @@ export class Sim {
     };
     const living = s.cities.filter((c) => c.hp > 0);
     let targetX: number;
-    if (living.length > 0 && this.rng.next() < 0.7) {
+    if (this.decoyLure && this.rng.next() < this.decoyLure.chance) {
+      // Decoy Beacon: lured enemies dive at the beacon, away from the cities.
+      const j = BUILDING_TUNING.decoy.jitter;
+      targetX = this.decoyLure.x + this.rng.range(-j, j);
+    } else if (living.length > 0 && this.rng.next() < 0.7) {
       targetX = living[this.rng.int(0, living.length - 1)]!.x + this.rng.range(-3, 3);
     } else {
       targetX = this.rng.range(-WORLD.halfWidth * 0.9, WORLD.halfWidth * 0.9);
@@ -529,7 +575,8 @@ export class Sim {
         const lead =
           interceptDirection(origin, target.pos, target.vel, 1e6) ??
           norm({ x: target.pos.x - origin.x, y: target.pos.y - origin.y });
-        const spreadRad = (this.rng.range(-spec.spreadDeg!, spec.spreadDeg!) * Math.PI) / 180;
+        const deg = spec.spreadDeg! * this.spreadMul;
+        const spreadRad = (this.rng.range(-deg, deg) * Math.PI) / 180;
         const dir = rotate(lead, spreadRad);
         const hits = s.enemies.filter((e) => {
           const rx = e.pos.x - origin.x;
@@ -576,7 +623,13 @@ export class Sim {
     }
   }
 
-  /** Lead-aim at a moving target, then apply a random angular error. */
+  /** Phased enemies are untouchable unless Doppler Tracking is owned. */
+  private isUntouchable(e: EnemyMissile): boolean {
+    return e.phased === true && this.cfg.stats.dopplerTracking <= 0;
+  }
+
+  /** Lead-aim at a moving target, then apply a random angular error (tightened
+   *  by the Radar Array's spread multiplier). */
   private aimWithSpread(
     origin: Vec2,
     target: EnemyMissile,
@@ -586,7 +639,8 @@ export class Sim {
     const lead =
       interceptDirection(origin, target.pos, target.vel, projectileSpeed) ??
       norm({ x: target.pos.x - origin.x, y: target.pos.y - origin.y });
-    const spreadRad = (this.rng.range(-spreadDeg, spreadDeg) * Math.PI) / 180;
+    const deg = spreadDeg * this.spreadMul;
+    const spreadRad = (this.rng.range(-deg, deg) * Math.PI) / 180;
     return rotate(lead, spreadRad);
   }
 
@@ -595,7 +649,7 @@ export class Sim {
   private selectTarget(origin: Vec2, range: number): EnemyMissile | null {
     let best: EnemyMissile | null = null;
     for (const e of this.state.enemies) {
-      if (e.phased) continue; // can't be targeted while phased
+      if (this.isUntouchable(e)) continue;
       if (dist(origin, e.pos) > range) continue;
       if (!best || e.pos.y < best.pos.y || (e.pos.y === best.pos.y && e.id < best.id)) {
         best = e;
@@ -607,7 +661,7 @@ export class Sim {
   /** The `count` most-progressed enemies within range (for missile salvos). */
   private selectTargets(origin: Vec2, range: number, count: number): EnemyMissile[] {
     return this.state.enemies
-      .filter((e) => !e.phased && dist(origin, e.pos) <= range)
+      .filter((e) => !this.isUntouchable(e) && dist(origin, e.pos) <= range)
       .sort((a, b) => a.pos.y - b.pos.y || a.id - b.id)
       .slice(0, count);
   }
@@ -666,7 +720,7 @@ export class Sim {
         let hit: EnemyMissile | null = null;
         let hitDist: number = TURRET.projectileHitRadius;
         for (const e of s.enemies) {
-          if (e.phased) continue;
+          if (this.isUntouchable(e)) continue;
           const d = dist(p.pos, e.pos);
           if (d <= hitDist) {
             hit = e;
@@ -686,7 +740,7 @@ export class Sim {
    *  Returns true when the hit was lethal. */
   private damageEnemy(enemy: EnemyMissile, dmg: number): boolean {
     const s = this.state;
-    if (enemy.phased) return false; // Phase Walker is invulnerable while phased
+    if (this.isUntouchable(enemy)) return false; // phased & no Doppler Tracking
     if (enemy.kind === 'regenerator') enemy.regenTimer = 0; // interrupt healing
     enemy.hp -= dmg;
     if (enemy.hp <= 0) {
@@ -739,8 +793,11 @@ export class Sim {
     const dt = DT * this.enemyTimeScale(); // EMP freezes, Time Dilation slows
     for (let i = s.enemies.length - 1; i >= 0; i--) {
       const e = s.enemies[i]!;
-      e.pos.x += e.vel.x * dt;
-      e.pos.y += e.vel.y * dt;
+      // Jammer Tower: extra slow while inside its field.
+      const jam = this.jammerField;
+      const edt = jam && dist(jam, e.pos) <= jam.radius ? dt * jam.factor : dt;
+      e.pos.x += e.vel.x * edt;
+      e.pos.y += e.vel.y * edt;
       if (e.pos.y <= 0) {
         s.enemies.splice(i, 1);
         this.handleGroundImpact(e);
@@ -797,7 +854,8 @@ export class Sim {
   }
 
   private scaledScrap(base: number): number {
-    return Math.max(1, Math.round(base * this.cfg.stats.scrapMul));
+    const surge = this.state.ability.surge > 0 ? ABILITIES.surge.factor : 1;
+    return Math.max(1, Math.round(base * this.cfg.stats.scrapMul * surge));
   }
 
   // --- night end ---
@@ -857,9 +915,10 @@ function createInitialState(cfg: NightConfig): GameState {
     projectiles: [],
     scrap: 0,
     ability: {
-      cooldown: { emp: 0, megabomb: 0, slowmo: 0 },
+      cooldown: { emp: 0, megabomb: 0, slowmo: 0, surge: 0 },
       empFreeze: 0,
       slowmo: 0,
+      surge: 0,
     },
     director: {
       waveIndex: 0,

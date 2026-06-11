@@ -22,8 +22,8 @@ export interface Interceptor {
 export type TurretKind = 'gatling' | 'flak' | 'laser' | 'missile' | 'railgun' | 'tesla';
 
 /** Non-combat support structures. Unlike turrets they never fire — each helps
- *  the cities passively (income, shielding, repairs). */
-export type BuildingKind = 'harvester' | 'shield' | 'repair';
+ *  the cities passively (income, shielding, repairs, targeting, area denial). */
+export type BuildingKind = 'harvester' | 'shield' | 'repair' | 'radar' | 'jammer' | 'decoy';
 
 /** A fixed automated turret that targets and fires at enemies on its own.
  *  Each kind lives at its own predetermined position. */
@@ -136,7 +136,7 @@ export type Command =
   | { type: 'fire'; x: number; y: number }
   | { type: 'ability'; ability: AbilityKind };
 
-export type AbilityKind = 'emp' | 'megabomb' | 'slowmo';
+export type AbilityKind = 'emp' | 'megabomb' | 'slowmo' | 'surge';
 
 export type NightPhase = 'playing' | 'ended';
 
@@ -163,11 +163,13 @@ export interface GameState {
   /** Manual ability state (Tech branch). Cooldowns count down to 0 (ready);
    *  the two timers are how long the active effects last. */
   ability: {
-    cooldown: { emp: number; megabomb: number; slowmo: number };
+    cooldown: { emp: number; megabomb: number; slowmo: number; surge: number };
     /** Enemies frozen (EMP) for this many more seconds. */
     empFreeze: number;
     /** Enemies move slowed (Time Dilation) for this many more seconds. */
     slowmo: number;
+    /** Scrap earnings doubled (Scrap Surge) for this many more seconds. */
+    surge: number;
   };
   /** Wave director state. */
   director: {

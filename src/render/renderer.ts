@@ -56,6 +56,9 @@ const BUILDING_COLORS: Record<BuildingKind, number> = {
   harvester: 0xffdc50, // gold — economy
   shield: 0x6cc8ff, // cyan — protection
   repair: 0x49d17a, // green — sustain
+  radar: 0xff60c0, // pink — tech
+  jammer: 0xb46cff, // purple — area denial
+  decoy: 0xff5042, // enemy-red — it wants to be shot at
 };
 
 /** Per-kind enemy colours. */

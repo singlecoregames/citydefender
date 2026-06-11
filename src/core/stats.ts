@@ -42,6 +42,10 @@ export interface DerivedStats {
   multiKillScrap: number;
   /** Fraction of unspent scrap paid as a bonus each dawn (Compound Interest). */
   scrapInterestRate: number;
+  /** >0: turrets may target and damage phased enemies (Doppler Tracking). */
+  dopplerTracking: number;
+  /** Multiplier on the Jammer Tower's field radius (Wide Spectrum). */
+  jammerRadiusMul: number;
 }
 
 export type StatKey = keyof DerivedStats;
@@ -80,6 +84,8 @@ export function baseStats(): DerivedStats {
     waveClearScrap: 0,
     multiKillScrap: 0,
     scrapInterestRate: 0,
+    dopplerTracking: 0,
+    jammerRadiusMul: 1,
   };
 }
 

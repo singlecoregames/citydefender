@@ -119,6 +119,11 @@ describe('skill tree / stats', () => {
     ).toBeCloseTo(0.92 * 0.85, 5);
   });
 
+  it('phase-3 spec nodes resolve their stats', () => {
+    expect(resolveStats({ doppler_tracking: 1 }).dopplerTracking).toBe(1);
+    expect(resolveStats({ wide_spectrum: 2 }).jammerRadiusMul).toBeCloseTo(1.2 * 1.2, 5);
+  });
+
   it('dawn interest pays floor(scrap * rate), nothing at rate 0', () => {
     expect(dawnInterest(100, 0.04)).toBe(4);
     expect(dawnInterest(117, 0.04)).toBe(4); // floor(4.68)
