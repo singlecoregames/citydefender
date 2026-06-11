@@ -3,7 +3,7 @@ import { nightSeed, type RunState } from './core/run';
 import { loadRun, saveRun } from './core/save';
 import { Sim, type NightConfig } from './core/sim';
 import type { Command } from './core/types';
-import { resolveStats } from './core/upgrades';
+import { resolveStats } from './core/tree';
 import { generateNight } from './core/waves';
 import { WebStore } from './platform/store';
 import { Renderer } from './render/renderer';

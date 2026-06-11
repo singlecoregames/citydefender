@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { baseStats } from '../src/core/stats';
 import { newRun } from '../src/core/run';
 import { deserialize, serialize, SAVE_VERSION } from '../src/core/save';
-import { nextCost, resolveStats, UPGRADES, getUpgrade } from '../src/core/upgrades';
+import { getNode, isUnlocked, nextCost, resolveStats, TREE } from '../src/core/tree';
 import { generateNight, waveCountForNight } from '../src/core/waves';
 
 describe('waves', () => {
@@ -33,18 +33,18 @@ describe('waves', () => {
   });
 });
 
-describe('upgrades / stats', () => {
-  it('base stats match an empty upgrade set', () => {
+describe('skill tree / stats', () => {
+  it('base stats match an empty tree', () => {
     expect(resolveStats({})).toEqual(baseStats());
   });
 
-  it('additive upgrade (magazine) raises max ammo per level', () => {
+  it('additive node (magazine) raises max ammo per level', () => {
     const base = baseStats().maxAmmo;
     expect(resolveStats({ magazine: 1 }).maxAmmo).toBe(base + 1);
     expect(resolveStats({ magazine: 3 }).maxAmmo).toBe(base + 3);
   });
 
-  it('multiplicative upgrade (blast radius) compounds per level', () => {
+  it('multiplicative node (blast radius) compounds per level', () => {
     const base = baseStats().explosionMaxRadius;
     expect(resolveStats({ blast_radius: 2 }).explosionMaxRadius).toBeCloseTo(base * 1.08 * 1.08, 5);
   });
@@ -54,18 +54,47 @@ describe('upgrades / stats', () => {
     expect(resolveStats({ autoloader: 1 }).reloadSeconds).toBeCloseTo(base * 0.93, 5);
   });
 
-  it('cost grows with level and maxes out', () => {
-    const def = getUpgrade('blast_radius')!;
-    const c0 = nextCost(def, 0)!;
-    const c1 = nextCost(def, 1)!;
-    expect(c1).toBeGreaterThan(c0);
-    expect(nextCost(def, def.maxLevel)).toBeNull();
+  it('city nodes raise city hp and shrink hit radius', () => {
+    expect(resolveStats({ reinforced: 2 }).cityMaxHp).toBe(baseStats().cityMaxHp + 2);
+    const base = baseStats().cityHitRadius;
+    expect(resolveStats({ compact: 1 }).cityHitRadius).toBeCloseTo(base * 0.94, 5);
   });
 
-  it('every upgrade effect targets a real stat key', () => {
+  it('cost grows with level and maxes out', () => {
+    const node = getNode('blast_radius')!;
+    expect(nextCost(node, 1)!).toBeGreaterThan(nextCost(node, 0)!);
+    expect(nextCost(node, node.maxLevel)).toBeNull();
+  });
+
+  it('every node effect targets a real stat key', () => {
     const keys = new Set(Object.keys(baseStats()));
-    for (const def of UPGRADES) {
-      for (const eff of def.effects) expect(keys.has(eff.stat)).toBe(true);
+    for (const node of TREE) {
+      for (const eff of node.effects) expect(keys.has(eff.stat)).toBe(true);
+    }
+  });
+
+  it('every prerequisite id refers to an existing node', () => {
+    const ids = new Set(TREE.map((n) => n.id));
+    for (const node of TREE) {
+      for (const req of node.requires) expect(ids.has(req)).toBe(true);
+    }
+  });
+
+  it('node ids are unique', () => {
+    const ids = TREE.map((n) => n.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('locked node unlocks once its prerequisite has a level', () => {
+    const warhead = getNode('warhead')!;
+    expect(isUnlocked(warhead, {})).toBe(false);
+    // warhead requires wide_blast + fast_intercept
+    expect(isUnlocked(warhead, { wide_blast: 1, fast_intercept: 1 })).toBe(true);
+  });
+
+  it('root nodes (no prerequisites) are always unlocked', () => {
+    for (const node of TREE) {
+      if (node.requires.length === 0) expect(isUnlocked(node, {})).toBe(true);
     }
   });
 });

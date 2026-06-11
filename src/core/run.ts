@@ -1,4 +1,4 @@
-import type { UpgradeLevels } from './upgrades';
+import type { TreeLevels } from './tree';
 
 /** Persistent meta-game state spanning many nights (the "run"). A single
  *  night's Sim is derived from this; this is what gets saved. */
@@ -7,8 +7,8 @@ export interface RunState {
   night: number;
   /** Spendable currency carried across nights. */
   scrap: number;
-  /** Purchased upgrade levels by id. */
-  upgrades: UpgradeLevels;
+  /** Purchased skill-tree node levels by id. */
+  upgrades: TreeLevels;
   /** Base seed; each night uses seed + night for its enemy RNG. */
   seed: number;
   /** Highest night the player has cleared (for stats / "best"). */

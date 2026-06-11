@@ -122,10 +122,36 @@ body {
 }
 
 #day-shop {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: min(440px, 92vw);
+  width: min(680px, 94vw);
+  height: 56vh;
+  overflow: auto;
+  border: 1px solid #2a2f48;
+  border-radius: 8px;
+  background: rgba(8, 9, 16, 0.6);
+  touch-action: none;
+  cursor: grab;
+}
+
+#day-shop:active {
+  cursor: grabbing;
+}
+
+.tree-svg {
+  display: block;
+}
+
+.tree-name {
+  fill: #e8ecff;
+  font-size: 13px;
+  font-family: inherit;
+  pointer-events: none;
+}
+
+.tree-cost {
+  fill: #c8cee4;
+  font-size: 11px;
+  font-family: inherit;
+  pointer-events: none;
 }
 
 .shop-item {

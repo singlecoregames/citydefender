@@ -1,10 +1,10 @@
-import { CANNON, ECONOMY, EXPLOSION } from './balance';
+import { CANNON, CITY, ECONOMY, EXPLOSION } from './balance';
 
 /**
  * The fully-resolved numbers a single night's sim runs on. Base values come
- * from balance.ts; upgrades modify them. Keeping this as a flat record lets
- * upgrade effects be declarative ({ stat, op, value }) instead of bespoke code
- * — the same mechanism the M3 skill tree will use.
+ * from balance.ts; skill-tree nodes modify them. Keeping this as a flat record
+ * lets node effects be declarative ({ stat, op, value }) instead of bespoke
+ * code — the same mechanism across the whole tree.
  */
 export interface DerivedStats {
   maxAmmo: number;
@@ -14,6 +14,12 @@ export interface DerivedStats {
   explosionDamage: number;
   /** Multiplier on all scrap earned during the night. */
   scrapMul: number;
+  /** Multiplier on the night-completion bonus specifically. */
+  nightBonusMul: number;
+  /** Starting/max HP of each city. */
+  cityMaxHp: number;
+  /** How close an enemy impact must be to damage a city (smaller = safer). */
+  cityHitRadius: number;
 }
 
 export type StatKey = keyof DerivedStats;
@@ -35,6 +41,9 @@ export function baseStats(): DerivedStats {
     explosionMaxRadius: EXPLOSION.maxRadius,
     explosionDamage: EXPLOSION.damage,
     scrapMul: 1,
+    nightBonusMul: 1,
+    cityMaxHp: CITY.hp,
+    cityHitRadius: CITY.hitRadius,
   };
 }
 

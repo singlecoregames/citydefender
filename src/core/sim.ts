@@ -202,7 +202,7 @@ export class Sim {
     const impact: Vec2 = { x: e.pos.x, y: 0 };
     s.events.push({ type: 'groundImpact', pos: impact });
     for (const city of s.cities) {
-      if (city.hp > 0 && Math.abs(city.x - impact.x) <= CITY.hitRadius) {
+      if (city.hp > 0 && Math.abs(city.x - impact.x) <= this.cfg.stats.cityHitRadius) {
         city.hp--;
         s.events.push({ type: 'cityHit', cityId: city.id, destroyed: city.hp <= 0 });
       }
@@ -255,7 +255,9 @@ export class Sim {
     if (s.director.done && s.enemies.length === 0 && s.interceptors.length === 0) {
       const living = s.cities.filter((c) => c.hp > 0).length;
       const bonus =
-        ECONOMY.nightCompleteBonusBase * Math.pow(ECONOMY.nightCompleteBonusGrowth, s.night - 1);
+        ECONOMY.nightCompleteBonusBase *
+        Math.pow(ECONOMY.nightCompleteBonusGrowth, s.night - 1) *
+        this.cfg.stats.nightBonusMul;
       s.scrap += Math.floor(this.scaledScrap(bonus) * (living / s.cities.length));
       this.endNight('victory');
     }
@@ -276,7 +278,7 @@ function createInitialState(cfg: NightConfig): GameState {
     phase: 'playing',
     outcome: null,
     cannon: { ammo: cfg.stats.maxAmmo, maxAmmo: cfg.stats.maxAmmo, reloadTimer: cfg.stats.reloadSeconds },
-    cities: CITY.xs.map((x, i) => ({ id: i, x, hp: CITY.hp, maxHp: CITY.hp })),
+    cities: CITY.xs.map((x, i) => ({ id: i, x, hp: cfg.stats.cityMaxHp, maxHp: cfg.stats.cityMaxHp })),
     interceptors: [],
     explosions: [],
     enemies: [],
