@@ -12,9 +12,10 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { CANNON, WORLD } from '../core/balance';
 import { explosionRadius } from '../core/explosion';
 import type { GameEvent, GameState, Vec2 } from '../core/types';
+import { Particles } from './particles';
 
-/** Internal render height in pixels; width follows the aspect ratio. Lower =
- *  chunkier pixels. Tune this one number to taste. */
+/** Internal render is 360px tall; on a 16:9 screen that's exactly 640x360.
+ *  Width follows the aspect ratio. Lower = chunkier pixels. */
 const RESOLUTION = 360;
 
 /** Checkerboard cell size in world units. */
@@ -38,12 +39,10 @@ const COLORS = {
 } as const;
 
 interface EnemyView {
-  trail: THREE.Line;
   head: THREE.Mesh;
 }
 
 interface InterceptorView {
-  trail: THREE.Line;
   head: THREE.Mesh;
   marker: THREE.LineSegments;
 }
@@ -64,25 +63,19 @@ export class Renderer {
   private readonly explosionViews = new Map<number, ExplosionView>();
   private readonly cityMeshes: THREE.Mesh[] = [];
 
+  private readonly particles = new Particles();
   private shake = 0;
+  private lastRenderTime = 0;
 
   // Shared geometries/materials (entities are added/removed constantly).
-  private readonly headGeo = new THREE.CircleGeometry(1, 12);
+  // Every object is a rounded-corner square (unit 1x1, corner radius ~0.3),
+  // scaled per entity — the shared SNKRX-style shape language.
+  private readonly roundedGeo = roundedRectGeometry(1, 1, 0.3);
   private readonly discGeo = new THREE.CircleGeometry(1, 32);
   private readonly ringGeo = new THREE.RingGeometry(0.92, 1, 32);
   private readonly enemyHeadMat = new THREE.MeshBasicMaterial({ color: COLORS.enemyHead });
   private readonly interceptorHeadMat = new THREE.MeshBasicMaterial({
     color: COLORS.interceptorHead,
-  });
-  private readonly enemyTrailMat = new THREE.LineBasicMaterial({
-    color: COLORS.enemyTrail,
-    transparent: true,
-    opacity: 0.55,
-  });
-  private readonly interceptorTrailMat = new THREE.LineBasicMaterial({
-    color: COLORS.interceptorTrail,
-    transparent: true,
-    opacity: 0.45,
   });
   private readonly markerMat = new THREE.LineBasicMaterial({
     color: COLORS.targetMarker,
@@ -107,6 +100,7 @@ export class Renderer {
     this.composer.addPass(bloom);
 
     this.buildStaticScene();
+    this.scene.add(this.particles.points);
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
@@ -130,10 +124,15 @@ export class Renderer {
   }
 
   render(state: GameState): void {
+    const now = performance.now();
+    const dt = this.lastRenderTime ? Math.min((now - this.lastRenderTime) / 1000, 0.1) : 0;
+    this.lastRenderTime = now;
+
     this.syncCities(state);
     this.syncEnemies(state);
     this.syncInterceptors(state);
     this.syncExplosions(state);
+    this.particles.update(dt);
     this.applyShake();
     this.composer.render();
   }
@@ -149,17 +148,14 @@ export class Renderer {
     ground.position.set(0, 0, 0);
     this.scene.add(ground);
 
-    // Cannon: a chunky pixel turret — base block + short barrel.
-    const base = new THREE.Mesh(
-      new THREE.PlaneGeometry(6, 3),
-      new THREE.MeshBasicMaterial({ color: COLORS.cannon }),
-    );
-    base.position.set(CANNON.x, 1.5, 1);
-    const barrel = new THREE.Mesh(
-      new THREE.PlaneGeometry(2, 3),
-      new THREE.MeshBasicMaterial({ color: COLORS.cannon }),
-    );
-    barrel.position.set(CANNON.x, 4, 1);
+    // Cannon: rounded-rect base block + short rounded barrel.
+    const cannonMat = new THREE.MeshBasicMaterial({ color: COLORS.cannon });
+    const base = new THREE.Mesh(this.roundedGeo, cannonMat);
+    base.scale.set(7, 3.5, 1);
+    base.position.set(CANNON.x, 1.75, 1);
+    const barrel = new THREE.Mesh(this.roundedGeo, cannonMat);
+    barrel.scale.set(2.2, 3, 1);
+    barrel.position.set(CANNON.x, 4.5, 1);
     this.scene.add(base, barrel);
   }
 
@@ -195,29 +191,16 @@ export class Renderer {
     this.scene.add(floor);
   }
 
-  private cityGeometry(): THREE.ShapeGeometry {
-    // Simple skyline: a trapezoid block cluster.
-    const s = new THREE.Shape();
-    s.moveTo(-5, 0);
-    s.lineTo(-5, 2.4);
-    s.lineTo(-2.4, 2.4);
-    s.lineTo(-2.4, 4.2);
-    s.lineTo(0.6, 4.2);
-    s.lineTo(0.6, 3);
-    s.lineTo(5, 3);
-    s.lineTo(5, 0);
-    s.closePath();
-    return new THREE.ShapeGeometry(s);
-  }
-
   private syncCities(state: GameState): void {
     if (this.cityMeshes.length === 0) {
       for (const city of state.cities) {
+        // City as a single rounded-rect block.
         const mesh = new THREE.Mesh(
-          this.cityGeometry(),
+          this.roundedGeo,
           new THREE.MeshBasicMaterial({ color: COLORS.city }),
         );
-        mesh.position.set(city.x, 0, 1);
+        mesh.scale.set(11, 6, 1);
+        mesh.position.set(city.x, 3, 1);
         this.scene.add(mesh);
         this.cityMeshes.push(mesh);
       }
@@ -226,23 +209,11 @@ export class Renderer {
       const mesh = this.cityMeshes[i];
       if (!mesh) return;
       const mat = mesh.material as THREE.MeshBasicMaterial;
-      mat.color.setHex(city.hp > 0 ? COLORS.city : COLORS.cityDead);
-      mesh.scale.y = city.hp > 0 ? 1 : 0.45;
+      const alive = city.hp > 0;
+      mat.color.setHex(alive ? COLORS.city : COLORS.cityDead);
+      mesh.scale.y = alive ? 6 : 2.6;
+      mesh.position.y = alive ? 3 : 1.3;
     });
-  }
-
-  private makeTrail(material: THREE.LineBasicMaterial): THREE.Line {
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
-    return new THREE.Line(geo, material);
-  }
-
-  private updateTrail(line: THREE.Line, from: Vec2, to: Vec2): void {
-    const attr = line.geometry.getAttribute('position') as THREE.BufferAttribute;
-    attr.setXYZ(0, from.x, from.y, 0);
-    attr.setXYZ(1, to.x, to.y, 0);
-    attr.needsUpdate = true;
-    line.geometry.computeBoundingSphere();
   }
 
   private syncEnemies(state: GameState): void {
@@ -251,21 +222,17 @@ export class Renderer {
       seen.add(e.id);
       let view = this.enemyViews.get(e.id);
       if (!view) {
-        view = {
-          trail: this.makeTrail(this.enemyTrailMat),
-          head: new THREE.Mesh(this.headGeo, this.enemyHeadMat),
-        };
-        view.head.scale.setScalar(0.9);
-        this.scene.add(view.trail, view.head);
+        view = { head: new THREE.Mesh(this.roundedGeo, this.enemyHeadMat) };
+        view.head.scale.set(2.4, 2.4, 1);
+        this.scene.add(view.head);
         this.enemyViews.set(e.id, view);
       }
-      this.updateTrail(view.trail, e.origin, e.pos);
       view.head.position.set(e.pos.x, e.pos.y, 2);
+      this.particles.emit(e.pos.x, e.pos.y);
     }
     for (const [id, view] of this.enemyViews) {
       if (!seen.has(id)) {
-        this.scene.remove(view.trail, view.head);
-        view.trail.geometry.dispose();
+        this.scene.remove(view.head);
         this.enemyViews.delete(id);
       }
     }
@@ -291,21 +258,19 @@ export class Renderer {
           ),
         );
         view = {
-          trail: this.makeTrail(this.interceptorTrailMat),
-          head: new THREE.Mesh(this.headGeo, this.interceptorHeadMat),
+          head: new THREE.Mesh(this.roundedGeo, this.interceptorHeadMat),
           marker: new THREE.LineSegments(markerGeo, this.markerMat),
         };
-        view.head.scale.setScalar(0.7);
-        this.scene.add(view.trail, view.head, view.marker);
+        view.head.scale.set(1.8, 1.8, 1);
+        this.scene.add(view.head, view.marker);
         this.interceptorViews.set(it.id, view);
       }
-      this.updateTrail(view.trail, it.origin, it.pos);
       view.head.position.set(it.pos.x, it.pos.y, 2);
+      this.particles.emit(it.pos.x, it.pos.y);
     }
     for (const [id, view] of this.interceptorViews) {
       if (!seen.has(id)) {
-        this.scene.remove(view.trail, view.head, view.marker);
-        view.trail.geometry.dispose();
+        this.scene.remove(view.head, view.marker);
         view.marker.geometry.dispose();
         this.interceptorViews.delete(id);
       }
@@ -391,4 +356,24 @@ export class Renderer {
     this.camera.top = height - 2;
     this.camera.updateProjectionMatrix();
   }
+}
+
+/** A filled rounded-rectangle, centred at the origin, width x height with the
+ *  given corner radius. Used as the shared shape for every game object. */
+function roundedRectGeometry(width: number, height: number, radius: number): THREE.ShapeGeometry {
+  const w = width / 2;
+  const h = height / 2;
+  const r = Math.min(radius, w, h);
+  const s = new THREE.Shape();
+  s.moveTo(-w + r, -h);
+  s.lineTo(w - r, -h);
+  s.quadraticCurveTo(w, -h, w, -h + r);
+  s.lineTo(w, h - r);
+  s.quadraticCurveTo(w, h, w - r, h);
+  s.lineTo(-w + r, h);
+  s.quadraticCurveTo(-w, h, -w, h - r);
+  s.lineTo(-w, -h + r);
+  s.quadraticCurveTo(-w, -h, -w + r, -h);
+  s.closePath();
+  return new THREE.ShapeGeometry(s, 4);
 }
