@@ -65,7 +65,8 @@ export class Particles {
     this.cursor = (this.cursor + 1) % this.capacity;
     this.positions[i * 3] = x;
     this.positions[i * 3 + 1] = y;
-    this.positions[i * 3 + 2] = 4;
+    // Behind the missile heads (z=2) so trails read as a tail, not a cover.
+    this.positions[i * 3 + 2] = 1.5;
     this.velocities[i * 2] = (Math.random() - 0.5) * 6;
     this.velocities[i * 2 + 1] = (Math.random() - 0.5) * 6;
     this.ages[i] = 0;

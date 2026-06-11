@@ -223,7 +223,7 @@ export class Renderer {
       let view = this.enemyViews.get(e.id);
       if (!view) {
         view = { head: new THREE.Mesh(this.roundedGeo, this.enemyHeadMat) };
-        view.head.scale.set(2.4, 2.4, 1);
+        view.head.scale.set(3.8, 3.8, 1);
         this.scene.add(view.head);
         this.enemyViews.set(e.id, view);
       }
@@ -261,7 +261,7 @@ export class Renderer {
           head: new THREE.Mesh(this.roundedGeo, this.interceptorHeadMat),
           marker: new THREE.LineSegments(markerGeo, this.markerMat),
         };
-        view.head.scale.set(1.8, 1.8, 1);
+        view.head.scale.set(2.8, 2.8, 1);
         this.scene.add(view.head, view.marker);
         this.interceptorViews.set(it.id, view);
       }
