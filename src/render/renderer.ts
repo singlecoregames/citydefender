@@ -1,6 +1,9 @@
 /**
  * Three.js view of the core sim. Reads GameState every frame and mirrors it
- * into scene objects. SNKRX-style: flat neon shapes + UnrealBloom, no assets.
+ * into scene objects. SNKRX-style: clean pixel-art shapes on a checkerboard,
+ * with a gentle bloom. Rendered at a low internal resolution and upscaled with
+ * nearest-neighbour (see RESOLUTION + CSS image-rendering: pixelated) so every
+ * shape snaps to a chunky pixel grid instead of looking like smooth vectors.
  */
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -10,19 +13,28 @@ import { CANNON, WORLD } from '../core/balance';
 import { explosionRadius } from '../core/explosion';
 import type { GameEvent, GameState, Vec2 } from '../core/types';
 
+/** Internal render height in pixels; width follows the aspect ratio. Lower =
+ *  chunkier pixels. Tune this one number to taste. */
+const RESOLUTION = 360;
+
+/** Checkerboard cell size in world units. */
+const CHECKER_CELL = 8;
+
 const COLORS = {
-  background: 0x0a0a12,
-  ground: 0x2a2f45,
-  city: 0x38e070,
-  cityDead: 0x40222c,
-  cannon: 0x28f0c8,
-  interceptorTrail: 0x1890a0,
-  interceptorHead: 0x60ffe8,
-  targetMarker: 0x28f0c8,
-  enemyTrail: 0x801828,
-  enemyHead: 0xff4060,
-  explosion: 0xfff0a0,
-  explosionRing: 0xffb030,
+  // Two near-equal dark greys for the SNKRX-style checkerboard floor.
+  checkerA: 0x21212a,
+  checkerB: 0x191920,
+  ground: 0x3a3a48,
+  city: 0x49d17a,
+  cityDead: 0x3a2630,
+  cannon: 0x4aa0ff,
+  interceptorTrail: 0x2f6fb0,
+  interceptorHead: 0xbfe0ff,
+  targetMarker: 0x9fbfff,
+  enemyTrail: 0x7a2030,
+  enemyHead: 0xff5042,
+  explosion: 0xffd24a,
+  explosionRing: 0xff8c2a,
 } as const;
 
 interface EnemyView {
@@ -79,17 +91,19 @@ export class Renderer {
   });
 
   constructor(container: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // antialias off + low internal resolution + CSS nearest upscaling = crisp pixels.
+    this.renderer = new THREE.WebGLRenderer({ antialias: false });
+    this.renderer.setPixelRatio(1);
     container.prepend(this.renderer.domElement);
 
-    this.scene.background = new THREE.Color(COLORS.background);
+    this.scene.background = new THREE.Color(COLORS.checkerB);
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
     this.camera.position.z = 10;
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 1.1, 0.55, 0.0);
+    // Gentle glow only: low strength, high threshold so just the bright cores bloom.
+    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.5, 0.55);
     this.composer.addPass(bloom);
 
     this.buildStaticScene();
@@ -125,6 +139,8 @@ export class Renderer {
   }
 
   private buildStaticScene(): void {
+    this.addCheckerboard();
+
     // Ground line.
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(WORLD.halfWidth * 2 + 40, 0.6),
@@ -133,18 +149,50 @@ export class Renderer {
     ground.position.set(0, 0, 0);
     this.scene.add(ground);
 
-    // Cannon: a neon triangle at the base.
-    const cannonShape = new THREE.Shape();
-    cannonShape.moveTo(-3, 0);
-    cannonShape.lineTo(3, 0);
-    cannonShape.lineTo(0, 4.5);
-    cannonShape.closePath();
-    const cannon = new THREE.Mesh(
-      new THREE.ShapeGeometry(cannonShape),
+    // Cannon: a chunky pixel turret — base block + short barrel.
+    const base = new THREE.Mesh(
+      new THREE.PlaneGeometry(6, 3),
       new THREE.MeshBasicMaterial({ color: COLORS.cannon }),
     );
-    cannon.position.set(CANNON.x, 0, 1);
-    this.scene.add(cannon);
+    base.position.set(CANNON.x, 1.5, 1);
+    const barrel = new THREE.Mesh(
+      new THREE.PlaneGeometry(2, 3),
+      new THREE.MeshBasicMaterial({ color: COLORS.cannon }),
+    );
+    barrel.position.set(CANNON.x, 4, 1);
+    this.scene.add(base, barrel);
+  }
+
+  /** SNKRX-style dark checkerboard floor, drawn from a 2x2 nearest-filtered
+   *  texture so the cells stay crisp at any zoom. */
+  private addCheckerboard(): void {
+    const c = document.createElement('canvas');
+    c.width = 2;
+    c.height = 2;
+    const ctx = c.getContext('2d')!;
+    const a = '#' + COLORS.checkerA.toString(16).padStart(6, '0');
+    const b = '#' + COLORS.checkerB.toString(16).padStart(6, '0');
+    ctx.fillStyle = a;
+    ctx.fillRect(0, 0, 2, 2);
+    ctx.fillStyle = b;
+    ctx.fillRect(0, 0, 1, 1);
+    ctx.fillRect(1, 1, 1, 1);
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    const w = WORLD.halfWidth * 2 + 80;
+    const h = WORLD.height + 40;
+    tex.repeat.set(w / (CHECKER_CELL * 2), h / (CHECKER_CELL * 2));
+
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, h),
+      new THREE.MeshBasicMaterial({ map: tex }),
+    );
+    floor.position.set(0, h / 2 - 4, -1);
+    this.scene.add(floor);
   }
 
   private cityGeometry(): THREE.ShapeGeometry {
@@ -317,11 +365,16 @@ export class Renderer {
   private resize(): void {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    this.renderer.setSize(w, h);
-    this.composer.setSize(w, h);
+    const aspect = w / h;
+
+    // Render into a low-res buffer; CSS (image-rendering: pixelated) upscales it
+    // to fill the screen with nearest-neighbour → chunky pixel-art look.
+    const lowH = RESOLUTION;
+    const lowW = Math.max(1, Math.round(RESOLUTION * aspect));
+    this.renderer.setSize(lowW, lowH, false); // false: don't touch canvas CSS size
+    this.composer.setSize(lowW, lowH);
 
     // Always show the full world rect; letterbox with extra sky/sides.
-    const aspect = w / h;
     const worldAspect = (WORLD.halfWidth * 2) / WORLD.height;
     let halfW: number;
     let height: number;
