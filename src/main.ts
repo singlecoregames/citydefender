@@ -1,5 +1,5 @@
 import { BOSS_NIGHT_INTERVAL, DT } from './core/balance';
-import { dawnInterest, firstClearCores, nightSeed, type RunState } from './core/run';
+import { dawnInterest, firstClearCores, newRun, nightSeed, type RunState } from './core/run';
 import { loadRun, saveRun } from './core/save';
 import { Sim, type NightConfig } from './core/sim';
 import type { Command } from './core/types';
@@ -29,6 +29,11 @@ const dayScreen = new DayScreen(
     // on "Next Night": advance and start the next night.
     sim = startNight(r);
     nightResolved = false;
+  },
+  () => {
+    // on reset (double-confirmed in the UI): wipe the run and start over.
+    saveRun(store, newRun());
+    location.reload();
   },
 );
 

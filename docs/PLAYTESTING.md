@@ -25,12 +25,16 @@ npm run dev     # → http://localhost:5173
 - PWA라서 **홈 화면에 추가**하면 풀스크린 가로모드로 실행된다.
 - 이전 버전이 보이면 캐시 문제 — 강력 새로고침하거나 PWA를 지웠다 다시 설치.
 
-### C. 세이브 조작 (특정 구간 빠른 확인)
+### C. 세이브 리셋 / 조작 (특정 구간 빠른 확인)
 
-세이브는 `localStorage`의 `citydefender.save` 키에 있다. 브라우저 콘솔(F12)에서:
+**인게임 리셋(권장)**: Day 화면(밤 종료 후) 우측 상단의 `RESET RUN` 버튼.
+한 번 탭하면 빨갛게 무장(`ERASE EVERYTHING?`)되고, 3초 안에 한 번 더 탭하면
+런이 초기화된다. 모바일에서도 동일.
+
+그 외 세이브 조작은 `localStorage`의 `citydefender.save` 키. 브라우저 콘솔(F12)에서:
 
 ```js
-// 처음부터 다시
+// 처음부터 다시 (인게임 버튼과 동일)
 localStorage.removeItem('citydefender.save'); location.reload();
 
 // 특정 밤으로 점프 + 자원 지급 (예: N20, scrap 5만, ◆10, ▣10)

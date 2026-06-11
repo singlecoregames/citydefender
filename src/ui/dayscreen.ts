@@ -68,11 +68,33 @@ export class DayScreen {
   constructor(
     private readonly onPurchase: (run: RunState) => void,
     private readonly onNext: (run: RunState) => void,
+    onReset: () => void,
   ) {
     document.getElementById('day-next')!.addEventListener('click', () => {
       if (!this.run) return;
       this.hide();
       this.onNext(this.run);
+    });
+    this.wireResetButton(onReset);
+  }
+
+  /** Two-tap reset: the first tap arms the button (auto-disarms after 3s),
+   *  the second wipes the run — no accidental resets from a stray tap. */
+  private wireResetButton(onReset: () => void): void {
+    const btn = document.getElementById('day-reset')! as HTMLButtonElement;
+    let disarmTimer = 0;
+    btn.addEventListener('click', () => {
+      if (btn.classList.contains('armed')) {
+        clearTimeout(disarmTimer);
+        onReset();
+        return;
+      }
+      btn.classList.add('armed');
+      btn.textContent = 'ERASE EVERYTHING?';
+      disarmTimer = window.setTimeout(() => {
+        btn.classList.remove('armed');
+        btn.textContent = 'RESET RUN';
+      }, 3000);
     });
   }
 

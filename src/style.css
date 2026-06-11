@@ -394,6 +394,34 @@ body {
   border-color: #49d17a;
 }
 
+/* Run reset: small and muted in the corner; arming turns it loud red. */
+#day-reset {
+  position: absolute;
+  top: calc(10px + env(safe-area-inset-top));
+  right: calc(12px + env(safe-area-inset-right));
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #7a5560;
+  background: transparent;
+  border: 1px solid #4a3540;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#day-reset:hover {
+  color: #c06070;
+  border-color: #c06070;
+}
+
+#day-reset.armed {
+  color: #ff5070;
+  border-color: #ff5070;
+  background: rgba(255, 80, 112, 0.12);
+  box-shadow: 0 0 12px rgba(255, 80, 112, 0.45);
+}
+
 #day-next {
   margin-top: 10px;
   padding: 14px 34px;
