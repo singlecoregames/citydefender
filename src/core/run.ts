@@ -9,6 +9,9 @@ export interface RunState {
   scrap: number;
   /** Rare currency from bosses; gates the strongest nodes. */
   cores: number;
+  /** Skilled-play currency (perfect nights, combos); buys automation
+   *  intelligence. Flows from DATA.unlockNight on. */
+  data: number;
   /** Purchased skill-tree node levels by id. */
   upgrades: TreeLevels;
   /** Base seed; each night uses seed + night for its enemy RNG. */
@@ -22,6 +25,7 @@ export function newRun(seed = (Date.now() & 0xffffffff) >>> 0): RunState {
     night: 1,
     scrap: 0,
     cores: 0,
+    data: 0,
     // The command core is owned from the start so the branch roots unlock.
     upgrades: { core: 1 },
     seed,

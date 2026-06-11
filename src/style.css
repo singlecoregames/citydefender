@@ -64,6 +64,22 @@ body {
   color: #9aa0b4;
 }
 
+/* Combo meter: streak count + scrap multiplier, centred under the top bar. */
+#hud-combo {
+  position: absolute;
+  top: calc(48px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 16px;
+  letter-spacing: 1px;
+  color: #ff60c0;
+  text-shadow: 0 0 8px rgba(255, 96, 192, 0.6);
+}
+
+#hud-combo.hidden {
+  display: none;
+}
+
 #hud-ammo {
   position: absolute;
   bottom: calc(14px + env(safe-area-inset-bottom));

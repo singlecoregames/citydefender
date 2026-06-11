@@ -10,7 +10,7 @@ export type TreeBranch = 'core' | 'cannon' | 'economy' | 'city' | 'automation' |
  * place the node in the layout (the UI converts them to pixels); the tree fans
  * out from the centre: cannon up, economy left, city right.
  */
-export type Currency = 'scrap' | 'cores';
+export type Currency = 'scrap' | 'cores' | 'data';
 
 export interface TreeNode {
   id: string;
@@ -149,6 +149,34 @@ export const TREE: readonly TreeNode[] = [
     costGrowth: 2.3,
     requires: ['warhead'],
     effects: [{ stat: 'explosionDamage', op: 'add', value: 1 }],
+  },
+
+  {
+    id: 'overcharge_shot',
+    name: 'Overcharge Shot',
+    description: 'Manual blasts gain +4% of total turret DPS as damage',
+    branch: 'cannon',
+    col: 1,
+    row: -4,
+    maxLevel: 5,
+    baseCost: 200,
+    costGrowth: 1.7,
+    requires: ['warhead'],
+    effects: [{ stat: 'overchargeRate', op: 'add', value: 0.04 }],
+  },
+  {
+    id: 'combo_memory',
+    name: 'Combo Memory',
+    description: 'Keep 25% of your combo when it breaks',
+    branch: 'cannon',
+    col: -1,
+    row: -4,
+    maxLevel: 3,
+    baseCost: 2,
+    costGrowth: 1.7,
+    currency: 'data',
+    requires: ['wide_blast'],
+    effects: [{ stat: 'comboRetention', op: 'add', value: 0.25 }],
   },
 
   // ── Economy branch (left): scrap and bonuses ──────────────────────────
@@ -469,6 +497,36 @@ export const TREE: readonly TreeNode[] = [
     costGrowth: 1.55,
     requires: ['turret_gatling'],
     effects: [{ stat: 'turretRangeMul', op: 'mul', value: 0.12 }],
+  },
+
+  // ── Automation intelligence (paid in ▣ Data — earned by skilled play) ──
+  {
+    id: 'threat_analysis',
+    name: 'Threat Analysis',
+    description: 'Turrets prioritize missiles on course to hit a city',
+    branch: 'automation',
+    col: -1,
+    row: 4,
+    maxLevel: 1,
+    baseCost: 4,
+    costGrowth: 1,
+    currency: 'data',
+    requires: ['turret_range'],
+    effects: [{ stat: 'threatTargeting', op: 'add', value: 1 }],
+  },
+  {
+    id: 'neural_lead',
+    name: 'Neural Lead',
+    description: '-15% turret aim spread',
+    branch: 'automation',
+    col: -1,
+    row: 5,
+    maxLevel: 3,
+    baseCost: 2,
+    costGrowth: 1.7,
+    currency: 'data',
+    requires: ['threat_analysis'],
+    effects: [{ stat: 'turretSpreadMul', op: 'mul', value: -0.15 }],
   },
 
   // ── Per-turret specialisations (each requires its turret) ──────────────

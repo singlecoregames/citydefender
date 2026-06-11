@@ -13,6 +13,8 @@ import {
   BUILDINGS,
   CANNON,
   CITY,
+  COMBO,
+  DATA,
   DT,
   ECONOMY,
   ENEMY,
@@ -85,17 +87,20 @@ export class Sim {
   private readonly jammerField: { x: number; y: number; radius: number; factor: number } | null;
   /** Decoy Beacon lure (null = not deployed). */
   private readonly decoyLure: { x: number; chance: number } | null;
+  /** Estimated total turret damage/sec, the base for Overcharge Shot. */
+  private readonly turretDps: number;
 
   constructor(seed: number, config: NightConfig = defaultNightConfig()) {
     this.rng = new Rng(seed);
     this.cfg = config;
     this.bossNeedsSpawn = config.boss;
     this.state = createInitialState(config);
+    this.turretDps = estimateTurretDps(config);
 
     const radar = config.buildings.find((b) => b.kind === 'radar');
-    this.spreadMul = radar
-      ? Math.pow(BUILDING_TUNING.radar.spreadMulPerLevel, radar.level)
-      : 1;
+    this.spreadMul =
+      (radar ? Math.pow(BUILDING_TUNING.radar.spreadMulPerLevel, radar.level) : 1) *
+      config.stats.turretSpreadMul;
     const jammer = config.buildings.find((b) => b.kind === 'jammer');
     this.jammerField = jammer
       ? {
@@ -224,6 +229,7 @@ export class Sim {
         maxRadius: spec.radius + spec.radiusPerLevel * (level - 1),
         damage: spec.damage + spec.damagePerLevel * (level - 1),
         hitEnemyIds: [],
+        source: 'ability',
       });
       s.ability.cooldown.megabomb =
         Math.max(spec.minCooldown, spec.baseCooldown - spec.cooldownPerLevel * (level - 1)) * cdMul;
@@ -644,25 +650,49 @@ export class Sim {
     return rotate(lead, spreadRad);
   }
 
+  /** Threat Analysis: true when this enemy's projected ground impact would
+   *  damage a living city. Enemies climbing or hovering count as non-threats. */
+  private threatensCity(e: EnemyMissile): boolean {
+    if (e.vel.y >= 0) return false;
+    const impactX = e.pos.x + e.vel.x * (e.pos.y / -e.vel.y);
+    return this.state.cities.some(
+      (c) => c.hp > 0 && Math.abs(c.x - impactX) <= this.cfg.stats.cityHitRadius,
+    );
+  }
+
   /** Pick the most-progressed (lowest) enemy within range — the biggest threat
-   *  to the cities. Deterministic tie-break by id keeps replays stable. */
+   *  to the cities. With Threat Analysis, enemies that would actually hit a
+   *  city outrank everything else. Deterministic tie-break by id keeps
+   *  replays stable. */
   private selectTarget(origin: Vec2, range: number): EnemyMissile | null {
+    const useThreat = this.cfg.stats.threatTargeting > 0;
     let best: EnemyMissile | null = null;
+    let bestThreat = false;
     for (const e of this.state.enemies) {
       if (this.isUntouchable(e)) continue;
       if (dist(origin, e.pos) > range) continue;
-      if (!best || e.pos.y < best.pos.y || (e.pos.y === best.pos.y && e.id < best.id)) {
+      const threat = useThreat && this.threatensCity(e);
+      if (
+        !best ||
+        (threat && !bestThreat) ||
+        (threat === bestThreat &&
+          (e.pos.y < best.pos.y || (e.pos.y === best.pos.y && e.id < best.id)))
+      ) {
         best = e;
+        bestThreat = threat;
       }
     }
     return best;
   }
 
-  /** The `count` most-progressed enemies within range (for missile salvos). */
+  /** The `count` most-progressed enemies within range (for missile salvos),
+   *  city-threatening enemies first when Threat Analysis is owned. */
   private selectTargets(origin: Vec2, range: number, count: number): EnemyMissile[] {
+    const useThreat = this.cfg.stats.threatTargeting > 0;
+    const threatRank = (e: EnemyMissile): number => (useThreat && this.threatensCity(e) ? 0 : 1);
     return this.state.enemies
       .filter((e) => !this.isUntouchable(e) && dist(origin, e.pos) <= range)
-      .sort((a, b) => a.pos.y - b.pos.y || a.id - b.id)
+      .sort((a, b) => threatRank(a) - threatRank(b) || a.pos.y - b.pos.y || a.id - b.id)
       .slice(0, count);
   }
 
@@ -697,6 +727,7 @@ export class Sim {
             maxRadius: p.burstRadius!,
             damage: p.damage,
             hitEnemyIds: [],
+            source: 'turret',
           });
           s.events.push({ type: 'detonation', pos: { ...p.pos } });
           s.projectiles.splice(i, 1);
@@ -749,7 +780,7 @@ export class Sim {
       if (enemy.kind === 'splitter') {
         for (let i = 0; i < ENEMY.splitter.childCount; i++) this.spawnChild('swarmer', enemy, 1.6);
       }
-      const reward = this.scaledScrap(enemy.scrapReward);
+      const reward = this.scaledScrap(enemy.scrapReward * this.comboScrapMul());
       s.scrap += reward;
       s.events.push({ type: 'enemyKilled', pos: { ...enemy.pos }, reward });
       if (enemy.kind === 'boss') {
@@ -777,8 +808,10 @@ export class Sim {
           pos: { ...it.target },
           age: 0,
           maxRadius: this.cfg.stats.explosionMaxRadius,
-          damage: this.cfg.stats.explosionDamage,
+          // Overcharge Shot: manual blasts ride on total turret DPS.
+          damage: this.cfg.stats.explosionDamage + this.cfg.stats.overchargeRate * this.turretDps,
           hitEnemyIds: [],
+          source: 'manual',
         });
         s.events.push({ type: 'detonation', pos: { ...it.target } });
       } else {
@@ -824,9 +857,11 @@ export class Sim {
 
     for (const city of hitCities) {
       city.hp--;
+      s.cityDamageTaken++;
       s.scrap += this.cfg.stats.cityHitScrap; // War Insurance compensation
       s.events.push({ type: 'cityHit', cityId: city.id, destroyed: city.hp <= 0 });
     }
+    this.breakCombo(); // taking damage breaks the streak
   }
 
   private updateExplosions(): void {
@@ -845,12 +880,34 @@ export class Sim {
               ex.kills = (ex.kills ?? 0) + 1;
               // Chain Bounty: one payout per explosion, on its 3rd kill.
               if (ex.kills === 3) s.scrap += this.cfg.stats.multiKillScrap;
+              if (ex.source === 'manual') {
+                s.combo++;
+                s.maxCombo = Math.max(s.maxCombo, s.combo);
+              }
             }
           }
         }
       }
-      if (explosionIsDone(ex)) s.explosions.splice(i, 1);
+      if (explosionIsDone(ex)) {
+        // A manual blast that hit nothing is a whiff — the streak breaks.
+        if (ex.source === 'manual' && (ex.kills ?? 0) === 0) this.breakCombo();
+        s.explosions.splice(i, 1);
+      }
     }
+  }
+
+  /** Drop the combo, keeping the Combo Memory fraction. */
+  private breakCombo(): void {
+    const s = this.state;
+    if (s.combo === 0) return;
+    const kept = Math.floor(s.combo * this.cfg.stats.comboRetention);
+    s.events.push({ type: 'comboBroken', lost: s.combo - kept });
+    s.combo = kept;
+  }
+
+  /** Global scrap multiplier from the current combo streak. */
+  private comboScrapMul(): number {
+    return 1 + COMBO.scrapPerStack * Math.min(this.state.combo, COMBO.maxStacks);
   }
 
   private scaledScrap(base: number): number {
@@ -888,7 +945,19 @@ export class Sim {
     const s = this.state;
     s.phase = 'ended';
     s.outcome = outcome;
-    s.events.push({ type: 'nightEnded', outcome, scrapEarned: s.scrap });
+    const dataEarned = outcome === 'victory' ? this.computeData() : 0;
+    s.events.push({ type: 'nightEnded', outcome, scrapEarned: s.scrap, dataEarned });
+  }
+
+  /** Data (▣) payout for skilled play: perfect defence + peak combo.
+   *  Only flows from DATA.unlockNight on — the late-game mastery currency. */
+  private computeData(): number {
+    const s = this.state;
+    if (s.night < DATA.unlockNight) return 0;
+    let data = 0;
+    if (s.cityDamageTaken === 0) data += DATA.perfectBase + Math.floor(s.night / 10);
+    data += Math.min(Math.floor(s.maxCombo / DATA.comboPerData), DATA.comboDataCap);
+    return data;
   }
 }
 
@@ -914,6 +983,9 @@ function createInitialState(cfg: NightConfig): GameState {
     buildings: cfg.buildings.map((b, i) => makeBuilding(i, b)),
     projectiles: [],
     scrap: 0,
+    combo: 0,
+    maxCombo: 0,
+    cityDamageTaken: 0,
     ability: {
       cooldown: { emp: 0, megabomb: 0, slowmo: 0, surge: 0 },
       empFreeze: 0,
@@ -931,6 +1003,27 @@ function createInitialState(cfg: NightConfig): GameState {
     nextId: 1,
     events: [],
   };
+}
+
+/** Rough damage/sec across every deployed turret — the Overcharge Shot base.
+ *  Uses each kind's nominal damage × fire rate with the global and per-kind
+ *  multipliers; good enough for a bonus that should *feel* tied to firepower. */
+function estimateTurretDps(cfg: NightConfig): number {
+  let dps = 0;
+  for (const t of cfg.turrets) {
+    const spec = TURRETS[t.kind];
+    const damage =
+      spec.damage *
+      (1 + TURRET.levelDamageBonus * (t.level - 1)) *
+      cfg.stats.turretDamageMul *
+      (t.kind === 'laser' ? cfg.stats.laserDamageMul : 1);
+    const rate =
+      spec.fireRate *
+      cfg.stats.turretFireRateMul *
+      (t.kind === 'gatling' ? cfg.stats.gatlingFireRateMul : 1);
+    dps += damage * rate;
+  }
+  return dps;
 }
 
 /** Seconds between Repair Bay heals at a given level (shrinks to a floor). */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { interceptDirection, rotate } from '../src/core/aiming';
-import { CANNON, DT, EXPLOSION, TICK_RATE, TURRETS } from '../src/core/balance';
+import { CANNON, DATA, DT, EXPLOSION, TICK_RATE, TURRETS } from '../src/core/balance';
 import { EXPLOSION_TOTAL_SECONDS } from '../src/core/explosion';
 import { defaultNightConfig, Sim } from '../src/core/sim';
 import { baseStats } from '../src/core/stats';
@@ -857,6 +857,162 @@ describe('phase-3 buildings and Scrap Surge', () => {
     run(sim, Math.ceil(EXPLOSION_TOTAL_SECONDS * TICK_RATE));
     expect(sim.state.scrap).toBe(10); // 5 × surge factor 2
     expect(sim.state.ability.cooldown.surge).toBeGreaterThan(0);
+  });
+});
+
+describe('combo / overcharge / data (skilled-play layer)', () => {
+  function bareConfig(night = 1, stats: Partial<ReturnType<typeof baseStats>> = {}) {
+    const cfg = defaultNightConfig(night);
+    cfg.waves = [];
+    cfg.boss = false;
+    cfg.stats = { ...cfg.stats, ...stats };
+    return cfg;
+  }
+
+  function injectEnemy(sim: Sim, id: number, pos: { x: number; y: number }, vel = { x: 0, y: 0 }) {
+    sim.state.enemies.push({
+      id,
+      kind: 'ballistic',
+      pos: { ...pos },
+      origin: { x: pos.x, y: 100 },
+      vel: { ...vel },
+      hp: 1,
+      maxHp: 1,
+      scrapReward: 10,
+    });
+  }
+
+  function injectExplosion(
+    sim: Sim,
+    pos: { x: number; y: number },
+    source?: 'manual' | 'turret' | 'ability',
+  ) {
+    sim.state.explosions.push({
+      id: sim.state.nextId++,
+      pos: { ...pos },
+      age: 0,
+      maxRadius: EXPLOSION.maxRadius,
+      damage: 1,
+      hitEnemyIds: [],
+      source,
+    });
+  }
+
+  it('manual-explosion kills build the combo; turret kills do not', () => {
+    const sim = new Sim(1, bareConfig());
+    injectEnemy(sim, 9001, { x: 0, y: 50 });
+    injectEnemy(sim, 9002, { x: 3, y: 50 });
+    injectExplosion(sim, { x: 1, y: 50 }, 'manual');
+    run(sim, Math.ceil(EXPLOSION_TOTAL_SECONDS * TICK_RATE));
+    expect(sim.state.combo).toBe(2);
+    expect(sim.state.maxCombo).toBe(2);
+
+    const sim2 = new Sim(1, bareConfig());
+    injectEnemy(sim2, 9001, { x: 0, y: 50 });
+    injectExplosion(sim2, { x: 0, y: 50 }, 'turret');
+    run(sim2, Math.ceil(EXPLOSION_TOTAL_SECONDS * TICK_RATE));
+    expect(sim2.state.enemies).toHaveLength(0);
+    expect(sim2.state.combo).toBe(0);
+  });
+
+  it('a whiffed manual blast breaks the combo (Combo Memory keeps a cut)', () => {
+    const sim = new Sim(1, bareConfig());
+    sim.state.combo = 10;
+    injectExplosion(sim, { x: 0, y: 80 }, 'manual');
+    run(sim, Math.ceil(EXPLOSION_TOTAL_SECONDS * TICK_RATE));
+    expect(sim.state.combo).toBe(0);
+
+    const sim2 = new Sim(1, bareConfig(1, { comboRetention: 0.25 }));
+    sim2.state.combo = 10;
+    injectExplosion(sim2, { x: 0, y: 80 }, 'manual');
+    let lost = 0;
+    for (let i = 0; i < EXPLOSION_TOTAL_SECONDS * TICK_RATE + 2; i++) {
+      for (const ev of sim2.step([])) if (ev.type === 'comboBroken') lost = ev.lost;
+    }
+    expect(sim2.state.combo).toBe(2); // floor(10 × 0.25)
+    expect(lost).toBe(8);
+  });
+
+  it('a city taking damage breaks the combo and voids the perfect bonus', () => {
+    const sim = new Sim(1, bareConfig());
+    sim.state.combo = 7;
+    const city = sim.state.cities[0]!;
+    injectEnemy(sim, 9001, { x: city.x, y: 0.5 }, { x: 0, y: -20 });
+    run(sim, 10);
+    expect(sim.state.cityDamageTaken).toBe(1);
+    expect(sim.state.combo).toBe(0);
+  });
+
+  it('the combo multiplies kill rewards (capped at maxStacks)', () => {
+    const sim = new Sim(1, bareConfig());
+    sim.state.combo = 100; // beyond the cap of 50 → ×2
+    injectEnemy(sim, 9001, { x: 0, y: 50 });
+    injectExplosion(sim, { x: 0, y: 50 }, 'manual');
+    run(sim, Math.ceil(EXPLOSION_TOTAL_SECONDS * TICK_RATE));
+    expect(sim.state.scrap).toBe(20); // 10 × (1 + 0.02×50)
+  });
+
+  it('Overcharge Shot adds a share of turret DPS to manual blasts', () => {
+    const cfg = bareConfig(1, { overchargeRate: 1 });
+    cfg.turrets = [{ kind: 'gatling', level: 1 }];
+    const sim = new Sim(1, cfg);
+    sim.step([{ type: 'fire', x: 0, y: 60 }]);
+    run(sim, TICK_RATE); // interceptor lands ~0.8s in; explosion still alive
+    const manual = sim.state.explosions.find((e) => e.source === 'manual');
+    expect(manual).toBeDefined();
+    // gatling dps = damage 1 × fireRate 1.1; rate 1 → 1 + 1.1
+    expect(manual!.damage).toBeCloseTo(1 + TURRETS.gatling.damage * TURRETS.gatling.fireRate, 5);
+  });
+
+  it('a perfect victory from the unlock night pays Data; early nights pay none', () => {
+    const sim = new Sim(1, bareConfig(DATA.unlockNight));
+    let data = -1;
+    for (let i = 0; i < TICK_RATE * 5 && data < 0; i++) {
+      for (const ev of sim.step([])) if (ev.type === 'nightEnded') data = ev.dataEarned;
+    }
+    expect(data).toBe(DATA.perfectBase + Math.floor(DATA.unlockNight / 10));
+
+    const early = new Sim(1, bareConfig(DATA.unlockNight - 1));
+    let earlyData = -1;
+    for (let i = 0; i < TICK_RATE * 5 && earlyData < 0; i++) {
+      for (const ev of early.step([])) if (ev.type === 'nightEnded') earlyData = ev.dataEarned;
+    }
+    expect(earlyData).toBe(0);
+  });
+
+  it('peak combo pays Data even without a perfect night; defeat pays nothing', () => {
+    const sim = new Sim(1, bareConfig(DATA.unlockNight));
+    sim.state.maxCombo = 30;
+    sim.state.cityDamageTaken = 1;
+    let data = -1;
+    for (let i = 0; i < TICK_RATE * 5 && data < 0; i++) {
+      for (const ev of sim.step([])) if (ev.type === 'nightEnded') data = ev.dataEarned;
+    }
+    expect(data).toBe(Math.floor(30 / DATA.comboPerData));
+
+    const lost = new Sim(1, bareConfig(DATA.unlockNight));
+    lost.state.maxCombo = 60;
+    for (const c of lost.state.cities) c.hp = 0;
+    const events = lost.step([]);
+    const ended = events.find((e) => e.type === 'nightEnded');
+    expect(ended && ended.type === 'nightEnded' && ended.dataEarned).toBe(0);
+  });
+
+  it('Threat Analysis retargets turrets onto city-bound missiles', () => {
+    // Laser at x=-80 (never misses): a low decoy falling onto empty ground vs
+    // a higher missile dead on course for the city at x=-60.
+    const cityBound = { x: -60, y: 30 };
+    const harmless = { x: -80, y: 20 };
+    const kill = (threat: boolean): number => {
+      const sim = new Sim(1, bareConfig(1, threat ? { threatTargeting: 1 } : {}));
+      sim.state.turrets.push({ id: 50, kind: 'laser', level: 1, x: -80, y: 2, cooldown: 0 });
+      injectEnemy(sim, 9001, cityBound, { x: 0, y: -10 });
+      injectEnemy(sim, 9002, harmless, { x: 0, y: -10 });
+      sim.step([]);
+      return sim.state.enemies[0]!.id; // the survivor of the first laser tick
+    };
+    expect(kill(false)).toBe(9001); // default: lowest enemy dies first → 9002 gone
+    expect(kill(true)).toBe(9002); // threat analysis: city-bound 9001 dies first
   });
 });
 

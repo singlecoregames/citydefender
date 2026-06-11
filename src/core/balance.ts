@@ -189,6 +189,27 @@ export const ABILITIES = {
   },
 } as const;
 
+/** Combo meter: consecutive manual-explosion kills build a global scrap
+ *  multiplier. A manual blast that kills nothing, or a city taking damage,
+ *  breaks the streak (Combo Memory retains a fraction). */
+export const COMBO = {
+  /** Scrap multiplier = 1 + scrapPerStack × min(combo, maxStacks). */
+  scrapPerStack: 0.02,
+  maxStacks: 50,
+} as const;
+
+/** Data (▣) — the skilled-play currency. Earned only on victorious nights
+ *  from night `unlockNight` on: a perfect-defence bonus plus a peak-combo
+ *  bonus. Spent on the automation-intelligence nodes. */
+export const DATA = {
+  unlockNight: 20,
+  /** Perfect night (cities took zero damage): perfectBase + floor(night/10). */
+  perfectBase: 2,
+  /** 1 data per this much peak combo, capped at comboDataCap. */
+  comboPerData: 12,
+  comboDataCap: 5,
+} as const;
+
 /** Boss appears every BOSS_NIGHT_INTERVAL nights (N10, 20, 30…). */
 export const BOSS_NIGHT_INTERVAL = 10;
 

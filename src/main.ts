@@ -59,16 +59,17 @@ container.addEventListener('pointerdown', (e) => {
 });
 
 /** Apply the night result to the run, persist, and show the Day screen. */
-function resolveNight(outcome: 'victory' | 'defeat', scrapEarned: number): void {
+function resolveNight(outcome: 'victory' | 'defeat', scrapEarned: number, dataEarned: number): void {
   const clearedNight = run.night;
   run.scrap += scrapEarned;
   run.scrap += dawnInterest(run.scrap, resolveStats(run.upgrades).scrapInterestRate);
+  run.data += dataEarned;
   if (outcome === 'victory') {
     run.bestNight = Math.max(run.bestNight, run.night);
     run.night += 1;
   }
   saveRun(store, run);
-  dayScreen.show(run, outcome, clearedNight);
+  dayScreen.show(run, outcome, clearedNight, dataEarned);
 }
 
 // Fixed timestep with accumulator; render every animation frame.
@@ -93,7 +94,7 @@ function frame(now: number): void {
         }
         if (ev.type === 'nightEnded' && !nightResolved) {
           nightResolved = true;
-          resolveNight(ev.outcome, ev.scrapEarned);
+          resolveNight(ev.outcome, ev.scrapEarned, ev.dataEarned);
         }
       }
     }
@@ -101,7 +102,7 @@ function frame(now: number): void {
   }
 
   renderer.render(sim.state);
-  hud.render(sim.state, run.scrap + (nightResolved ? 0 : sim.state.scrap), run.cores);
+  hud.render(sim.state, run.scrap + (nightResolved ? 0 : sim.state.scrap), run.cores, run.data);
   abilityBar.render(sim.state);
   requestAnimationFrame(frame);
 }

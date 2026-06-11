@@ -46,6 +46,17 @@ export interface DerivedStats {
   dopplerTracking: number;
   /** Multiplier on the Jammer Tower's field radius (Wide Spectrum). */
   jammerRadiusMul: number;
+  /** Manual explosions add this fraction of total turret DPS as bonus damage
+   *  (Overcharge Shot) — manual fire scales with your automation. */
+  overchargeRate: number;
+  /** Fraction of the combo kept when it breaks (Combo Memory). */
+  comboRetention: number;
+  /** >0: turrets prefer enemies whose impact would hit a living city
+   *  (Threat Analysis). */
+  threatTargeting: number;
+  /** Multiplier on every turret's aim spread, stacking with the Radar Array
+   *  (Neural Lead). */
+  turretSpreadMul: number;
 }
 
 export type StatKey = keyof DerivedStats;
@@ -86,6 +97,10 @@ export function baseStats(): DerivedStats {
     scrapInterestRate: 0,
     dopplerTracking: 0,
     jammerRadiusMul: 1,
+    overchargeRate: 0,
+    comboRetention: 0,
+    threatTargeting: 0,
+    turretSpreadMul: 1,
   };
 }
 

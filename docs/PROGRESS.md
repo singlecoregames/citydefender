@@ -5,8 +5,8 @@
 
 ## 한 줄 요약
 플랜 M1~M5 핵심이 모두 구현됨 — 코어 플레이, 런 루프+경제, 분기형 스킬트리,
-자동 포탑 6종, 적 6종+보스, Cores 화폐, 수동 어빌리티 4종. 테스트 81개 통과.
-트리 확장 완료: 35→51노드 (1차 StatMod 7, 2차 유틸 건물 3, 3차 레이더/재머/디코이/서지 6).
+자동 포탑 6종, 적 6종+보스, Cores 화폐, 수동 어빌리티 4종. 테스트 91개 통과.
+트리 확장 완료: 35→55노드. 수동 플레이 보상 축(콤보/Overcharge/▣ Data) 구현됨.
 
 ## 기술 스택 / 구조
 - TypeScript(strict) + Vite + Three.js(ortho + UnrealBloom) + Vitest
@@ -45,6 +45,19 @@
   지면충돌 흡수, charges) / Repair Bay(city, interval마다 가장 손상된 도시 1HP 수리).
   balance: BUILDINGS(위치)·BUILDING_TUNING. sim: updateBuildings()+쉴드는
   handleGroundImpact에서 소모. 렌더: 색상별 키 큰 블록.
+- **콤보/Overcharge + Data 화폐** (GDD §3.3·§4.1의 "수동 플레이 후반 가치" 축):
+  - **콤보 미터**: 수동 폭발(Explosion.source==='manual')의 킬마다 +1, 전역 scrap
+    배율 `1+0.02×min(combo,50)` (balance.COMBO). 수동 폭발이 빗나가거나(킬 0으로
+    소멸) 도시 피격 시 break → `comboBroken` 이벤트. HUD에 `#hud-combo`(⚡ n ×mul).
+  - **Overcharge Shot**(cannon, scrap): 수동 폭발 데미지 += rate×터렛 총DPS
+    (`estimateTurretDps()`를 Sim 생성자에서 캐시). 자동화가 클수록 수동 한 방도 강해짐.
+  - **▣ Data 화폐**: 승리한 밤(N20+, balance.DATA.unlockNight)에서만 지급 —
+    퍼펙트(도시 무피해) `2+floor(night/10)` + 피크콤보 `floor(maxCombo/12)`(캡 5).
+    `nightEnded.dataEarned` → RunState.data. 구세이브는 기본값 0으로 마이그레이션.
+  - **Data 전용 노드 4종**: Combo Memory(break 시 콤보 25%/lvl 유지),
+    Threat Analysis(터렛이 도시에 실제로 떨어질 적 우선 조준 — threatensCity()
+    낙하점 투영), Neural Lead(조준 오차 −15%/lvl, 레이더와 곱연산),
+    + Overcharge Shot은 scrap. 트리 51→55노드, Currency에 'data' 추가.
 - **트리 확장 3차** (레이더/재머/디코이/서지, 6노드):
   Radar Array(건물, 포탑 조준오차 ×0.85^lvl) + Doppler Tracking(phase 무적 관통,
   isUntouchable()) / Jammer Tower(건물, 반경 45 슬로우 필드 12%+6%/lvl) +
@@ -76,10 +89,11 @@
 ## 다음 단계 후보 (아직 안 함)
 1. **사운드(ZzFX)** — 절차적 효과음, 체감 큰 폴리시
 2. **밸런스 시뮬레이터**(`tools/sim/`) — AI 플레이어로 4~5시간 페이싱 수치 검증
+   (Data/콤보 곡선도 함께 검증 필요)
 3. **추가 보스 패턴** — 현재 보스 1종 행동, N20/30/40/50용 고유 패턴(Hydra/Bastion 등)
 4. **엔딩/Endless** — N50 클리어 연출 + 자유 플레이
-5. **콤보/Overcharge** — 수동 요격 연속 보너스(설계 문서엔 있으나 미구현)
-6. 플랫폼 패키징(Electron+steamworks, Capacitor) — 후반
+5. 플랫폼 패키징(Electron+steamworks, Capacitor) — 후반
+6. 콤보 연출 폴리시 — 콤보 상승/브레이크 사운드·셰이크, 캐논 주변 링 게이지(GDD §5)
 
 ## 알려진 메모 / 주의
 - 노드 ID가 여러 번 바뀌어 **옛 세이브의 일부 구매분은 무효**될 수 있음(크래시는 없음)
