@@ -3,23 +3,26 @@ import { isUnlocked, nextCost, TREE, type TreeBranch, type TreeNode } from '../c
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-/** Pixel layout constants for the tree. */
+/** Pixel layout: nodes sit at (col*GAP_X, row*GAP_Y) around the core at (0,0). */
 const GAP_X = 132;
-const GAP_Y = 92;
+const GAP_Y = 96;
 const NODE_W = 116;
 const NODE_H = 50;
-const PAD = 70;
+
+const MIN_SCALE = 0.4;
+const MAX_SCALE = 2.5;
 
 const BRANCH_COLOR: Record<TreeBranch, string> = {
+  core: '#cfd6e8',
   cannon: '#4aa0ff',
   economy: '#ffdc50',
   city: '#49d17a',
 };
 
 /**
- * Between-night Day screen. Shows the night result and the branching skill
- * tree (rendered as a pannable SVG). Spends Scrap into the run's node levels;
- * calls back on purchase (to save) and on "Next Night".
+ * Between-night Day screen. Renders the skill tree as one connected graph
+ * (every branch grows from the central COMMAND core) inside a pan/zoomable
+ * SVG viewport: drag to pan, wheel/pinch/buttons to zoom, tap a node to buy.
  */
 export class DayScreen {
   private readonly root = document.getElementById('dayscreen')!;
@@ -29,11 +32,18 @@ export class DayScreen {
   private readonly shopEl = document.getElementById('day-shop')!;
   private run: RunState | null = null;
 
-  /** Per-node DOM handles, rebuilt once; only attributes change on refresh. */
+  private viewport!: SVGGElement;
   private readonly nodeEls = new Map<string, { box: SVGRectElement; cost: SVGTextElement }>();
   private readonly lineEls: { line: SVGLineElement; to: TreeNode }[] = [];
   private built = false;
-  /** Set true while a pan drag is in progress, to swallow the trailing click. */
+
+  // pan/zoom transform state
+  private tx = 0;
+  private ty = 0;
+  private scale = 0.9;
+  private readonly pointers = new Map<number, { x: number; y: number }>();
+  private pinchDist = 0;
+  private pinchMid = { x: 0, y: 0 };
   private dragMoved = false;
 
   constructor(
@@ -60,60 +70,51 @@ export class DayScreen {
       outcome === 'victory'
         ? 'Spend scrap on your skill tree, then push on.'
         : 'You held what you could. Spend, then try again.';
+    // Unhide first so the container has a measurable size for centring.
+    this.root.classList.remove('hidden');
     if (!this.built) this.buildTree();
     this.refresh();
-    this.root.classList.remove('hidden');
   }
 
   private hide(): void {
     this.root.classList.add('hidden');
   }
 
-  // --- layout ---
-
-  private px(node: TreeNode): { x: number; y: number } {
-    const cols = TREE.map((n) => n.col);
-    const rows = TREE.map((n) => n.row);
-    const minCol = Math.min(...cols);
-    const minRow = Math.min(...rows);
-    return {
-      x: PAD + (node.col - minCol) * GAP_X + NODE_W / 2,
-      y: PAD + (node.row - minRow) * GAP_Y + NODE_H / 2,
-    };
+  private nodePx(node: TreeNode): { x: number; y: number } {
+    return { x: node.col * GAP_X, y: node.row * GAP_Y };
   }
 
   private buildTree(): void {
-    const cols = TREE.map((n) => n.col);
-    const rows = TREE.map((n) => n.row);
-    const width = PAD * 2 + (Math.max(...cols) - Math.min(...cols)) * GAP_X + NODE_W;
-    const height = PAD * 2 + (Math.max(...rows) - Math.min(...rows)) * GAP_Y + NODE_H;
-
     const svg = document.createElementNS(SVG_NS, 'svg');
-    svg.setAttribute('width', String(width));
-    svg.setAttribute('height', String(height));
     svg.classList.add('tree-svg');
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '100%');
+
+    const viewport = document.createElementNS(SVG_NS, 'g');
+    svg.appendChild(viewport);
+    this.viewport = viewport;
 
     // Connection lines first (under the nodes).
     for (const node of TREE) {
       for (const reqId of node.requires) {
         const from = TREE.find((n) => n.id === reqId);
         if (!from) continue;
-        const a = this.px(from);
-        const b = this.px(node);
+        const a = this.nodePx(from);
+        const b = this.nodePx(node);
         const line = document.createElementNS(SVG_NS, 'line');
         line.setAttribute('x1', String(a.x));
         line.setAttribute('y1', String(a.y));
         line.setAttribute('x2', String(b.x));
         line.setAttribute('y2', String(b.y));
         line.setAttribute('stroke-width', '3');
-        svg.appendChild(line);
+        viewport.appendChild(line);
         this.lineEls.push({ line, to: node });
       }
     }
 
     // Nodes.
     for (const node of TREE) {
-      const p = this.px(node);
+      const p = this.nodePx(node);
       const g = document.createElementNS(SVG_NS, 'g');
       g.setAttribute('transform', `translate(${p.x - NODE_W / 2}, ${p.y - NODE_H / 2})`);
       g.style.cursor = 'pointer';
@@ -140,51 +141,154 @@ export class DayScreen {
       cost.classList.add('tree-cost');
       g.appendChild(cost);
 
-      g.addEventListener('click', () => {
-        if (this.dragMoved) return; // this was a pan, not a tap
-        this.tryBuy(node);
-      });
-      // A title gives the full effect on hover/long-press.
       const tip = document.createElementNS(SVG_NS, 'title');
       tip.textContent = node.description;
       g.appendChild(tip);
 
-      svg.appendChild(g);
+      g.addEventListener('click', () => {
+        if (this.dragMoved) return; // this was a pan/pinch, not a tap
+        this.tryBuy(node);
+      });
+
+      viewport.appendChild(g);
       this.nodeEls.set(node.id, { box, cost });
     }
 
     this.shopEl.replaceChildren(svg);
-    this.enablePan();
+    this.addZoomButtons();
+    this.enablePanZoom();
+
+    // Centre the core in the viewport.
+    this.tx = this.shopEl.clientWidth / 2;
+    this.ty = this.shopEl.clientHeight / 2;
+    this.applyTransform();
+
     this.built = true;
   }
 
-  /** Drag to pan the (overflow-scrolled) tree container. */
-  private enablePan(): void {
+  // --- pan / zoom ---
+
+  private applyTransform(): void {
+    this.viewport.setAttribute('transform', `translate(${this.tx},${this.ty}) scale(${this.scale})`);
+  }
+
+  private zoomAround(px: number, py: number, factor: number): void {
+    const ns = clamp(this.scale * factor, MIN_SCALE, MAX_SCALE);
+    // Keep the point under (px,py) fixed while scaling.
+    this.tx = px - ((px - this.tx) * ns) / this.scale;
+    this.ty = py - ((py - this.ty) * ns) / this.scale;
+    this.scale = ns;
+    this.applyTransform();
+  }
+
+  private localPoint(clientX: number, clientY: number): { x: number; y: number } {
+    const r = this.shopEl.getBoundingClientRect();
+    return { x: clientX - r.left, y: clientY - r.top };
+  }
+
+  private enablePanZoom(): void {
     const el = this.shopEl;
-    let down = false;
-    let sx = 0;
-    let sy = 0;
-    let sl = 0;
-    let st = 0;
+
     el.addEventListener('pointerdown', (e) => {
-      down = true;
+      el.setPointerCapture(e.pointerId);
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       this.dragMoved = false;
-      sx = e.clientX;
-      sy = e.clientY;
-      sl = el.scrollLeft;
-      st = el.scrollTop;
+      if (this.pointers.size === 2) this.startPinch();
     });
+
     el.addEventListener('pointermove', (e) => {
-      if (!down) return;
-      if (Math.hypot(e.clientX - sx, e.clientY - sy) > 6) this.dragMoved = true;
-      el.scrollLeft = sl - (e.clientX - sx);
-      el.scrollTop = st - (e.clientY - sy);
+      const prev = this.pointers.get(e.pointerId);
+      if (!prev) return;
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (this.pointers.size === 1) {
+        const dx = e.clientX - prev.x;
+        const dy = e.clientY - prev.y;
+        if (Math.hypot(dx, dy) > 1) this.dragMoved = true;
+        this.tx += dx;
+        this.ty += dy;
+        this.applyTransform();
+      } else if (this.pointers.size === 2) {
+        this.dragMoved = true;
+        this.updatePinch();
+      }
     });
-    const up = () => {
-      down = false;
+
+    const release = (e: PointerEvent) => {
+      this.pointers.delete(e.pointerId);
+      if (this.pointers.size < 2) this.pinchDist = 0;
+      if (this.pointers.size === 2) this.startPinch();
     };
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointerleave', up);
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
+
+    el.addEventListener(
+      'wheel',
+      (e) => {
+        e.preventDefault();
+        const { x, y } = this.localPoint(e.clientX, e.clientY);
+        this.zoomAround(x, y, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+      },
+      { passive: false },
+    );
+  }
+
+  private twoPointers(): [{ x: number; y: number }, { x: number; y: number }] {
+    const it = this.pointers.values();
+    return [it.next().value!, it.next().value!];
+  }
+
+  private startPinch(): void {
+    const [a, b] = this.twoPointers();
+    this.pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+    this.pinchMid = this.localPoint((a.x + b.x) / 2, (a.y + b.y) / 2);
+  }
+
+  private updatePinch(): void {
+    const [a, b] = this.twoPointers();
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+    const mid = this.localPoint((a.x + b.x) / 2, (a.y + b.y) / 2);
+    if (this.pinchDist > 0) {
+      this.zoomAround(mid.x, mid.y, dist / this.pinchDist);
+      // Also pan by the midpoint movement so two-finger drag works.
+      this.tx += mid.x - this.pinchMid.x;
+      this.ty += mid.y - this.pinchMid.y;
+      this.applyTransform();
+    }
+    this.pinchDist = dist;
+    this.pinchMid = mid;
+  }
+
+  private addZoomButtons(): void {
+    const make = (label: string, onClick: () => void) => {
+      const b = document.createElement('button');
+      b.className = 'zoom-btn';
+      b.textContent = label;
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onClick();
+      });
+      // Don't let button taps start a pan.
+      b.addEventListener('pointerdown', (e) => e.stopPropagation());
+      return b;
+    };
+    const center = () => {
+      const r = this.shopEl;
+      return { x: r.clientWidth / 2, y: r.clientHeight / 2 };
+    };
+    const wrap = document.createElement('div');
+    wrap.className = 'zoom-controls';
+    wrap.append(
+      make('+', () => {
+        const c = center();
+        this.zoomAround(c.x, c.y, 1.2);
+      }),
+      make('−', () => {
+        const c = center();
+        this.zoomAround(c.x, c.y, 1 / 1.2);
+      }),
+    );
+    this.shopEl.appendChild(wrap);
   }
 
   // --- state refresh ---
@@ -205,13 +309,14 @@ export class DayScreen {
       let opacity = '1';
       let costText: string;
 
-      if (cost === null) {
-        fill = 'rgba(20,22,34,0.92)';
+      if (node.branch === 'core') {
+        stroke = color;
+        costText = 'CORE';
+      } else if (cost === null) {
         stroke = color;
         costText = `✓ MAX · ${level}`;
       } else if (!unlocked) {
         opacity = '0.4';
-        stroke = '#3a3f5a';
         costText = '🔒';
       } else if (run.scrap >= cost) {
         stroke = color;
@@ -229,7 +334,7 @@ export class DayScreen {
     }
 
     for (const { line, to } of this.lineEls) {
-      const bought = (this.run!.upgrades[to.id] ?? 0) > 0;
+      const bought = (run.upgrades[to.id] ?? 0) > 0;
       line.setAttribute('stroke', bought ? BRANCH_COLOR[to.branch] : '#2c3046');
       line.setAttribute('opacity', bought ? '0.9' : '0.5');
     }
@@ -237,6 +342,7 @@ export class DayScreen {
 
   private tryBuy(node: TreeNode): void {
     const run = this.run!;
+    if (node.branch === 'core') return;
     const level = run.upgrades[node.id] ?? 0;
     if (!isUnlocked(node, run.upgrades)) return;
     const cost = nextCost(node, level);
@@ -246,4 +352,8 @@ export class DayScreen {
     this.onPurchase(run);
     this.refresh();
   }
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
 }

@@ -19,7 +19,8 @@ export function newRun(seed = (Date.now() & 0xffffffff) >>> 0): RunState {
   return {
     night: 1,
     scrap: 0,
-    upgrades: {},
+    // The command core is owned from the start so the branch roots unlock.
+    upgrades: { core: 1 },
     seed,
     bestNight: 0,
   };

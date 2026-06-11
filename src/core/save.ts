@@ -45,7 +45,8 @@ function migrate(env: SaveEnvelope): RunState {
   return {
     ...base,
     ...env.run,
-    upgrades: env.run.upgrades ?? {},
+    // Always keep the command core owned so branch roots stay unlocked.
+    upgrades: { core: 1, ...(env.run.upgrades ?? {}) },
   };
 }
 

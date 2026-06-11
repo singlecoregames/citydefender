@@ -1,6 +1,6 @@
 import { applyMod, baseStats, type DerivedStats, type StatMod } from './stats';
 
-export type TreeBranch = 'cannon' | 'economy' | 'city';
+export type TreeBranch = 'core' | 'cannon' | 'economy' | 'city';
 
 /**
  * A single skill-tree node. Effects are declarative stat modifiers applied
@@ -32,6 +32,22 @@ export type TreeLevels = Record<string, number>;
  * declarative shape here is what they'll extend.
  */
 export const TREE: readonly TreeNode[] = [
+  // ── Command core (centre): owned from the start; the trunk every branch
+  //    grows from, so the whole tree reads as one connected graph. ─────────
+  {
+    id: 'core',
+    name: 'COMMAND',
+    description: 'Your command post. Every branch grows from here.',
+    branch: 'core',
+    col: 0,
+    row: 0,
+    maxLevel: 1,
+    baseCost: 0,
+    costGrowth: 1,
+    requires: [],
+    effects: [],
+  },
+
   // ── Cannon branch (upwards): manual firepower ──────────────────────────
   {
     id: 'blast_radius',
@@ -43,7 +59,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 8,
     baseCost: 20,
     costGrowth: 1.4,
-    requires: [],
+    requires: ['core'],
     effects: [{ stat: 'explosionMaxRadius', op: 'mul', value: 0.08 }],
   },
   {
@@ -136,7 +152,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 9,
     baseCost: 40,
     costGrowth: 1.45,
-    requires: [],
+    requires: ['core'],
     effects: [{ stat: 'scrapMul', op: 'mul', value: 0.12 }],
   },
   {
@@ -190,7 +206,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 4,
     baseCost: 80,
     costGrowth: 1.8,
-    requires: [],
+    requires: ['core'],
     effects: [{ stat: 'cityMaxHp', op: 'add', value: 1 }],
   },
   {

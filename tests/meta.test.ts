@@ -104,7 +104,7 @@ describe('save / load', () => {
     const run = newRun(42);
     run.night = 5;
     run.scrap = 123;
-    run.upgrades = { magazine: 2 };
+    run.upgrades = { core: 1, magazine: 2 };
     const restored = deserialize(serialize(run));
     expect(restored).toEqual(run);
   });
@@ -119,7 +119,8 @@ describe('save / load', () => {
     const restored = deserialize(JSON.stringify({ version: SAVE_VERSION, run: { night: 3, scrap: 10 } }));
     expect(restored.night).toBe(3);
     expect(restored.scrap).toBe(10);
-    expect(restored.upgrades).toEqual({});
+    // The command core is always kept so branch roots stay unlocked.
+    expect(restored.upgrades).toEqual({ core: 1 });
     expect(restored.bestNight).toBe(0);
   });
 });
