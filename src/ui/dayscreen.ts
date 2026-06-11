@@ -152,14 +152,11 @@ export class DayScreen {
       tip.textContent = node.description;
       g.appendChild(tip);
 
-      g.addEventListener('click', () => {
-        if (this.dragMoved) return; // this was a pan/pinch, not a tap
-        if (this.selectedId !== node.id) {
-          this.select(node); // first tap: show the tooltip
-        } else {
-          this.tryBuy(node); // second tap on the same node: buy
-        }
-      });
+      // Tap handling lives on the shop container's pointerup (see handleTap):
+      // setPointerCapture there retargets `click` to the container, so a
+      // per-node click listener never fires on desktop. We tag the node id
+      // here and hit-test by coordinates instead.
+      g.dataset.nodeId = node.id;
 
       viewport.appendChild(g);
       this.nodeEls.set(node.id, { box, cost });
@@ -232,9 +229,12 @@ export class DayScreen {
     });
 
     const release = (e: PointerEvent) => {
+      // A clean single-pointer release with no movement is a tap on a node.
+      const wasTap = e.type === 'pointerup' && this.pointers.size === 1 && !this.dragMoved;
       this.pointers.delete(e.pointerId);
       if (this.pointers.size < 2) this.pinchDist = 0;
       if (this.pointers.size === 2) this.startPinch();
+      if (wasTap) this.handleTap(e.clientX, e.clientY);
     };
     el.addEventListener('pointerup', release);
     el.addEventListener('pointercancel', release);
@@ -306,6 +306,24 @@ export class DayScreen {
       }),
     );
     this.shopEl.appendChild(wrap);
+  }
+
+  /**
+   * Resolve which node sits under the released pointer and act on it. Done by
+   * hit-testing coordinates (not the event target) because the container holds
+   * pointer capture, which retargets `click`/`pointerup` away from the node.
+   */
+  private handleTap(clientX: number, clientY: number): void {
+    const hit = document.elementFromPoint(clientX, clientY);
+    const g = hit?.closest('[data-node-id]') as SVGGElement | null;
+    if (!g) return;
+    const node = TREE.find((n) => n.id === g.dataset.nodeId);
+    if (!node) return;
+    if (this.selectedId !== node.id) {
+      this.select(node); // first tap: show the tooltip
+    } else {
+      this.tryBuy(node); // second tap on the same node: buy
+    }
   }
 
   // --- tooltip (tap to show, tap again to buy) ---
