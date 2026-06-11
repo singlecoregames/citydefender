@@ -11,7 +11,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { CANNON, WORLD } from '../core/balance';
 import { explosionRadius } from '../core/explosion';
-import type { EnemyKind, GameEvent, GameState, TurretKind, Vec2 } from '../core/types';
+import type { BuildingKind, EnemyKind, GameEvent, GameState, TurretKind, Vec2 } from '../core/types';
 import { Particles } from './particles';
 
 /** Internal render is 360px tall; on a 16:9 screen that's exactly 640x360.
@@ -50,6 +50,13 @@ const TURRET_COLORS: Record<TurretKind, number> = {
 };
 
 const BEAM_COLORS = { laser: 0xff6a4a, railgun: 0xe8f4ff, tesla: 0x7ae0ff } as const;
+
+/** Support buildings read as muted hexagon-ish blocks, distinct from turrets. */
+const BUILDING_COLORS: Record<BuildingKind, number> = {
+  harvester: 0xffdc50, // gold — economy
+  shield: 0x6cc8ff, // cyan — protection
+  repair: 0x49d17a, // green — sustain
+};
 
 /** Per-kind enemy colours. */
 const ENEMY_COLORS: Record<EnemyKind, number> = {
@@ -102,6 +109,7 @@ export class Renderer {
   private readonly interceptorViews = new Map<number, InterceptorView>();
   private readonly explosionViews = new Map<number, ExplosionView>();
   private readonly turretMeshes = new Map<number, THREE.Mesh>();
+  private readonly buildingMeshes = new Map<number, THREE.Mesh>();
   private readonly projectileViews = new Map<number, THREE.Mesh>();
   private readonly cityMeshes: THREE.Mesh[] = [];
   private readonly beams: BeamFx[] = [];
@@ -249,6 +257,7 @@ export class Renderer {
 
     this.syncCities(state);
     this.syncTurrets(state);
+    this.syncBuildings(state);
     this.syncProjectiles(state);
     this.syncEnemies(state);
     this.syncInterceptors(state);
@@ -360,6 +369,33 @@ export class Renderer {
           this.scene.remove(mesh);
           (mesh.material as THREE.Material).dispose();
           this.turretMeshes.delete(id);
+        }
+      }
+    }
+  }
+
+  private syncBuildings(state: GameState): void {
+    // Buildings are static for the night; create once, taller than turrets and
+    // crowned with a small cap so they read as support structures, not guns.
+    for (const b of state.buildings) {
+      if (this.buildingMeshes.has(b.id)) continue;
+      // Taller, narrower block than a turret, in the kind's support colour.
+      const body = new THREE.Mesh(
+        this.roundedGeo,
+        new THREE.MeshBasicMaterial({ color: BUILDING_COLORS[b.kind] }),
+      );
+      body.scale.set(6, 9, 1);
+      body.position.set(b.x, 4.5, 1.5);
+      this.scene.add(body);
+      this.buildingMeshes.set(b.id, body);
+    }
+    if (this.buildingMeshes.size > state.buildings.length) {
+      const ids = new Set(state.buildings.map((b) => b.id));
+      for (const [id, mesh] of this.buildingMeshes) {
+        if (!ids.has(id)) {
+          this.scene.remove(mesh);
+          (mesh.material as THREE.Material).dispose();
+          this.buildingMeshes.delete(id);
         }
       }
     }

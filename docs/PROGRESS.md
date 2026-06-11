@@ -5,8 +5,8 @@
 
 ## 한 줄 요약
 플랜 M1~M5 핵심이 모두 구현됨 — 코어 플레이, 런 루프+경제, 분기형 스킬트리,
-자동 포탑 6종, 적 6종+보스, Cores 화폐, 수동 어빌리티 3종. 테스트 71개 통과.
-트리 확장(35→58노드) 진행 중: 1차(StatMod 7노드) 완료, 2차(유틸 건물)·3차(레이더/재머) 남음.
+자동 포탑 6종, 적 6종+보스, Cores 화폐, 수동 어빌리티 3종. 테스트 76개 통과.
+트리 확장(35→58노드) 진행 중: 1차(StatMod 7노드)·2차(유틸 건물 3종) 완료, 3차(레이더/재머/디코이) 남음.
 
 ## 기술 스택 / 구조
 - TypeScript(strict) + Vite + Three.js(ortho + UnrealBloom) + Vitest
@@ -38,8 +38,14 @@
   Compound Interest(새벽 이자, `dawnInterest()` in run.ts) / Midas Protocol(◆) /
   War Insurance(도시 피격 보상) / Flux Capacitor·Singularity Core(◆, 어빌 쿨다운 감소).
   신규 스탯 5종: abilityCooldownMul, cityHitScrap, waveClearScrap, multiKillScrap,
-  scrapInterestRate. 2차 예정: 유틸 건물(BUILDING_NODES — Shield/Repair/Harvester),
-  3차: Radar/Jammer/Decoy/Scrap Surge (설계는 채팅 로그 기준 합의됨)
+  scrapInterestRate.
+- **트리 확장 2차** (유틸리티 건물 — 비전투 지원 구조물, 포탑 패턴 미러):
+  `BUILDING_NODES`/`buildingsFromTree` + `Building` 엔티티 + NightConfig.buildings.
+  Scrap Harvester(economy, 초당 scrap 자동수확) / Shield Generator(city, 밤당 N회
+  지면충돌 흡수, charges) / Repair Bay(city, interval마다 가장 손상된 도시 1HP 수리).
+  balance: BUILDINGS(위치)·BUILDING_TUNING. sim: updateBuildings()+쉴드는
+  handleGroundImpact에서 소모. 렌더: 색상별 키 큰 블록. 3차 예정:
+  Radar(조준오차↓)/Jammer(슬로우 필드)/Decoy(어그로)/Scrap Surge(4번째 어빌)
 
 ## 핵심 파일 지도
 - `src/core/sim.ts` — 메인 시뮬레이션(step 루프, 포탑·적·어빌리티·보스 로직)

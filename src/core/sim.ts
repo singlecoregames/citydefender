@@ -8,6 +8,9 @@ import {
   ABILITIES,
   BOSS,
   BOSS_NIGHT_INTERVAL,
+  BUILDING,
+  BUILDING_TUNING,
+  BUILDINGS,
   CANNON,
   CITY,
   DT,
@@ -23,9 +26,11 @@ import { interceptDirection, rotate } from './aiming';
 import { explosionIsDone, explosionIsLethal, explosionRadius } from './explosion';
 import { Rng } from './rng';
 import { baseStats, type DerivedStats } from './stats';
-import type { AbilityLevels, TurretSpec } from './tree';
+import type { AbilityLevels, BuildingSpec, TurretSpec } from './tree';
 import type {
   AbilityKind,
+  Building,
+  City,
   Command,
   EnemyKind,
   EnemyMissile,
@@ -46,6 +51,8 @@ export interface NightConfig {
   stats: DerivedStats;
   /** Deployed turrets (kind + node level), derived from the skill tree. */
   turrets: TurretSpec[];
+  /** Deployed support buildings (kind + node level). */
+  buildings: BuildingSpec[];
   /** Manual ability node levels (0 = not owned). */
   abilities: AbilityLevels;
   /** Whether a boss appears this night. */
@@ -59,6 +66,7 @@ export function defaultNightConfig(night = 1): NightConfig {
     waves: generateNight(night),
     stats: baseStats(),
     turrets: [],
+    buildings: [],
     abilities: { emp: 0, megabomb: 0, slowmo: 0 },
     boss: night % BOSS_NIGHT_INTERVAL === 0,
   };
@@ -98,6 +106,7 @@ export class Sim {
     this.regenAmmo();
     this.runDirector();
     this.updateEnemyBehavior();
+    this.updateBuildings();
     this.updateTurrets();
     this.moveProjectiles();
     this.moveInterceptors();
@@ -386,6 +395,46 @@ export class Sim {
       maxHp: hp,
       scrapReward: Math.max(1, spec.scrapReward),
     });
+  }
+
+  // --- support buildings (non-combat) ---
+
+  /** Tick passive structures: Scrap Harvester income and Repair Bay healing.
+   *  The Shield Generator has no per-tick work — it's consumed on impact. */
+  private updateBuildings(): void {
+    const s = this.state;
+    for (const b of s.buildings) {
+      if (b.kind === 'harvester') {
+        b.accum += BUILDING_TUNING.harvester.scrapPerSecPerLevel * b.level * DT;
+        if (b.accum >= 1) {
+          const gained = Math.floor(b.accum);
+          b.accum -= gained;
+          s.scrap += gained;
+        }
+      } else if (b.kind === 'repair') {
+        b.timer -= DT;
+        if (b.timer <= 0) {
+          const target = this.mostDamagedCity();
+          if (target) {
+            target.hp = Math.min(target.maxHp, target.hp + BUILDING_TUNING.repair.healAmount);
+            s.events.push({ type: 'cityRepaired', cityId: target.id });
+            b.timer = repairInterval(b.level);
+          } else {
+            b.timer = 0; // nothing to fix yet — stay ready for the next hit
+          }
+        }
+      }
+    }
+  }
+
+  /** The living city with the lowest non-full HP (deterministic tie-break). */
+  private mostDamagedCity(): City | null {
+    let best: City | null = null;
+    for (const c of this.state.cities) {
+      if (c.hp <= 0 || c.hp >= c.maxHp) continue;
+      if (!best || c.hp < best.hp || (c.hp === best.hp && c.id < best.id)) best = c;
+    }
+    return best;
   }
 
   // --- automated turrets ---
@@ -703,12 +752,23 @@ export class Sim {
     const s = this.state;
     const impact: Vec2 = { x: e.pos.x, y: 0 };
     s.events.push({ type: 'groundImpact', pos: impact });
-    for (const city of s.cities) {
-      if (city.hp > 0 && Math.abs(city.x - impact.x) <= this.cfg.stats.cityHitRadius) {
-        city.hp--;
-        s.scrap += this.cfg.stats.cityHitScrap; // War Insurance compensation
-        s.events.push({ type: 'cityHit', cityId: city.id, destroyed: city.hp <= 0 });
-      }
+    const hitCities = s.cities.filter(
+      (c) => c.hp > 0 && Math.abs(c.x - impact.x) <= this.cfg.stats.cityHitRadius,
+    );
+    if (hitCities.length === 0) return;
+
+    // Shield Generator soaks the whole impact for one charge.
+    const shield = s.buildings.find((b) => b.kind === 'shield');
+    if (shield && shield.charges > 0) {
+      shield.charges--;
+      s.events.push({ type: 'shieldAbsorbed', cityId: hitCities[0]!.id });
+      return;
+    }
+
+    for (const city of hitCities) {
+      city.hp--;
+      s.scrap += this.cfg.stats.cityHitScrap; // War Insurance compensation
+      s.events.push({ type: 'cityHit', cityId: city.id, destroyed: city.hp <= 0 });
     }
   }
 
@@ -793,6 +853,7 @@ function createInitialState(cfg: NightConfig): GameState {
       y: TURRET.y,
       cooldown: 0,
     })),
+    buildings: cfg.buildings.map((b, i) => makeBuilding(i, b)),
     projectiles: [],
     scrap: 0,
     ability: {
@@ -811,6 +872,33 @@ function createInitialState(cfg: NightConfig): GameState {
     nextId: 1,
     events: [],
   };
+}
+
+/** Seconds between Repair Bay heals at a given level (shrinks to a floor). */
+function repairInterval(level: number): number {
+  const t = BUILDING_TUNING.repair;
+  return Math.max(t.intervalMin, t.intervalBase - t.intervalPerLevel * (level - 1));
+}
+
+/** Build a Building's initial runtime state from its deployed spec. */
+function makeBuilding(id: number, spec: BuildingSpec): Building {
+  const b: Building = {
+    id,
+    kind: spec.kind,
+    level: spec.level,
+    x: BUILDINGS[spec.kind].x,
+    y: BUILDING.y,
+    timer: 0,
+    charges: 0,
+    accum: 0,
+  };
+  if (spec.kind === 'shield') {
+    const t = BUILDING_TUNING.shield;
+    b.charges = t.chargesBase + t.chargesPerLevel * (spec.level - 1);
+  } else if (spec.kind === 'repair') {
+    b.timer = repairInterval(spec.level); // first heal after one full interval
+  }
+  return b;
 }
 
 function clamp(v: number, lo: number, hi: number): number {

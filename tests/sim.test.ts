@@ -672,6 +672,93 @@ describe('phase-1 utility nodes (sim hooks)', () => {
   });
 });
 
+describe('support buildings', () => {
+  function buildingConfig(buildings: { kind: 'harvester' | 'shield' | 'repair'; level: number }[]) {
+    const cfg = defaultNightConfig(1);
+    cfg.waves = [];
+    cfg.buildings = buildings;
+    return cfg;
+  }
+
+  /** Park a motionless enemy off in the sky so the night never auto-completes
+   *  (buildings only tick while the night is being played). */
+  function keepAlive(sim: Sim) {
+    sim.state.enemies.push({
+      id: 90000, kind: 'ballistic', pos: { x: 200, y: 90 }, origin: { x: 200, y: 90 },
+      vel: { x: 0, y: 0 }, hp: 1, maxHp: 1, scrapReward: 5,
+    });
+  }
+
+  it('buildingsFromTree maps building nodes to deployed specs', async () => {
+    const { buildingsFromTree } = await import('../src/core/tree');
+    expect(buildingsFromTree({})).toEqual([]);
+    const specs = buildingsFromTree({ bld_harvester: 2, bld_shield: 1, bld_repair: 3 });
+    expect(specs).toContainEqual({ kind: 'harvester', level: 2 });
+    expect(specs).toContainEqual({ kind: 'shield', level: 1 });
+    expect(specs).toContainEqual({ kind: 'repair', level: 3 });
+  });
+
+  it('Scrap Harvester earns scrap over time, scaling with level', () => {
+    const sim = new Sim(1, buildingConfig([{ kind: 'harvester', level: 1 }]));
+    keepAlive(sim);
+    expect(sim.state.scrap).toBe(0);
+    run(sim, TICK_RATE * 6); // 0.8/s * 6s = 4.8 → 4 banked
+    expect(sim.state.scrap).toBe(4);
+
+    const fast = new Sim(1, buildingConfig([{ kind: 'harvester', level: 3 }]));
+    keepAlive(fast);
+    run(fast, TICK_RATE * 6); // 2.4/s * 6s = 14.4 → 14 banked
+    expect(fast.state.scrap).toBe(14);
+  });
+
+  it('Shield Generator absorbs ground impacts up to its charge count', () => {
+    const cfg = buildingConfig([{ kind: 'shield', level: 1 }]); // 2 charges
+    cfg.stats = { ...cfg.stats, cityMaxHp: 5 };
+    const sim = new Sim(1, cfg);
+    keepAlive(sim);
+    const city = sim.state.cities[0]!;
+    city.hp = 5;
+    const drop = () => {
+      sim.state.enemies.push({
+        id: sim.state.nextId++, kind: 'ballistic', pos: { x: city.x, y: 0.4 },
+        origin: { x: city.x, y: 100 }, vel: { x: 0, y: -20 }, hp: 1, maxHp: 1, scrapReward: 5,
+      });
+      run(sim, 3);
+    };
+    drop(); // absorbed
+    drop(); // absorbed
+    expect(city.hp).toBe(5);
+    expect(sim.state.buildings[0]!.charges).toBe(0);
+    drop(); // no charges left → city takes the hit
+    expect(city.hp).toBe(4);
+  });
+
+  it('Repair Bay heals the most-damaged living city after its interval', () => {
+    const cfg = buildingConfig([{ kind: 'repair', level: 1 }]); // 40s interval
+    cfg.stats = { ...cfg.stats, cityMaxHp: 3 };
+    const sim = new Sim(1, cfg);
+    keepAlive(sim);
+    sim.state.cities[0]!.hp = 1; // most damaged
+    sim.state.cities[1]!.hp = 2;
+    run(sim, TICK_RATE * 40 + 2);
+    expect(sim.state.cities[0]!.hp).toBe(2); // +1 to the lowest
+    expect(sim.state.cities[1]!.hp).toBe(2); // untouched
+  });
+
+  it('Repair Bay never overheals or revives a destroyed city', () => {
+    const cfg = buildingConfig([{ kind: 'repair', level: 1 }]);
+    cfg.stats = { ...cfg.stats, cityMaxHp: 2 };
+    const sim = new Sim(1, cfg);
+    keepAlive(sim);
+    sim.state.cities[0]!.hp = 2; // full
+    sim.state.cities[1]!.hp = 0; // destroyed
+    sim.state.cities[2]!.hp = 0; // destroyed
+    run(sim, TICK_RATE * 45);
+    expect(sim.state.cities[0]!.hp).toBe(2); // capped at max, not overhealed
+    expect(sim.state.cities[1]!.hp).toBe(0); // stays dead (no revive)
+  });
+});
+
 describe('intercept solver', () => {
   it('aims ahead of a crossing target', () => {
     // Target moving right; correct lead must aim to the right of its position.

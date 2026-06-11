@@ -3,7 +3,7 @@ import { dawnInterest, nightSeed, type RunState } from './core/run';
 import { loadRun, saveRun } from './core/save';
 import { Sim, type NightConfig } from './core/sim';
 import type { Command } from './core/types';
-import { abilitiesFromTree, resolveStats, turretsFromTree } from './core/tree';
+import { abilitiesFromTree, buildingsFromTree, resolveStats, turretsFromTree } from './core/tree';
 import { generateNight } from './core/waves';
 import { WebStore } from './platform/store';
 import { Renderer } from './render/renderer';
@@ -38,6 +38,7 @@ function nightConfigFor(r: RunState): NightConfig {
     waves: generateNight(r.night),
     stats: resolveStats(r.upgrades),
     turrets: turretsFromTree(r.upgrades),
+    buildings: buildingsFromTree(r.upgrades),
     abilities: abilitiesFromTree(r.upgrades),
     boss: r.night % BOSS_NIGHT_INTERVAL === 0,
   };

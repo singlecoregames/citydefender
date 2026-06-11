@@ -1,5 +1,5 @@
 import { applyMod, baseStats, type DerivedStats, type StatMod } from './stats';
-import type { TurretKind } from './types';
+import type { BuildingKind, TurretKind } from './types';
 
 export type TreeBranch = 'core' | 'cannon' | 'economy' | 'city' | 'automation' | 'tech';
 
@@ -243,6 +243,19 @@ export const TREE: readonly TreeNode[] = [
     requires: ['refinery'],
     effects: [{ stat: 'scrapInterestRate', op: 'add', value: 0.04 }],
   },
+  {
+    id: 'bld_harvester',
+    name: 'Scrap Harvester',
+    description: 'Deploy: harvests scrap on its own all night (lvl = +rate)',
+    branch: 'economy',
+    col: -3,
+    row: 0,
+    maxLevel: 4,
+    baseCost: 250,
+    costGrowth: 1.9,
+    requires: ['salvage'],
+    effects: [],
+  },
 
   // ── City branch (right): keep your cities alive ───────────────────────
   {
@@ -296,6 +309,32 @@ export const TREE: readonly TreeNode[] = [
     costGrowth: 1.6,
     requires: ['reinforced'],
     effects: [{ stat: 'cityHitScrap', op: 'add', value: 8 }],
+  },
+  {
+    id: 'bld_shield',
+    name: 'Shield Generator',
+    description: 'Deploy: absorbs 2 ground impacts each night (lvl = +1 charge)',
+    branch: 'city',
+    col: 2,
+    row: -1,
+    maxLevel: 4,
+    baseCost: 300,
+    costGrowth: 1.9,
+    requires: ['reinforced'],
+    effects: [],
+  },
+  {
+    id: 'bld_repair',
+    name: 'Repair Bay',
+    description: 'Deploy: repairs 1 city HP every 40s (lvl shortens the timer)',
+    branch: 'city',
+    col: 4,
+    row: 0,
+    maxLevel: 4,
+    baseCost: 400,
+    costGrowth: 1.9,
+    requires: ['bunker'],
+    effects: [],
   },
 
   // ── Automation branch (downwards): six turret kinds at fixed positions.
@@ -645,6 +684,28 @@ export interface TurretSpec {
 export function turretsFromTree(levels: TreeLevels): TurretSpec[] {
   const out: TurretSpec[] = [];
   for (const [nodeId, kind] of Object.entries(TURRET_NODES)) {
+    const lvl = levels[nodeId] ?? 0;
+    if (lvl > 0) out.push({ kind, level: lvl });
+  }
+  return out;
+}
+
+/** Map of building tree-node ids to the support building they deploy. */
+export const BUILDING_NODES: Record<string, BuildingKind> = {
+  bld_harvester: 'harvester',
+  bld_shield: 'shield',
+  bld_repair: 'repair',
+};
+
+export interface BuildingSpec {
+  kind: BuildingKind;
+  level: number;
+}
+
+/** Derive the deployed support-building list (kind + node level) from the tree. */
+export function buildingsFromTree(levels: TreeLevels): BuildingSpec[] {
+  const out: BuildingSpec[] = [];
+  for (const [nodeId, kind] of Object.entries(BUILDING_NODES)) {
     const lvl = levels[nodeId] ?? 0;
     if (lvl > 0) out.push({ kind, level: lvl });
   }

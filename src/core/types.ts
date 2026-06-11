@@ -21,6 +21,10 @@ export interface Interceptor {
 
 export type TurretKind = 'gatling' | 'flak' | 'laser' | 'missile' | 'railgun' | 'tesla';
 
+/** Non-combat support structures. Unlike turrets they never fire — each helps
+ *  the cities passively (income, shielding, repairs). */
+export type BuildingKind = 'harvester' | 'shield' | 'repair';
+
 /** A fixed automated turret that targets and fires at enemies on its own.
  *  Each kind lives at its own predetermined position. */
 export interface Turret {
@@ -49,6 +53,21 @@ export interface TurretProjectile {
   burstRadius?: number;
   /** Missile: enemy id this shot is homing onto. */
   targetId?: number;
+}
+
+/** A deployed support building. Which runtime field matters depends on kind:
+ *  harvester→accum (fractional scrap bank), shield→charges (impacts left to
+ *  absorb this night), repair→timer (seconds until the next heal). */
+export interface Building {
+  id: number;
+  kind: BuildingKind;
+  /** Tree-node level (scales the building's effect). */
+  level: number;
+  x: number;
+  y: number;
+  timer: number;
+  charges: number;
+  accum: number;
 }
 
 export type ExplosionPhase = 'grow' | 'hold' | 'fade';
@@ -103,6 +122,10 @@ export type GameEvent =
   | { type: 'enemyKilled'; pos: Vec2; reward: number }
   | { type: 'groundImpact'; pos: Vec2 }
   | { type: 'cityHit'; cityId: number; destroyed: boolean }
+  /** A Shield Generator soaked a ground impact that would have hit a city. */
+  | { type: 'shieldAbsorbed'; cityId: number }
+  /** A Repair Bay restored a point of city HP. */
+  | { type: 'cityRepaired'; cityId: number }
   | { type: 'waveStarted'; waveIndex: number }
   | { type: 'bossSpawned' }
   | { type: 'bossKilled'; cores: number }
@@ -134,6 +157,7 @@ export interface GameState {
   explosions: Explosion[];
   enemies: EnemyMissile[];
   turrets: Turret[];
+  buildings: Building[];
   projectiles: TurretProjectile[];
   scrap: number;
   /** Manual ability state (Tech branch). Cooldowns count down to 0 (ready);

@@ -2,7 +2,7 @@
  * Every tunable number in one place. The balance simulator (tools/sim)
  * sweeps these; gameplay code must not contain magic numbers.
  */
-import type { TurretKind } from './types';
+import type { BuildingKind, TurretKind } from './types';
 
 /** Simulation runs at a fixed 60Hz regardless of render framerate. */
 export const TICK_RATE = 60;
@@ -82,6 +82,31 @@ export const TURRETS: Record<TurretKind, TurretKindSpec> = {
   railgun: { x: -15, fireRate: 0.22, damage: 4, range: 95, pierceWidth: 3, spreadDeg: 1 },
   tesla: { x: 15, fireRate: 0.7, damage: 1, range: 30, chainCount: 4, chainRadius: 18 },
 };
+
+/** Shared support-building constants. Buildings sit on the ground line like
+ *  turrets but never fire; each kind's effect scales with its node level. */
+export const BUILDING = { y: 2 } as const;
+
+export interface BuildingKindSpec {
+  /** Fixed deploy position (chosen to sit between turrets/cities). */
+  x: number;
+}
+
+export const BUILDINGS: Record<BuildingKind, BuildingKindSpec> = {
+  /** Scrap Harvester: passive income — scrap/sec = ratePerLevel × level. */
+  harvester: { x: 30 },
+  /** Shield Generator: absorbs ground impacts — charges = base + perLevel×(lvl-1). */
+  shield: { x: -70 },
+  /** Repair Bay: heals 1 city HP every `interval` seconds (shrinks with level). */
+  repair: { x: 70 },
+} as const;
+
+/** Per-kind building tuning, separate from positions for the balance sim. */
+export const BUILDING_TUNING = {
+  harvester: { scrapPerSecPerLevel: 0.8 },
+  shield: { chargesBase: 2, chargesPerLevel: 1 },
+  repair: { intervalBase: 40, intervalPerLevel: 7, intervalMin: 18, healAmount: 1 },
+} as const;
 
 export const CITY = {
   count: 3,
