@@ -223,7 +223,9 @@ export class Renderer {
       let view = this.enemyViews.get(e.id);
       if (!view) {
         view = { head: new THREE.Mesh(this.roundedGeo, this.enemyHeadMat) };
-        view.head.scale.set(3.8, 3.8, 1);
+        // Tougher enemies are visibly chunkier so high-hp targets read clearly.
+        const sz = 3.8 + (e.maxHp - 1) * 0.7;
+        view.head.scale.set(sz, sz, 1);
         this.scene.add(view.head);
         this.enemyViews.set(e.id, view);
       }
