@@ -1,6 +1,6 @@
 import { applyMod, baseStats, type DerivedStats, type StatMod } from './stats';
 
-export type TreeBranch = 'core' | 'cannon' | 'economy' | 'city';
+export type TreeBranch = 'core' | 'cannon' | 'economy' | 'city' | 'automation';
 
 /**
  * A single skill-tree node. Effects are declarative stat modifiers applied
@@ -234,6 +234,60 @@ export const TREE: readonly TreeNode[] = [
     costGrowth: 1.55,
     requires: ['reinforced'],
     effects: [{ stat: 'cityHitRadius', op: 'mul', value: -0.06 }],
+  },
+
+  // ── Automation branch (downwards): self-firing turrets ─────────────────
+  {
+    id: 'auto_turret',
+    name: 'Auto-Turret',
+    description: '+1 automated turret that fires on its own',
+    branch: 'automation',
+    col: 0,
+    row: 2,
+    maxLevel: 5,
+    baseCost: 180,
+    costGrowth: 1.9,
+    requires: ['core'],
+    effects: [{ stat: 'turretCount', op: 'add', value: 1 }],
+  },
+  {
+    id: 'turret_power',
+    name: 'Turret Power',
+    description: '+1 turret damage',
+    branch: 'automation',
+    col: -1,
+    row: 3,
+    maxLevel: 5,
+    baseCost: 130,
+    costGrowth: 1.7,
+    requires: ['auto_turret'],
+    effects: [{ stat: 'turretDamage', op: 'add', value: 1 }],
+  },
+  {
+    id: 'turret_speed',
+    name: 'Overdrive',
+    description: '+15% turret fire rate',
+    branch: 'automation',
+    col: 1,
+    row: 3,
+    maxLevel: 6,
+    baseCost: 110,
+    costGrowth: 1.6,
+    requires: ['auto_turret'],
+    effects: [{ stat: 'turretFireRate', op: 'mul', value: 0.15 }],
+  },
+  {
+    id: 'turret_range',
+    name: 'Long Barrel',
+    description: '+12% turret range',
+    branch: 'automation',
+    col: 0,
+    row: 4,
+    maxLevel: 5,
+    baseCost: 90,
+    costGrowth: 1.55,
+    requires: ['turret_power', 'turret_speed'],
+    effects: [{ stat: 'turretRange', op: 'mul', value: 0.12 }],
   },
 ];
 

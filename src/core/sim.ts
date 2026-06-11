@@ -4,11 +4,11 @@
  * directory — the renderer, the tests and the balance simulator all drive
  * this same code.
  */
-import { CANNON, CITY, DT, ECONOMY, ENEMY, WAVE_BREAK_SECONDS, WORLD } from './balance';
+import { CANNON, CITY, DT, ECONOMY, ENEMY, TURRET, WAVE_BREAK_SECONDS, WORLD } from './balance';
 import { explosionIsDone, explosionIsLethal, explosionRadius } from './explosion';
 import { Rng } from './rng';
 import { baseStats, type DerivedStats } from './stats';
-import type { Command, EnemyMissile, GameEvent, GameState, Vec2 } from './types';
+import type { Command, EnemyMissile, GameEvent, GameState, Turret, Vec2 } from './types';
 import { generateNight, type WaveSpec } from './waves';
 
 /** Everything a single night's sim needs beyond its RNG seed. */
@@ -47,6 +47,8 @@ export class Sim {
 
     this.regenAmmo();
     this.runDirector();
+    this.updateTurrets();
+    this.moveProjectiles();
     this.moveInterceptors();
     this.moveEnemies();
     this.updateExplosions();
@@ -157,6 +159,89 @@ export class Sim {
     });
   }
 
+  // --- automated turrets ---
+
+  private updateTurrets(): void {
+    const s = this.state;
+    const range = this.cfg.stats.turretRange;
+    const fireInterval = 1 / this.cfg.stats.turretFireRate;
+    for (const turret of s.turrets) {
+      turret.cooldown -= DT;
+      if (turret.cooldown > 0) continue;
+      const target = this.selectTarget(turret, range);
+      if (!target) continue;
+      const dir = norm({ x: target.pos.x - turret.x, y: target.pos.y - turret.y });
+      s.projectiles.push({
+        id: s.nextId++,
+        pos: { x: turret.x, y: turret.y },
+        vel: { x: dir.x * TURRET.projectileSpeed, y: dir.y * TURRET.projectileSpeed },
+        damage: this.cfg.stats.turretDamage,
+      });
+      turret.cooldown += fireInterval;
+    }
+  }
+
+  /** Pick the most-progressed (lowest) enemy within range — the biggest threat
+   *  to the cities. Deterministic tie-break by id keeps replays stable. */
+  private selectTarget(turret: Turret, range: number): EnemyMissile | null {
+    const s = this.state;
+    let best: EnemyMissile | null = null;
+    for (const e of s.enemies) {
+      if (dist({ x: turret.x, y: turret.y }, e.pos) > range) continue;
+      if (!best || e.pos.y < best.pos.y || (e.pos.y === best.pos.y && e.id < best.id)) {
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  private moveProjectiles(): void {
+    const s = this.state;
+    for (let i = s.projectiles.length - 1; i >= 0; i--) {
+      const p = s.projectiles[i]!;
+      p.pos.x += p.vel.x * DT;
+      p.pos.y += p.vel.y * DT;
+      // Off-screen → discard.
+      if (
+        p.pos.y < -2 ||
+        p.pos.y > WORLD.height + 5 ||
+        Math.abs(p.pos.x) > WORLD.halfWidth + 5
+      ) {
+        s.projectiles.splice(i, 1);
+        continue;
+      }
+      // Hit the nearest enemy within the projectile's radius.
+      let hit = -1;
+      let hitDist: number = TURRET.projectileHitRadius;
+      for (let j = 0; j < s.enemies.length; j++) {
+        const d = dist(p.pos, s.enemies[j]!.pos);
+        if (d <= hitDist) {
+          hit = j;
+          hitDist = d;
+        }
+      }
+      if (hit >= 0) {
+        this.damageEnemy(hit, p.damage);
+        s.projectiles.splice(i, 1);
+      }
+    }
+  }
+
+  /** Apply damage to enemy at index; on death remove it and award scrap.
+   *  Shared by explosions and turret projectiles. */
+  private damageEnemy(index: number, dmg: number): void {
+    const s = this.state;
+    const enemy = s.enemies[index];
+    if (!enemy) return;
+    enemy.hp -= dmg;
+    if (enemy.hp <= 0) {
+      s.enemies.splice(index, 1);
+      const reward = this.scaledScrap(enemy.scrapReward);
+      s.scrap += reward;
+      s.events.push({ type: 'enemyKilled', pos: { ...enemy.pos }, reward });
+    }
+  }
+
   // --- movement & collisions ---
 
   private moveInterceptors(): void {
@@ -221,16 +306,7 @@ export class Sim {
           if (ex.hitEnemyIds.includes(enemy.id)) continue;
           if (dist(ex.pos, enemy.pos) <= r) {
             ex.hitEnemyIds.push(enemy.id);
-            enemy.hp -= ex.damage;
-            if (enemy.hp <= 0) {
-              s.enemies.splice(j, 1);
-              s.scrap += this.scaledScrap(enemy.scrapReward);
-              s.events.push({
-                type: 'enemyKilled',
-                pos: { ...enemy.pos },
-                reward: this.scaledScrap(enemy.scrapReward),
-              });
-            }
+            this.damageEnemy(j, ex.damage);
           }
         }
       }
@@ -252,7 +328,12 @@ export class Sim {
       this.endNight('defeat');
       return;
     }
-    if (s.director.done && s.enemies.length === 0 && s.interceptors.length === 0) {
+    if (
+      s.director.done &&
+      s.enemies.length === 0 &&
+      s.interceptors.length === 0 &&
+      s.projectiles.length === 0
+    ) {
       const living = s.cities.filter((c) => c.hp > 0).length;
       const bonus =
         ECONOMY.nightCompleteBonusBase *
@@ -282,6 +363,10 @@ function createInitialState(cfg: NightConfig): GameState {
     interceptors: [],
     explosions: [],
     enemies: [],
+    turrets: TURRET.slotXs
+      .slice(0, cfg.stats.turretCount)
+      .map((x, i) => ({ id: i, x, y: TURRET.y, cooldown: 0 })),
+    projectiles: [],
     scrap: 0,
     director: {
       waveIndex: 0,

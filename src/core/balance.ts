@@ -33,6 +33,21 @@ export const EXPLOSION = {
   damage: 1,
 } as const;
 
+/** Automated turrets (M4). Each owned turret occupies the next free slot. */
+export const TURRET = {
+  y: 2,
+  /** Slot x-positions, filled in order as turretCount rises. */
+  slotXs: [-80, 80, -45, 45, 0] as readonly number[],
+  projectileSpeed: 95,
+  /** A projectile within this distance of an enemy hits it. */
+  projectileHitRadius: 3.5,
+  baseDamage: 1,
+  /** Shots per second. */
+  baseFireRate: 2.5,
+  /** Targeting range in world units. */
+  baseRange: 65,
+} as const;
+
 export const CITY = {
   count: 3,
   /** Horizontal positions for the initial three cities. */

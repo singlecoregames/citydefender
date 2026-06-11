@@ -19,6 +19,23 @@ export interface Interceptor {
   speed: number;
 }
 
+/** A fixed automated turret that targets and fires at enemies on its own. */
+export interface Turret {
+  id: number;
+  x: number;
+  y: number;
+  /** Seconds until it can fire again. */
+  cooldown: number;
+}
+
+/** A bullet fired by a turret, travelling in a straight line. */
+export interface TurretProjectile {
+  id: number;
+  pos: Vec2;
+  vel: Vec2;
+  damage: number;
+}
+
 export type ExplosionPhase = 'grow' | 'hold' | 'fade';
 
 export interface Explosion {
@@ -74,6 +91,8 @@ export interface GameState {
   interceptors: Interceptor[];
   explosions: Explosion[];
   enemies: EnemyMissile[];
+  turrets: Turret[];
+  projectiles: TurretProjectile[];
   scrap: number;
   /** Wave director state. */
   director: {

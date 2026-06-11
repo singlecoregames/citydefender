@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { CANNON, EXPLOSION, TICK_RATE } from '../src/core/balance';
+import { CANNON, EXPLOSION, TICK_RATE, TURRET } from '../src/core/balance';
 import { EXPLOSION_TOTAL_SECONDS } from '../src/core/explosion';
-import { Sim } from '../src/core/sim';
+import { defaultNightConfig, Sim } from '../src/core/sim';
+import { baseStats } from '../src/core/stats';
 import type { Command } from '../src/core/types';
 
 function run(sim: Sim, ticks: number, commandsAt: Map<number, Command[]> = new Map()): void {
@@ -190,5 +191,63 @@ describe('cities and night flow', () => {
     sim.step([{ type: 'fire', x: 0, y: 60 }]);
     expect(JSON.stringify({ ...sim.state, events: [] })).toBe(snapshot);
     expect(sim.state.events).toHaveLength(0);
+  });
+});
+
+describe('automated turrets', () => {
+  function configWith(stats: Partial<ReturnType<typeof baseStats>>) {
+    const cfg = defaultNightConfig(1);
+    cfg.stats = { ...cfg.stats, ...stats };
+    return cfg;
+  }
+
+  it('deploys turretCount turrets at slot positions', () => {
+    const sim = new Sim(1, configWith({ turretCount: 2 }));
+    expect(sim.state.turrets).toHaveLength(2);
+    expect(sim.state.turrets[0]!.x).toBe(TURRET.slotXs[0]);
+  });
+
+  it('a turret fires at and kills an in-range enemy', () => {
+    const sim = new Sim(1, configWith({ turretCount: 1, turretDamage: 5 }));
+    const turret = sim.state.turrets[0]!;
+    sim.state.enemies.push({
+      id: 9999,
+      kind: 'ballistic',
+      pos: { x: turret.x + 10, y: 30 },
+      origin: { x: turret.x + 10, y: 100 },
+      vel: { x: 0, y: 0 },
+      hp: 3,
+      maxHp: 3,
+      scrapReward: 5,
+    });
+    const scrapBefore = sim.state.scrap;
+    run(sim, TICK_RATE * 2);
+    expect(sim.state.enemies.find((e) => e.id === 9999)).toBeUndefined();
+    expect(sim.state.scrap).toBeGreaterThan(scrapBefore);
+  });
+
+  it('does not fire at enemies beyond turret range', () => {
+    const sim = new Sim(1, configWith({ turretCount: 1, turretRange: 20 }));
+    const turret = sim.state.turrets[0]!;
+    sim.state.enemies.push({
+      id: 8888,
+      kind: 'ballistic',
+      pos: { x: turret.x + 80, y: 90 },
+      origin: { x: turret.x + 80, y: 100 },
+      vel: { x: 0, y: 0 },
+      hp: 1,
+      maxHp: 1,
+      scrapReward: 5,
+    });
+    run(sim, TICK_RATE);
+    expect(sim.state.projectiles).toHaveLength(0);
+    expect(sim.state.enemies.find((e) => e.id === 8888)).toBeDefined();
+  });
+
+  it('no turrets means no projectiles ever spawn', () => {
+    const sim = new Sim(42);
+    run(sim, TICK_RATE * 20);
+    expect(sim.state.turrets).toHaveLength(0);
+    expect(sim.state.projectiles).toHaveLength(0);
   });
 });

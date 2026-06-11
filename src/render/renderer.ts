@@ -29,6 +29,8 @@ const COLORS = {
   city: 0x49d17a,
   cityDead: 0x3a2630,
   cannon: 0x4aa0ff,
+  turret: 0x36e0b0,
+  projectile: 0xaef0ff,
   interceptorTrail: 0x2f6fb0,
   interceptorHead: 0xbfe0ff,
   targetMarker: 0x9fbfff,
@@ -61,6 +63,8 @@ export class Renderer {
   private readonly enemyViews = new Map<number, EnemyView>();
   private readonly interceptorViews = new Map<number, InterceptorView>();
   private readonly explosionViews = new Map<number, ExplosionView>();
+  private readonly turretMeshes = new Map<number, THREE.Mesh>();
+  private readonly projectileViews = new Map<number, THREE.Mesh>();
   private readonly cityMeshes: THREE.Mesh[] = [];
 
   private readonly particles = new Particles();
@@ -74,6 +78,8 @@ export class Renderer {
   private readonly discGeo = new THREE.CircleGeometry(1, 32);
   private readonly ringGeo = new THREE.RingGeometry(0.92, 1, 32);
   private readonly enemyHeadMat = new THREE.MeshBasicMaterial({ color: COLORS.enemyHead });
+  private readonly turretMat = new THREE.MeshBasicMaterial({ color: COLORS.turret });
+  private readonly projectileMat = new THREE.MeshBasicMaterial({ color: COLORS.projectile });
   private readonly interceptorHeadMat = new THREE.MeshBasicMaterial({
     color: COLORS.interceptorHead,
   });
@@ -129,6 +135,8 @@ export class Renderer {
     this.lastRenderTime = now;
 
     this.syncCities(state);
+    this.syncTurrets(state);
+    this.syncProjectiles(state);
     this.syncEnemies(state);
     this.syncInterceptors(state);
     this.syncExplosions(state);
@@ -214,6 +222,49 @@ export class Renderer {
       mesh.scale.y = alive ? 6 : 2.6;
       mesh.position.y = alive ? 3 : 1.3;
     });
+  }
+
+  private syncTurrets(state: GameState): void {
+    // Turrets are created once per night and don't move; just create on demand.
+    for (const t of state.turrets) {
+      if (this.turretMeshes.has(t.id)) continue;
+      const mesh = new THREE.Mesh(this.roundedGeo, this.turretMat);
+      mesh.scale.set(6, 6, 1);
+      mesh.position.set(t.x, t.y + 1, 1.5);
+      this.scene.add(mesh);
+      this.turretMeshes.set(t.id, mesh);
+    }
+    // Remove any left over from a previous night with more turrets.
+    if (this.turretMeshes.size > state.turrets.length) {
+      const ids = new Set(state.turrets.map((t) => t.id));
+      for (const [id, mesh] of this.turretMeshes) {
+        if (!ids.has(id)) {
+          this.scene.remove(mesh);
+          this.turretMeshes.delete(id);
+        }
+      }
+    }
+  }
+
+  private syncProjectiles(state: GameState): void {
+    const seen = new Set<number>();
+    for (const p of state.projectiles) {
+      seen.add(p.id);
+      let mesh = this.projectileViews.get(p.id);
+      if (!mesh) {
+        mesh = new THREE.Mesh(this.roundedGeo, this.projectileMat);
+        mesh.scale.set(1.6, 1.6, 1);
+        this.scene.add(mesh);
+        this.projectileViews.set(p.id, mesh);
+      }
+      mesh.position.set(p.pos.x, p.pos.y, 2);
+    }
+    for (const [id, mesh] of this.projectileViews) {
+      if (!seen.has(id)) {
+        this.scene.remove(mesh);
+        this.projectileViews.delete(id);
+      }
+    }
   }
 
   private syncEnemies(state: GameState): void {
