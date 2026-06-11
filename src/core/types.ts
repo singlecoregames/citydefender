@@ -60,10 +60,13 @@ export type NightPhase = 'playing' | 'ended';
 
 export interface GameState {
   tick: number;
+  /** Night number being played (for HUD/display). */
+  night: number;
   phase: NightPhase;
   outcome: 'victory' | 'defeat' | null;
   cannon: {
     ammo: number;
+    maxAmmo: number;
     /** Seconds until the next round regenerates. */
     reloadTimer: number;
   };
@@ -75,6 +78,7 @@ export interface GameState {
   /** Wave director state. */
   director: {
     waveIndex: number;
+    totalWaves: number;
     spawnedInWave: number;
     /** Seconds until the next spawn (or next wave when in a break). */
     timer: number;

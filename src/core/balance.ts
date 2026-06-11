@@ -54,14 +54,27 @@ export const ECONOMY = {
   /** Multiplier applied to all scrap when a night ends in defeat. */
   defeatScrapFactor: 0.6,
   nightCompleteBonusBase: 25,
+  /** Night-completion bonus grows with the night number. */
+  nightCompleteBonusGrowth: 1.15,
 } as const;
 
-/** Night 1 layout used by the M1 prototype; later replaced by waves/waveTable. */
-export const NIGHT1_WAVES: readonly { count: number; spawnIntervalRange: readonly [number, number] }[] = [
-  { count: 6, spawnIntervalRange: [0.9, 1.4] },
-  { count: 8, spawnIntervalRange: [0.7, 1.2] },
-  { count: 10, spawnIntervalRange: [0.55, 1.0] },
-];
+/** How a night's wave layout and enemy strength scale with the night number. */
+export const NIGHT_SCALING = {
+  /** Waves in night n = baseWaves + floor(n / nightsPerExtraWave). */
+  baseWaves: 3,
+  nightsPerExtraWave: 2,
+  /** Enemies in wave w of night n = round((baseCount + w) * countGrowth^n). */
+  baseCount: 5,
+  countGrowth: 1.05,
+  /** Per-night multipliers applied to enemy hp / speed / reward. */
+  hpGrowth: 1.1,
+  speedGrowth: 1.02,
+  rewardGrowth: 1.12,
+  /** Spawn interval shrinks slightly as nights progress (faster spawns). */
+  spawnIntervalBase: [0.85, 1.3] as readonly [number, number],
+  spawnIntervalFloor: 0.4,
+  spawnIntervalDecayPerNight: 0.98,
+} as const;
 
 /** Seconds of breathing room between waves. */
 export const WAVE_BREAK_SECONDS = 2.5;

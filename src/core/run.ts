@@ -1,0 +1,31 @@
+import type { UpgradeLevels } from './upgrades';
+
+/** Persistent meta-game state spanning many nights (the "run"). A single
+ *  night's Sim is derived from this; this is what gets saved. */
+export interface RunState {
+  /** Current night number, 1-based. The night the player is about to play. */
+  night: number;
+  /** Spendable currency carried across nights. */
+  scrap: number;
+  /** Purchased upgrade levels by id. */
+  upgrades: UpgradeLevels;
+  /** Base seed; each night uses seed + night for its enemy RNG. */
+  seed: number;
+  /** Highest night the player has cleared (for stats / "best"). */
+  bestNight: number;
+}
+
+export function newRun(seed = (Date.now() & 0xffffffff) >>> 0): RunState {
+  return {
+    night: 1,
+    scrap: 0,
+    upgrades: {},
+    seed,
+    bestNight: 0,
+  };
+}
+
+/** Per-night RNG seed derived from the run seed and night number. */
+export function nightSeed(run: RunState): number {
+  return (run.seed + run.night * 2654435761) >>> 0;
+}

@@ -1,30 +1,37 @@
 /**
- * Headless game simulation. Fixed 60Hz timestep, deterministic under a seed.
- * No three.js or DOM imports allowed in this directory — the renderer, the
- * tests and the balance simulator all drive this same code.
+ * Headless game simulation for a single night. Fixed 60Hz timestep,
+ * deterministic under a seed. No three.js or DOM imports allowed in this
+ * directory — the renderer, the tests and the balance simulator all drive
+ * this same code.
  */
-import {
-  CANNON,
-  CITY,
-  DT,
-  ECONOMY,
-  ENEMY,
-  EXPLOSION,
-  NIGHT1_WAVES,
-  WAVE_BREAK_SECONDS,
-  WORLD,
-} from './balance';
+import { CANNON, CITY, DT, ECONOMY, ENEMY, WAVE_BREAK_SECONDS, WORLD } from './balance';
 import { explosionIsDone, explosionIsLethal, explosionRadius } from './explosion';
 import { Rng } from './rng';
+import { baseStats, type DerivedStats } from './stats';
 import type { Command, EnemyMissile, GameEvent, GameState, Vec2 } from './types';
+import { generateNight, type WaveSpec } from './waves';
+
+/** Everything a single night's sim needs beyond its RNG seed. */
+export interface NightConfig {
+  night: number;
+  waves: WaveSpec[];
+  stats: DerivedStats;
+}
+
+/** Default config = night 1 with base stats (used by tests and the prototype). */
+export function defaultNightConfig(night = 1): NightConfig {
+  return { night, waves: generateNight(night), stats: baseStats() };
+}
 
 export class Sim {
   readonly state: GameState;
   private readonly rng: Rng;
+  private readonly cfg: NightConfig;
 
-  constructor(seed: number) {
+  constructor(seed: number, config: NightConfig = defaultNightConfig()) {
     this.rng = new Rng(seed);
-    this.state = createInitialState();
+    this.cfg = config;
+    this.state = createInitialState(config);
   }
 
   /** Advance the simulation by exactly one tick (1/60s). */
@@ -70,22 +77,22 @@ export class Sim {
       pos: { ...origin },
       origin,
       target,
-      speed: CANNON.interceptorSpeed,
+      speed: this.cfg.stats.interceptorSpeed,
     });
     s.events.push({ type: 'fired', target });
   }
 
   private regenAmmo(): void {
     const c = this.state.cannon;
-    if (c.ammo >= CANNON.maxAmmo) return;
+    if (c.ammo >= this.cfg.stats.maxAmmo) return;
     c.reloadTimer -= DT;
     if (c.reloadTimer <= 0) {
       c.ammo++;
-      c.reloadTimer += CANNON.reloadSeconds;
+      c.reloadTimer += this.cfg.stats.reloadSeconds;
     }
   }
 
-  // --- wave director (M1: hardcoded night 1; replaced by waves/ in M2) ---
+  // --- wave director ---
 
   private runDirector(): void {
     const s = this.state;
@@ -100,16 +107,16 @@ export class Sim {
       s.events.push({ type: 'waveStarted', waveIndex: d.waveIndex });
     }
 
-    const wave = NIGHT1_WAVES[d.waveIndex];
+    const wave = this.cfg.waves[d.waveIndex];
     if (!wave) {
       d.done = true;
       return;
     }
-    this.spawnBallistic();
+    this.spawnBallistic(wave);
     d.spawnedInWave++;
     if (d.spawnedInWave >= wave.count) {
       d.waveIndex++;
-      if (d.waveIndex >= NIGHT1_WAVES.length) {
+      if (d.waveIndex >= this.cfg.waves.length) {
         d.done = true;
       } else {
         d.inBreak = true;
@@ -121,7 +128,7 @@ export class Sim {
     }
   }
 
-  private spawnBallistic(): void {
+  private spawnBallistic(wave: WaveSpec): void {
     const s = this.state;
     const origin: Vec2 = {
       x: this.rng.range(-WORLD.halfWidth * 0.95, WORLD.halfWidth * 0.95),
@@ -136,15 +143,17 @@ export class Sim {
       targetX = this.rng.range(-WORLD.halfWidth * 0.9, WORLD.halfWidth * 0.9);
     }
     const dir = norm({ x: targetX - origin.x, y: -WORLD.height });
+    const hp = Math.max(1, Math.round(ENEMY.ballistic.hp * wave.hpScale));
+    const speed = ENEMY.ballistic.speed * wave.speedScale;
     s.enemies.push({
       id: s.nextId++,
       kind: 'ballistic',
       pos: { ...origin },
       origin,
-      vel: { x: dir.x * ENEMY.ballistic.speed, y: dir.y * ENEMY.ballistic.speed },
-      hp: ENEMY.ballistic.hp,
-      maxHp: ENEMY.ballistic.hp,
-      scrapReward: ENEMY.ballistic.scrapReward,
+      vel: { x: dir.x * speed, y: dir.y * speed },
+      hp,
+      maxHp: hp,
+      scrapReward: Math.max(1, Math.round(ENEMY.ballistic.scrapReward * wave.rewardScale)),
     });
   }
 
@@ -163,8 +172,8 @@ export class Sim {
           id: s.nextId++,
           pos: { ...it.target },
           age: 0,
-          maxRadius: EXPLOSION.maxRadius,
-          damage: EXPLOSION.damage,
+          maxRadius: this.cfg.stats.explosionMaxRadius,
+          damage: this.cfg.stats.explosionDamage,
           hitEnemyIds: [],
         });
         s.events.push({ type: 'detonation', pos: { ...it.target } });
@@ -215,11 +224,11 @@ export class Sim {
             enemy.hp -= ex.damage;
             if (enemy.hp <= 0) {
               s.enemies.splice(j, 1);
-              s.scrap += enemy.scrapReward;
+              s.scrap += this.scaledScrap(enemy.scrapReward);
               s.events.push({
                 type: 'enemyKilled',
                 pos: { ...enemy.pos },
-                reward: enemy.scrapReward,
+                reward: this.scaledScrap(enemy.scrapReward),
               });
             }
           }
@@ -227,6 +236,10 @@ export class Sim {
       }
       if (explosionIsDone(ex)) s.explosions.splice(i, 1);
     }
+  }
+
+  private scaledScrap(base: number): number {
+    return Math.max(1, Math.round(base * this.cfg.stats.scrapMul));
   }
 
   // --- night end ---
@@ -241,7 +254,9 @@ export class Sim {
     }
     if (s.director.done && s.enemies.length === 0 && s.interceptors.length === 0) {
       const living = s.cities.filter((c) => c.hp > 0).length;
-      s.scrap += Math.floor(ECONOMY.nightCompleteBonusBase * (living / s.cities.length));
+      const bonus =
+        ECONOMY.nightCompleteBonusBase * Math.pow(ECONOMY.nightCompleteBonusGrowth, s.night - 1);
+      s.scrap += Math.floor(this.scaledScrap(bonus) * (living / s.cities.length));
       this.endNight('victory');
     }
   }
@@ -254,18 +269,26 @@ export class Sim {
   }
 }
 
-function createInitialState(): GameState {
+function createInitialState(cfg: NightConfig): GameState {
   return {
     tick: 0,
+    night: cfg.night,
     phase: 'playing',
     outcome: null,
-    cannon: { ammo: CANNON.maxAmmo, reloadTimer: CANNON.reloadSeconds },
+    cannon: { ammo: cfg.stats.maxAmmo, maxAmmo: cfg.stats.maxAmmo, reloadTimer: cfg.stats.reloadSeconds },
     cities: CITY.xs.map((x, i) => ({ id: i, x, hp: CITY.hp, maxHp: CITY.hp })),
     interceptors: [],
     explosions: [],
     enemies: [],
     scrap: 0,
-    director: { waveIndex: 0, spawnedInWave: 0, timer: 1.5, inBreak: true, done: false },
+    director: {
+      waveIndex: 0,
+      totalWaves: cfg.waves.length,
+      spawnedInWave: 0,
+      timer: 1.5,
+      inBreak: true,
+      done: false,
+    },
     nextId: 1,
     events: [],
   };

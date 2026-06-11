@@ -76,56 +76,127 @@ body {
   box-shadow: 0 0 8px #28f0c8;
 }
 
-#overlay {
+#dayscreen {
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 16px;
-  background: rgba(10, 10, 18, 0.82);
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 4vh 16px;
+  background: rgba(10, 10, 18, 0.88);
   color: #e8e8f0;
   text-align: center;
+  overflow-y: auto;
 }
 
-#overlay.hidden {
+#dayscreen.hidden {
   display: none;
 }
 
-#overlay-title {
-  font-size: 42px;
-  letter-spacing: 6px;
+#day-title {
+  font-size: 34px;
+  letter-spacing: 5px;
   text-shadow: 0 0 18px currentColor;
 }
 
-#overlay-title.victory {
-  color: #28f0c8;
+#day-title.victory {
+  color: #49d17a;
 }
 
-#overlay-title.defeat {
-  color: #ff4060;
+#day-title.defeat {
+  color: #ff5042;
 }
 
-#overlay-body {
-  font-size: 18px;
+#day-subtitle {
+  font-size: 15px;
+  color: #9aa0b4;
+}
+
+#day-bank {
+  font-size: 22px;
   color: #ffdc50;
+  text-shadow: 0 0 10px rgba(255, 220, 80, 0.5);
+  margin-bottom: 4px;
 }
 
-#overlay-button {
-  margin-top: 8px;
-  padding: 12px 28px;
+#day-shop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(440px, 92vw);
+}
+
+.shop-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid #2f3450;
+  border-radius: 6px;
+  background: rgba(40, 48, 80, 0.25);
+  text-align: left;
+}
+
+.shop-item .info {
+  flex: 1;
+}
+
+.shop-item .name {
+  font-size: 15px;
+  color: #cfe3ff;
+}
+
+.shop-item .desc {
+  font-size: 12px;
+  color: #8890a8;
+}
+
+.shop-item .lvl {
+  font-size: 11px;
+  color: #6a7290;
+  letter-spacing: 1px;
+}
+
+.shop-item button {
+  min-width: 84px;
+  padding: 8px 10px;
   font-family: inherit;
-  font-size: 16px;
-  letter-spacing: 2px;
-  color: #28f0c8;
+  font-size: 13px;
+  color: #ffdc50;
   background: transparent;
-  border: 1px solid #28f0c8;
+  border: 1px solid #ffdc50;
   border-radius: 4px;
   cursor: pointer;
 }
 
-#overlay-button:hover {
-  background: rgba(40, 240, 200, 0.12);
-  box-shadow: 0 0 14px rgba(40, 240, 200, 0.5);
+.shop-item button:disabled {
+  color: #555b70;
+  border-color: #353a50;
+  cursor: default;
+}
+
+.shop-item button.maxed {
+  color: #49d17a;
+  border-color: #49d17a;
+}
+
+#day-next {
+  margin-top: 10px;
+  padding: 14px 34px;
+  font-family: inherit;
+  font-size: 17px;
+  letter-spacing: 2px;
+  color: #4aa0ff;
+  background: transparent;
+  border: 1px solid #4aa0ff;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#day-next:hover {
+  background: rgba(74, 160, 255, 0.14);
+  box-shadow: 0 0 14px rgba(74, 160, 255, 0.5);
 }
