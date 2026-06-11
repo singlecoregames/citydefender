@@ -10,6 +10,8 @@ export type TreeBranch = 'core' | 'cannon' | 'economy' | 'city' | 'automation';
  * place the node in the layout (the UI converts them to pixels); the tree fans
  * out from the centre: cannon up, economy left, city right.
  */
+export type Currency = 'scrap' | 'cores';
+
 export interface TreeNode {
   id: string;
   name: string;
@@ -21,8 +23,15 @@ export interface TreeNode {
   baseCost: number;
   /** Cost of level L = round(baseCost * costGrowth^L). */
   costGrowth: number;
+  /** Which currency pays for this node. Defaults to scrap. */
+  currency?: Currency;
   requires: string[];
   effects: StatMod[];
+}
+
+/** The currency a node is paid in. */
+export function nodeCurrency(node: TreeNode): Currency {
+  return node.currency ?? 'scrap';
 }
 
 export type TreeLevels = Record<string, number>;
@@ -436,6 +445,50 @@ export const TREE: readonly TreeNode[] = [
     costGrowth: 1.9,
     requires: ['turret_railgun'],
     effects: [{ stat: 'railgunPierceBonus', op: 'add', value: 2 }],
+  },
+
+  // ── Core-powered nodes (paid in ◆ Cores from bosses) ───────────────────
+  {
+    id: 'overcharge_matrix',
+    name: 'Overcharge Matrix',
+    description: '+40% all turret damage',
+    branch: 'automation',
+    col: -2,
+    row: 2,
+    maxLevel: 5,
+    baseCost: 3,
+    costGrowth: 1.6,
+    currency: 'cores',
+    requires: ['turret_gatling'],
+    effects: [{ stat: 'turretDamageMul', op: 'mul', value: 0.4 }],
+  },
+  {
+    id: 'cooling_core',
+    name: 'Cooling Core',
+    description: '+25% all turret fire rate',
+    branch: 'automation',
+    col: 2,
+    row: 2,
+    maxLevel: 4,
+    baseCost: 4,
+    costGrowth: 1.6,
+    currency: 'cores',
+    requires: ['turret_speed'],
+    effects: [{ stat: 'turretFireRateMul', op: 'mul', value: 0.25 }],
+  },
+  {
+    id: 'bastion_core',
+    name: 'Bastion Core',
+    description: '+2 city HP',
+    branch: 'city',
+    col: 4,
+    row: -1,
+    maxLevel: 3,
+    baseCost: 3,
+    costGrowth: 1.7,
+    currency: 'cores',
+    requires: ['bunker'],
+    effects: [{ stat: 'cityMaxHp', op: 'add', value: 2 }],
   },
 ];
 

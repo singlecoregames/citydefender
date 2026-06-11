@@ -5,6 +5,8 @@
  * this same code.
  */
 import {
+  BOSS,
+  BOSS_NIGHT_INTERVAL,
   CANNON,
   CITY,
   DT,
@@ -22,6 +24,9 @@ import { Rng } from './rng';
 import { baseStats, type DerivedStats } from './stats';
 import type { TurretSpec } from './tree';
 import type { Command, EnemyKind, EnemyMissile, GameEvent, GameState, Turret, Vec2 } from './types';
+
+/** Enemy kinds the wave director can spawn (everything except the boss). */
+type SpawnableKind = Exclude<EnemyKind, 'boss'>;
 import { enemyPool, generateNight, type WaveSpec } from './waves';
 
 /** Everything a single night's sim needs beyond its RNG seed. */
@@ -31,21 +36,31 @@ export interface NightConfig {
   stats: DerivedStats;
   /** Deployed turrets (kind + node level), derived from the skill tree. */
   turrets: TurretSpec[];
+  /** Whether a boss appears this night. */
+  boss: boolean;
 }
 
 /** Default config = night 1 with base stats (used by tests and the prototype). */
 export function defaultNightConfig(night = 1): NightConfig {
-  return { night, waves: generateNight(night), stats: baseStats(), turrets: [] };
+  return {
+    night,
+    waves: generateNight(night),
+    stats: baseStats(),
+    turrets: [],
+    boss: night % BOSS_NIGHT_INTERVAL === 0,
+  };
 }
 
 export class Sim {
   readonly state: GameState;
   private readonly rng: Rng;
   private readonly cfg: NightConfig;
+  private bossNeedsSpawn: boolean;
 
   constructor(seed: number, config: NightConfig = defaultNightConfig()) {
     this.rng = new Rng(seed);
     this.cfg = config;
+    this.bossNeedsSpawn = config.boss;
     this.state = createInitialState(config);
   }
 
@@ -55,6 +70,11 @@ export class Sim {
     s.events = [];
     if (s.phase === 'ended') return s.events;
     s.tick++;
+
+    if (this.bossNeedsSpawn) {
+      this.spawnBoss();
+      this.bossNeedsSpawn = false;
+    }
 
     for (const cmd of commands) {
       if (cmd.type === 'fire') this.fire(cmd.x, cmd.y);
@@ -156,19 +176,20 @@ export class Sim {
     }
   }
 
-  private chooseEnemyKind(): EnemyKind {
+  private chooseEnemyKind(): SpawnableKind {
     const pool = enemyPool(this.cfg.night);
     const total = pool.reduce((a, p) => a + p.weight, 0);
     let r = this.rng.next() * total;
     for (const p of pool) {
       r -= p.weight;
-      if (r <= 0) return p.kind;
+      if (r <= 0) return p.kind as SpawnableKind;
     }
     return 'ballistic';
   }
 
-  /** Spawn one enemy of a kind, descending toward a (usually living) city. */
-  private spawnEnemy(kind: EnemyKind, wave: WaveSpec): EnemyMissile {
+  /** Spawn one enemy of a kind, descending toward a (usually living) city.
+   *  Bosses use spawnBoss(), not this. */
+  private spawnEnemy(kind: SpawnableKind, wave: WaveSpec): EnemyMissile {
     const s = this.state;
     const spec = ENEMY[kind];
     const origin: Vec2 = {
@@ -208,11 +229,40 @@ export class Sim {
     return enemy;
   }
 
-  /** Per-tick special behaviour: phasing, regeneration, carrier spawning. */
+  /** Spawn the night's boss: huge hp, slow descent, sheds minions. */
+  private spawnBoss(): void {
+    const s = this.state;
+    const hpScale = this.cfg.waves[0]?.hpScale ?? 1;
+    const hp = Math.max(1, Math.round(BOSS.hp * hpScale));
+    s.enemies.push({
+      id: s.nextId++,
+      kind: 'boss',
+      pos: { x: 0, y: WORLD.height + WORLD.spawnMargin },
+      origin: { x: 0, y: WORLD.height + WORLD.spawnMargin },
+      vel: { x: 0, y: -BOSS.speed },
+      hp,
+      maxHp: hp,
+      scrapReward: BOSS.scrapReward,
+      spawnTimer: BOSS.spawnInterval,
+    });
+    s.events.push({ type: 'bossSpawned' });
+  }
+
+  /** Per-tick special behaviour: phasing, regeneration, minion spawning. */
   private updateEnemyBehavior(): void {
     const s = this.state;
     for (const e of s.enemies) {
       switch (e.kind) {
+        case 'boss': {
+          // Decelerate to a hover height so the fight has room.
+          if (e.pos.y <= BOSS.hoverY && e.vel.y < 0) e.vel.y = -BOSS.speed * 0.25;
+          e.spawnTimer! -= DT;
+          if (e.spawnTimer! <= 0) {
+            this.spawnChild('swarmer', e, 1.3);
+            e.spawnTimer! += BOSS.spawnInterval;
+          }
+          break;
+        }
         case 'phase': {
           e.phaseTimer! -= DT;
           if (e.phaseTimer! <= 0) {
@@ -245,7 +295,9 @@ export class Sim {
   private spawnChild(kind: 'swarmer', parent: EnemyMissile, speedMul: number): void {
     const s = this.state;
     const spec = ENEMY[kind];
-    const hpScale = parent.maxHp / Math.max(1, ENEMY[parent.kind].hp);
+    // Recover the night's hp scale from the parent (boss has no ENEMY entry).
+    const parentBaseHp = parent.kind === 'boss' ? BOSS.hp : ENEMY[parent.kind].hp;
+    const hpScale = parent.maxHp / Math.max(1, parentBaseHp);
     const hp = Math.max(1, Math.round(spec.hp * hpScale));
     const angle = this.rng.range(-0.5, 0.5);
     const dir = rotate({ x: 0, y: -1 }, angle);
@@ -522,6 +574,10 @@ export class Sim {
       const reward = this.scaledScrap(enemy.scrapReward);
       s.scrap += reward;
       s.events.push({ type: 'enemyKilled', pos: { ...enemy.pos }, reward });
+      if (enemy.kind === 'boss') {
+        const cores = BOSS.coresBase + Math.floor(this.cfg.night / BOSS_NIGHT_INTERVAL);
+        s.events.push({ type: 'bossKilled', cores });
+      }
     }
   }
 

@@ -59,11 +59,13 @@ const ENEMY_COLORS: Record<EnemyKind, number> = {
   regenerator: 0x5ad07a,
   phase: 0x60c8ff,
   carrier: 0xd0304a,
+  boss: 0xff1840,
 };
 
 /** Base render size per enemy kind, with a capped hp-based bonus so late-game
  *  high-hp enemies read as bigger without ballooning off-screen. */
 function enemySize(kind: EnemyKind, maxHp: number): number {
+  if (kind === 'boss') return 22;
   const base =
     kind === 'swarmer' ? 2.2 : kind === 'carrier' ? 9 : kind === 'regenerator' ? 4.4 : 3.8;
   return base * (1 + Math.min(1.2, (maxHp - 1) * 0.03));

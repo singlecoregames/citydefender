@@ -1,5 +1,5 @@
 import type { RunState } from '../core/run';
-import { isUnlocked, nextCost, TREE, type TreeBranch, type TreeNode } from '../core/tree';
+import { isUnlocked, nextCost, nodeCurrency, TREE, type TreeBranch, type TreeNode } from '../core/tree';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -327,6 +327,11 @@ export class DayScreen {
     const level = run.upgrades[node.id] ?? 0;
     const cost = nextCost(node, level);
 
+    const cur = nodeCurrency(node);
+    const icon = cur === 'cores' ? '◆' : '⬡';
+    const bank = cur === 'cores' ? run.cores : run.scrap;
+    const need = cur === 'cores' ? 'need more cores' : 'need more scrap';
+
     let status: string;
     if (node.branch === 'core') {
       status = '<span class="tt-core">Command core</span>';
@@ -334,12 +339,12 @@ export class DayScreen {
       status = `<span class="tt-max">✓ Maxed (${level}/${node.maxLevel})</span>`;
     } else if (!isUnlocked(node, run.upgrades)) {
       status = '<span class="tt-locked">🔒 Locked — unlock its prerequisite first</span>';
-    } else if (run.scrap >= cost) {
+    } else if (bank >= cost) {
       status =
-        `<span class="tt-buy">⬡ ${cost} · Lvl ${level}/${node.maxLevel}</span>` +
+        `<span class="tt-buy">${icon} ${cost} · Lvl ${level}/${node.maxLevel}</span>` +
         '<span class="tt-hint">Tap again to buy</span>';
     } else {
-      status = `<span class="tt-poor">⬡ ${cost} · need more scrap (Lvl ${level}/${node.maxLevel})</span>`;
+      status = `<span class="tt-poor">${icon} ${cost} · ${need} (Lvl ${level}/${node.maxLevel})</span>`;
     }
 
     this.tooltipEl.innerHTML =
@@ -372,7 +377,7 @@ export class DayScreen {
 
   private refresh(): void {
     const run = this.run!;
-    this.bankEl.textContent = `⬡ ${run.scrap}`;
+    this.bankEl.textContent = `⬡ ${run.scrap}    ◆ ${run.cores}`;
 
     for (const node of TREE) {
       const els = this.nodeEls.get(node.id)!;
@@ -380,6 +385,9 @@ export class DayScreen {
       const unlocked = isUnlocked(node, run.upgrades);
       const cost = nextCost(node, level);
       const color = BRANCH_COLOR[node.branch];
+      const cur = nodeCurrency(node);
+      const icon = cur === 'cores' ? '◆' : '⬡';
+      const bank = cur === 'cores' ? run.cores : run.scrap;
 
       let fill = 'rgba(20,22,34,0.92)';
       let stroke = '#3a3f5a';
@@ -395,13 +403,13 @@ export class DayScreen {
       } else if (!unlocked) {
         opacity = '0.4';
         costText = '🔒';
-      } else if (run.scrap >= cost) {
+      } else if (bank >= cost) {
         stroke = color;
-        costText = `⬡${cost} · ${level}/${node.maxLevel}`;
+        costText = `${icon}${cost} · ${level}/${node.maxLevel}`;
       } else {
         stroke = '#5a4f3a';
         opacity = '0.75';
-        costText = `⬡${cost} · ${level}/${node.maxLevel}`;
+        costText = `${icon}${cost} · ${level}/${node.maxLevel}`;
       }
 
       els.box.setAttribute('fill', fill);
@@ -423,8 +431,15 @@ export class DayScreen {
     const level = run.upgrades[node.id] ?? 0;
     if (!isUnlocked(node, run.upgrades)) return;
     const cost = nextCost(node, level);
-    if (cost === null || run.scrap < cost) return;
-    run.scrap -= cost;
+    if (cost === null) return;
+    const cur = nodeCurrency(node);
+    if (cur === 'cores') {
+      if (run.cores < cost) return;
+      run.cores -= cost;
+    } else {
+      if (run.scrap < cost) return;
+      run.scrap -= cost;
+    }
     run.upgrades[node.id] = level + 1;
     this.onPurchase(run);
     this.refresh();

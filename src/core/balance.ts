@@ -109,6 +109,23 @@ export const ENEMY = {
 /** How many swarmers spawn together when a swarm spawn is chosen. */
 export const SWARMER_GROUP = 4;
 
+/** Boss appears every BOSS_NIGHT_INTERVAL nights (N10, 20, 30…). */
+export const BOSS_NIGHT_INTERVAL = 10;
+
+export const BOSS = {
+  /** Base hp before the night's hpScale; very tanky. */
+  hp: 55,
+  /** Very slow descent — it looms rather than races. */
+  speed: 1.6,
+  scrapReward: 120,
+  /** Seconds between shedding a minion. */
+  spawnInterval: 1.1,
+  /** Cores awarded = coresBase + floor(night / BOSS_NIGHT_INTERVAL). */
+  coresBase: 2,
+  /** Hovers at this height, descending only slowly, so the fight has room. */
+  hoverY: 80,
+} as const;
+
 export const ECONOMY = {
   /** Multiplier applied to all scrap when a night ends in defeat. */
   defeatScrapFactor: 0.6,

@@ -69,7 +69,8 @@ export type EnemyKind =
   | 'splitter'
   | 'regenerator'
   | 'phase'
-  | 'carrier';
+  | 'carrier'
+  | 'boss';
 
 export interface EnemyMissile {
   id: number;
@@ -101,6 +102,8 @@ export type GameEvent =
   | { type: 'groundImpact'; pos: Vec2 }
   | { type: 'cityHit'; cityId: number; destroyed: boolean }
   | { type: 'waveStarted'; waveIndex: number }
+  | { type: 'bossSpawned' }
+  | { type: 'bossKilled'; cores: number }
   | { type: 'nightEnded'; outcome: 'victory' | 'defeat'; scrapEarned: number };
 
 export type Command = { type: 'fire'; x: number; y: number };

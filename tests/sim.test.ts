@@ -473,6 +473,58 @@ describe('enemy kinds', () => {
   });
 });
 
+describe('boss nights', () => {
+  function bossConfig(night: number) {
+    const cfg = defaultNightConfig(night);
+    cfg.waves = []; // isolate the boss
+    return cfg;
+  }
+
+  it('a boss spawns on boss nights and emits bossSpawned', () => {
+    const sim = new Sim(1, bossConfig(10));
+    const events = sim.step([]);
+    expect(events.some((e) => e.type === 'bossSpawned')).toBe(true);
+    expect(sim.state.enemies.some((e) => e.kind === 'boss')).toBe(true);
+  });
+
+  it('no boss on non-boss nights', () => {
+    const sim = new Sim(1, bossConfig(9));
+    sim.step([]);
+    expect(sim.state.enemies.some((e) => e.kind === 'boss')).toBe(false);
+  });
+
+  it('killing the boss emits cores and lets the night end', () => {
+    const sim = new Sim(1, bossConfig(10));
+    sim.step([]); // spawn the boss
+    const boss = sim.state.enemies.find((e) => e.kind === 'boss')!;
+    expect(boss).toBeDefined();
+    // Night must not be over while the boss lives.
+    run(sim, 30);
+    expect(sim.state.phase).toBe('playing');
+    // Nuke the boss with a big explosion at its position.
+    let coresAwarded = 0;
+    boss.pos = { x: 0, y: 60 };
+    sim.state.explosions.push({
+      id: 1,
+      pos: { x: 0, y: 60 },
+      age: 0.3,
+      maxRadius: 10,
+      damage: 100000,
+      hitEnemyIds: [],
+    });
+    for (let i = 0; i < 10; i++) {
+      for (const ev of sim.step([])) if (ev.type === 'bossKilled') coresAwarded = ev.cores;
+    }
+    expect(coresAwarded).toBe(2 + 1); // coresBase + floor(10/10)
+  });
+
+  it('the boss sheds minions while alive', () => {
+    const sim = new Sim(7, bossConfig(20));
+    run(sim, TICK_RATE * 3);
+    expect(sim.state.enemies.some((e) => e.kind === 'swarmer')).toBe(true);
+  });
+});
+
 describe('intercept solver', () => {
   it('aims ahead of a crossing target', () => {
     // Target moving right; correct lead must aim to the right of its position.

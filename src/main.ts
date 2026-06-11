@@ -1,4 +1,4 @@
-import { DT } from './core/balance';
+import { BOSS_NIGHT_INTERVAL, DT } from './core/balance';
 import { nightSeed, type RunState } from './core/run';
 import { loadRun, saveRun } from './core/save';
 import { Sim, type NightConfig } from './core/sim';
@@ -34,6 +34,7 @@ function nightConfigFor(r: RunState): NightConfig {
     waves: generateNight(r.night),
     stats: resolveStats(r.upgrades),
     turrets: turretsFromTree(r.upgrades),
+    boss: r.night % BOSS_NIGHT_INTERVAL === 0,
   };
 }
 
@@ -78,6 +79,10 @@ function frame(now: number): void {
       pending = [];
       renderer.onEvents(events);
       for (const ev of events) {
+        if (ev.type === 'bossKilled') {
+          run.cores += ev.cores;
+          saveRun(store, run);
+        }
         if (ev.type === 'nightEnded' && !nightResolved) {
           nightResolved = true;
           resolveNight(ev.outcome, ev.scrapEarned);
@@ -88,7 +93,7 @@ function frame(now: number): void {
   }
 
   renderer.render(sim.state);
-  hud.render(sim.state, run.scrap + (nightResolved ? 0 : sim.state.scrap));
+  hud.render(sim.state, run.scrap + (nightResolved ? 0 : sim.state.scrap), run.cores);
   requestAnimationFrame(frame);
 }
 
