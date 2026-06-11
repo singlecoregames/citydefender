@@ -43,9 +43,12 @@ export const TURRET = {
   projectileHitRadius: 3.5,
   baseDamage: 1,
   /** Shots per second. */
-  baseFireRate: 2.5,
+  baseFireRate: 1.1,
   /** Targeting range in world units. */
-  baseRange: 65,
+  baseRange: 58,
+  /** Random aim error (degrees, ± uniform) applied to each lead-aimed shot.
+   *  Far targets miss more; close targets nearly always get hit. */
+  aimSpreadDeg: 3.5,
 } as const;
 
 export const CITY = {

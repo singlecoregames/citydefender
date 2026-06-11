@@ -5,6 +5,7 @@
  * this same code.
  */
 import { CANNON, CITY, DT, ECONOMY, ENEMY, TURRET, WAVE_BREAK_SECONDS, WORLD } from './balance';
+import { interceptDirection, rotate } from './aiming';
 import { explosionIsDone, explosionIsLethal, explosionRadius } from './explosion';
 import { Rng } from './rng';
 import { baseStats, type DerivedStats } from './stats';
@@ -170,10 +171,17 @@ export class Sim {
       if (turret.cooldown > 0) continue;
       const target = this.selectTarget(turret, range);
       if (!target) continue;
-      const dir = norm({ x: target.pos.x - turret.x, y: target.pos.y - turret.y });
+      const origin = { x: turret.x, y: turret.y };
+      // Lead the moving target; fall back to direct aim if no intercept exists.
+      const lead =
+        interceptDirection(origin, target.pos, target.vel, TURRET.projectileSpeed) ??
+        norm({ x: target.pos.x - turret.x, y: target.pos.y - turret.y });
+      // Imperfect gunnery: a random angular error, so distant shots can miss.
+      const spread = (this.rng.range(-TURRET.aimSpreadDeg, TURRET.aimSpreadDeg) * Math.PI) / 180;
+      const dir = rotate(lead, spread);
       s.projectiles.push({
         id: s.nextId++,
-        pos: { x: turret.x, y: turret.y },
+        pos: origin,
         vel: { x: dir.x * TURRET.projectileSpeed, y: dir.y * TURRET.projectileSpeed },
         damage: this.cfg.stats.turretDamage,
       });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { interceptDirection, rotate } from '../src/core/aiming';
 import { CANNON, EXPLOSION, TICK_RATE, TURRET } from '../src/core/balance';
 import { EXPLOSION_TOTAL_SECONDS } from '../src/core/explosion';
 import { defaultNightConfig, Sim } from '../src/core/sim';
@@ -249,5 +250,63 @@ describe('automated turrets', () => {
     run(sim, TICK_RATE * 20);
     expect(sim.state.turrets).toHaveLength(0);
     expect(sim.state.projectiles).toHaveLength(0);
+  });
+
+  it('hits a moving enemy by leading it (across many seeds)', () => {
+    // A fast-falling enemy crossing the turret's range: direct aim would
+    // trail behind it; lead aim should land most shots despite the spread.
+    let kills = 0;
+    for (let seed = 1; seed <= 10; seed++) {
+      const sim = new Sim(seed, (() => {
+        const cfg = defaultNightConfig(1);
+        cfg.stats = { ...cfg.stats, turretCount: 1, turretDamage: 1 };
+        cfg.waves = []; // no natural spawns
+        return cfg;
+      })());
+      const turret = sim.state.turrets[0]!;
+      sim.state.enemies.push({
+        id: 7777,
+        kind: 'ballistic',
+        pos: { x: turret.x - 25, y: 55 },
+        origin: { x: turret.x - 25, y: 100 },
+        vel: { x: 10, y: -14 },
+        hp: 1,
+        maxHp: 1,
+        scrapReward: 5,
+      });
+      run(sim, TICK_RATE * 4);
+      if (!sim.state.enemies.some((e) => e.id === 7777)) kills++;
+    }
+    expect(kills).toBeGreaterThanOrEqual(7);
+  });
+});
+
+describe('intercept solver', () => {
+  it('aims ahead of a crossing target', () => {
+    // Target moving right; correct lead must aim to the right of its position.
+    const dir = interceptDirection({ x: 0, y: 0 }, { x: 0, y: 50 }, { x: 20, y: 0 }, 100)!;
+    expect(dir).not.toBeNull();
+    expect(dir.x).toBeGreaterThan(0.05);
+    // And the intercept actually works: projectile reaches the target's
+    // future position at the same time.
+    const t = 50 / (dir.y * 100); // time to cover vertical distance
+    expect(dir.x * 100 * t).toBeCloseTo(20 * t, 1);
+  });
+
+  it('aims straight at a stationary target', () => {
+    const dir = interceptDirection({ x: 0, y: 0 }, { x: 30, y: 40 }, { x: 0, y: 0 }, 100)!;
+    expect(dir.x).toBeCloseTo(0.6, 5);
+    expect(dir.y).toBeCloseTo(0.8, 5);
+  });
+
+  it('returns null when the target outruns the projectile', () => {
+    const dir = interceptDirection({ x: 0, y: 0 }, { x: 0, y: 50 }, { x: 0, y: 200 }, 50);
+    expect(dir).toBeNull();
+  });
+
+  it('rotate by 90 degrees turns +x into +y', () => {
+    const r = rotate({ x: 1, y: 0 }, Math.PI / 2);
+    expect(r.x).toBeCloseTo(0, 9);
+    expect(r.y).toBeCloseTo(1, 9);
   });
 });
