@@ -1,0 +1,128 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0a0a12;
+  font-family: 'Courier New', monospace;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+#app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+#app canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+#hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: #e8e8f0;
+}
+
+#hud-top {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px;
+  font-size: 18px;
+  text-shadow: 0 0 8px rgba(255, 220, 80, 0.6);
+}
+
+#hud-scrap {
+  color: #ffdc50;
+}
+
+#hud-wave {
+  color: #9aa0b4;
+}
+
+#hud-ammo {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+}
+
+.ammo-pip {
+  width: 10px;
+  height: 18px;
+  border: 1px solid #28f0c8;
+  border-radius: 2px;
+}
+
+.ammo-pip.full {
+  background: #28f0c8;
+  box-shadow: 0 0 8px #28f0c8;
+}
+
+#overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: rgba(10, 10, 18, 0.82);
+  color: #e8e8f0;
+  text-align: center;
+}
+
+#overlay.hidden {
+  display: none;
+}
+
+#overlay-title {
+  font-size: 42px;
+  letter-spacing: 6px;
+  text-shadow: 0 0 18px currentColor;
+}
+
+#overlay-title.victory {
+  color: #28f0c8;
+}
+
+#overlay-title.defeat {
+  color: #ff4060;
+}
+
+#overlay-body {
+  font-size: 18px;
+  color: #ffdc50;
+}
+
+#overlay-button {
+  margin-top: 8px;
+  padding: 12px 28px;
+  font-family: inherit;
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: #28f0c8;
+  background: transparent;
+  border: 1px solid #28f0c8;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#overlay-button:hover {
+  background: rgba(40, 240, 200, 0.12);
+  box-shadow: 0 0 14px rgba(40, 240, 200, 0.5);
+}
