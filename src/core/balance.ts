@@ -12,6 +12,9 @@ export const DT = 1 / TICK_RATE;
 export const WORLD = {
   halfWidth: 100,
   height: 100,
+  /** Enemies spawn this far above the visible top so they fly in from
+   *  off-screen, giving the player more time to react. */
+  spawnMargin: 22,
 } as const;
 
 export const CANNON = {
@@ -127,8 +130,8 @@ export const NIGHT_SCALING = {
   /** Per-night enemy hp = round((1 + hpLinearPerNight*(n-1)) * hpGrowth^(n-1)).
    *  A linear term plus the exponential makes hp climb sooner and harder, so
    *  raw turret dps can't trivialise mid/late nights. */
-  hpGrowth: 1.13,
-  hpLinearPerNight: 0.1,
+  hpGrowth: 1.12,
+  hpLinearPerNight: 0.08,
   speedGrowth: 1.035,
   rewardGrowth: 1.13,
   /** Spawn interval shrinks as nights progress (denser spawns). */

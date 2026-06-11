@@ -173,7 +173,7 @@ export class Sim {
     const spec = ENEMY[kind];
     const origin: Vec2 = {
       x: this.rng.range(-WORLD.halfWidth * 0.95, WORLD.halfWidth * 0.95),
-      y: WORLD.height,
+      y: WORLD.height + WORLD.spawnMargin,
     };
     const living = s.cities.filter((c) => c.hp > 0);
     let targetX: number;
@@ -182,7 +182,8 @@ export class Sim {
     } else {
       targetX = this.rng.range(-WORLD.halfWidth * 0.9, WORLD.halfWidth * 0.9);
     }
-    const dir = norm({ x: targetX - origin.x, y: -WORLD.height });
+    // Aim at the ground target so the descent angle is correct from off-screen.
+    const dir = norm({ x: targetX - origin.x, y: -origin.y });
     const hp = Math.max(1, Math.round(spec.hp * wave.hpScale));
     const speed = spec.speed * wave.speedScale;
     const enemy: EnemyMissile = {
@@ -478,7 +479,7 @@ export class Sim {
       if (
         p.ttl <= 0 ||
         p.pos.y < -2 ||
-        p.pos.y > WORLD.height + 5 ||
+        p.pos.y > WORLD.height + WORLD.spawnMargin + 5 ||
         Math.abs(p.pos.x) > WORLD.halfWidth + 5
       ) {
         s.projectiles.splice(i, 1);
