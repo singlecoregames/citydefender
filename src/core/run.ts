@@ -33,3 +33,8 @@ export function newRun(seed = (Date.now() & 0xffffffff) >>> 0): RunState {
 export function nightSeed(run: RunState): number {
   return (run.seed + run.night * 2654435761) >>> 0;
 }
+
+/** Compound Interest node: bonus scrap paid at dawn on the unspent bank. */
+export function dawnInterest(scrap: number, rate: number): number {
+  return rate > 0 ? Math.floor(scrap * rate) : 0;
+}

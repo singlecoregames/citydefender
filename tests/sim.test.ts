@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { interceptDirection, rotate } from '../src/core/aiming';
-import { CANNON, EXPLOSION, TICK_RATE, TURRETS } from '../src/core/balance';
+import { CANNON, DT, EXPLOSION, TICK_RATE, TURRETS } from '../src/core/balance';
 import { EXPLOSION_TOTAL_SECONDS } from '../src/core/explosion';
 import { defaultNightConfig, Sim } from '../src/core/sim';
 import { baseStats } from '../src/core/stats';
@@ -588,6 +588,87 @@ describe('abilities', () => {
     run(normal, 30);
     // The slowed enemy travelled less far (higher y remaining).
     expect(slow.state.enemies[0]!.pos.y).toBeGreaterThan(normal.state.enemies[0]!.pos.y);
+  });
+});
+
+describe('phase-1 utility nodes (sim hooks)', () => {
+  function inject(sim: Sim, id: number, pos: { x: number; y: number }, vel = { x: 0, y: 0 }) {
+    sim.state.enemies.push({
+      id, kind: 'ballistic', pos: { ...pos }, origin: { x: pos.x, y: 100 },
+      vel: { ...vel }, hp: 1, maxHp: 1, scrapReward: 5,
+    });
+  }
+
+  it('abilityCooldownMul scales every ability cooldown', () => {
+    const mk = (mul: number) => {
+      const cfg = defaultNightConfig(1);
+      cfg.waves = [];
+      cfg.abilities = { emp: 1, megabomb: 0, slowmo: 0 };
+      cfg.stats = { ...cfg.stats, abilityCooldownMul: mul };
+      return new Sim(1, cfg);
+    };
+    const fast = mk(0.5);
+    const norm = mk(1);
+    fast.step([{ type: 'ability', ability: 'emp' }]);
+    norm.step([{ type: 'ability', ability: 'emp' }]);
+    // Both cooldowns already ticked down by one DT within the step.
+    expect(fast.state.ability.cooldown.emp + DT).toBeCloseTo(
+      (norm.state.ability.cooldown.emp + DT) * 0.5,
+      5,
+    );
+  });
+
+  it('war insurance pays scrap when a city is hit', () => {
+    const cfg = defaultNightConfig(1);
+    cfg.stats = { ...cfg.stats, cityHitScrap: 8 };
+    const sim = new Sim(1, cfg);
+    const city = sim.state.cities[0]!;
+    inject(sim, 9001, { x: city.x, y: 0.5 }, { x: 0, y: -20 });
+    run(sim, 10);
+    expect(city.hp).toBe(city.maxHp - 1);
+    expect(sim.state.scrap).toBe(8);
+  });
+
+  it('chain bounty pays once when one explosion kills 3+', () => {
+    const cfg = defaultNightConfig(1);
+    cfg.stats = { ...cfg.stats, multiKillScrap: 2 };
+    const sim = new Sim(1, cfg);
+    inject(sim, 9001, { x: 0, y: 50 });
+    inject(sim, 9002, { x: 2, y: 50 });
+    inject(sim, 9003, { x: 4, y: 50 });
+    sim.state.explosions.push({
+      id: 9000, pos: { x: 2, y: 50 }, age: 0,
+      maxRadius: EXPLOSION.maxRadius, damage: 1, hitEnemyIds: [],
+    });
+    run(sim, Math.ceil(EXPLOSION_TOTAL_SECONDS * TICK_RATE));
+    expect(sim.state.enemies).toHaveLength(0);
+    expect(sim.state.scrap).toBe(3 * 5 + 2); // kill rewards + one bounty
+  });
+
+  it('no chain bounty for a double kill', () => {
+    const cfg = defaultNightConfig(1);
+    cfg.stats = { ...cfg.stats, multiKillScrap: 2 };
+    const sim = new Sim(1, cfg);
+    inject(sim, 9001, { x: 0, y: 50 });
+    inject(sim, 9002, { x: 2, y: 50 });
+    sim.state.explosions.push({
+      id: 9000, pos: { x: 1, y: 50 }, age: 0,
+      maxRadius: EXPLOSION.maxRadius, damage: 1, hitEnemyIds: [],
+    });
+    run(sim, Math.ceil(EXPLOSION_TOTAL_SECONDS * TICK_RATE));
+    expect(sim.state.scrap).toBe(2 * 5);
+  });
+
+  it('wave dividend pays per wave that finishes spawning', () => {
+    const cfg = defaultNightConfig(1);
+    cfg.stats = { ...cfg.stats, waveClearScrap: 3 };
+    const wave = { count: 1, spawnIntervalRange: [0.1, 0.2] as [number, number], hpScale: 1, speedScale: 1, rewardScale: 1 };
+    cfg.waves = [{ ...wave }, { ...wave }];
+    const sim = new Sim(1, cfg);
+    for (let i = 0; i < TICK_RATE * 60 && !sim.state.director.done; i++) sim.step([]);
+    expect(sim.state.director.done).toBe(true);
+    // No kills happened (nothing fired), so scrap is exactly the two dividends.
+    expect(sim.state.scrap).toBe(6);
   });
 });
 

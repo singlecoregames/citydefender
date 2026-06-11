@@ -162,13 +162,12 @@ export class Sim {
     if (level <= 0) return; // not owned
     if (s.ability.cooldown[kind] > 0) return; // still cooling down
 
+    const cdMul = this.cfg.stats.abilityCooldownMul;
     if (kind === 'emp') {
       const spec = ABILITIES.emp;
       s.ability.empFreeze = spec.freeze + spec.freezePerLevel * (level - 1);
-      s.ability.cooldown.emp = Math.max(
-        spec.minCooldown,
-        spec.baseCooldown - spec.cooldownPerLevel * (level - 1),
-      );
+      s.ability.cooldown.emp =
+        Math.max(spec.minCooldown, spec.baseCooldown - spec.cooldownPerLevel * (level - 1)) * cdMul;
       s.events.push({ type: 'abilityUsed', ability: 'emp' });
     } else if (kind === 'megabomb') {
       const spec = ABILITIES.megabomb;
@@ -181,18 +180,14 @@ export class Sim {
         damage: spec.damage + spec.damagePerLevel * (level - 1),
         hitEnemyIds: [],
       });
-      s.ability.cooldown.megabomb = Math.max(
-        spec.minCooldown,
-        spec.baseCooldown - spec.cooldownPerLevel * (level - 1),
-      );
+      s.ability.cooldown.megabomb =
+        Math.max(spec.minCooldown, spec.baseCooldown - spec.cooldownPerLevel * (level - 1)) * cdMul;
       s.events.push({ type: 'abilityUsed', ability: 'megabomb', pos });
     } else {
       const spec = ABILITIES.slowmo;
       s.ability.slowmo = spec.duration + spec.durationPerLevel * (level - 1);
-      s.ability.cooldown.slowmo = Math.max(
-        spec.minCooldown,
-        spec.baseCooldown - spec.cooldownPerLevel * (level - 1),
-      );
+      s.ability.cooldown.slowmo =
+        Math.max(spec.minCooldown, spec.baseCooldown - spec.cooldownPerLevel * (level - 1)) * cdMul;
       s.events.push({ type: 'abilityUsed', ability: 'slowmo' });
     }
   }
@@ -228,6 +223,7 @@ export class Sim {
     this.spawnFromPool(wave);
     d.spawnedInWave++;
     if (d.spawnedInWave >= wave.count) {
+      s.scrap += this.cfg.stats.waveClearScrap; // Wave Dividend payout
       d.waveIndex++;
       if (d.waveIndex >= this.cfg.waves.length) {
         d.done = true;
@@ -637,10 +633,11 @@ export class Sim {
   }
 
   /** Apply damage to an enemy; on death remove it and award scrap.
-   *  Shared by explosions, projectiles and instant-hit turrets. */
-  private damageEnemy(enemy: EnemyMissile, dmg: number): void {
+   *  Shared by explosions, projectiles and instant-hit turrets.
+   *  Returns true when the hit was lethal. */
+  private damageEnemy(enemy: EnemyMissile, dmg: number): boolean {
     const s = this.state;
-    if (enemy.phased) return; // Phase Walker is invulnerable while phased
+    if (enemy.phased) return false; // Phase Walker is invulnerable while phased
     if (enemy.kind === 'regenerator') enemy.regenTimer = 0; // interrupt healing
     enemy.hp -= dmg;
     if (enemy.hp <= 0) {
@@ -656,7 +653,9 @@ export class Sim {
         const cores = BOSS.coresBase + Math.floor(this.cfg.night / BOSS_NIGHT_INTERVAL);
         s.events.push({ type: 'bossKilled', cores });
       }
+      return true;
     }
+    return false;
   }
 
   // --- movement & collisions ---
@@ -707,6 +706,7 @@ export class Sim {
     for (const city of s.cities) {
       if (city.hp > 0 && Math.abs(city.x - impact.x) <= this.cfg.stats.cityHitRadius) {
         city.hp--;
+        s.scrap += this.cfg.stats.cityHitScrap; // War Insurance compensation
         s.events.push({ type: 'cityHit', cityId: city.id, destroyed: city.hp <= 0 });
       }
     }
@@ -724,7 +724,11 @@ export class Sim {
           if (ex.hitEnemyIds.includes(enemy.id)) continue;
           if (dist(ex.pos, enemy.pos) <= r) {
             ex.hitEnemyIds.push(enemy.id);
-            this.damageEnemy(enemy, ex.damage);
+            if (this.damageEnemy(enemy, ex.damage)) {
+              ex.kills = (ex.kills ?? 0) + 1;
+              // Chain Bounty: one payout per explosion, on its 3rd kill.
+              if (ex.kills === 3) s.scrap += this.cfg.stats.multiKillScrap;
+            }
           }
         }
       }

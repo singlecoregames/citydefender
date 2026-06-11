@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { baseStats } from '../src/core/stats';
-import { newRun } from '../src/core/run';
+import { dawnInterest, newRun } from '../src/core/run';
 import { deserialize, serialize, SAVE_VERSION } from '../src/core/save';
 import { getNode, isUnlocked, nextCost, resolveStats, TREE } from '../src/core/tree';
 import { generateNight, waveCountForNight } from '../src/core/waves';
@@ -96,6 +96,34 @@ describe('skill tree / stats', () => {
     for (const node of TREE) {
       if (node.requires.length === 0) expect(isUnlocked(node, {})).toBe(true);
     }
+  });
+
+  it('no two nodes share a grid position', () => {
+    const seen = new Set<string>();
+    for (const node of TREE) {
+      const key = `${node.col},${node.row}`;
+      expect(seen.has(key), `position clash at ${key} (${node.id})`).toBe(false);
+      seen.add(key);
+    }
+  });
+
+  it('phase-1 economy/city/tech nodes resolve their stats', () => {
+    expect(resolveStats({ midas_protocol: 1 }).scrapMul).toBeCloseTo(1.25, 5);
+    expect(resolveStats({ war_insurance: 2 }).cityHitScrap).toBe(16);
+    expect(resolveStats({ wave_dividend: 1 }).waveClearScrap).toBe(3);
+    expect(resolveStats({ chain_bounty: 2 }).multiKillScrap).toBe(4);
+    expect(resolveStats({ compound_interest: 1 }).scrapInterestRate).toBeCloseTo(0.04, 5);
+    expect(resolveStats({ flux_capacitor: 1 }).abilityCooldownMul).toBeCloseTo(0.92, 5);
+    expect(
+      resolveStats({ flux_capacitor: 1, singularity_core: 1 }).abilityCooldownMul,
+    ).toBeCloseTo(0.92 * 0.85, 5);
+  });
+
+  it('dawn interest pays floor(scrap * rate), nothing at rate 0', () => {
+    expect(dawnInterest(100, 0.04)).toBe(4);
+    expect(dawnInterest(117, 0.04)).toBe(4); // floor(4.68)
+    expect(dawnInterest(500, 0)).toBe(0);
+    expect(dawnInterest(0, 0.2)).toBe(0);
   });
 });
 

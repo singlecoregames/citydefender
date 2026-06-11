@@ -32,6 +32,16 @@ export interface DerivedStats {
   flakRadiusMul: number; // burst radius multiplier
   laserDamageMul: number; // laser-only damage multiplier (tick dps)
   gatlingFireRateMul: number; // gatling-only fire rate multiplier
+  /** Multiplier on every manual-ability cooldown (Flux Capacitor / Singularity Core). */
+  abilityCooldownMul: number;
+  /** Flat scrap compensation each time a city takes a hit (War Insurance). */
+  cityHitScrap: number;
+  /** Flat scrap awarded when a wave finishes spawning (Wave Dividend). */
+  waveClearScrap: number;
+  /** Flat bonus scrap when one explosion kills 3+ enemies (Chain Bounty). */
+  multiKillScrap: number;
+  /** Fraction of unspent scrap paid as a bonus each dawn (Compound Interest). */
+  scrapInterestRate: number;
 }
 
 export type StatKey = keyof DerivedStats;
@@ -65,6 +75,11 @@ export function baseStats(): DerivedStats {
     flakRadiusMul: 1,
     laserDamageMul: 1,
     gatlingFireRateMul: 1,
+    abilityCooldownMul: 1,
+    cityHitScrap: 0,
+    waveClearScrap: 0,
+    multiKillScrap: 0,
+    scrapInterestRate: 0,
   };
 }
 

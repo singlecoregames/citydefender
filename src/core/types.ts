@@ -61,6 +61,8 @@ export interface Explosion {
   damage: number;
   /** Enemies already damaged by this explosion (damage once per explosion). */
   hitEnemyIds: number[];
+  /** Enemies this explosion has killed (Chain Bounty pays out at 3). */
+  kills?: number;
 }
 
 export type EnemyKind =

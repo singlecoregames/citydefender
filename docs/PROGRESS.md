@@ -5,7 +5,8 @@
 
 ## 한 줄 요약
 플랜 M1~M5 핵심이 모두 구현됨 — 코어 플레이, 런 루프+경제, 분기형 스킬트리,
-자동 포탑 6종, 적 6종+보스, Cores 화폐, 수동 어빌리티 3종. 테스트 63개 통과.
+자동 포탑 6종, 적 6종+보스, Cores 화폐, 수동 어빌리티 3종. 테스트 71개 통과.
+트리 확장(35→58노드) 진행 중: 1차(StatMod 7노드) 완료, 2차(유틸 건물)·3차(레이더/재머) 남음.
 
 ## 기술 스택 / 구조
 - TypeScript(strict) + Vite + Three.js(ortho + UnrealBloom) + Vitest
@@ -29,6 +30,13 @@
   phase(점멸 무적), carrier(미니언 사출) — 밤별 가중 등장
 - **M5 Tech 브랜치**: 수동 어빌리티 EMP(정지)/Mega Bomb(대폭발)/Time Dilation(둔화),
   쿨다운제, 1/2/3 단축키 + 하단 버튼
+- **트리 확장 1차** (economy/city/tech 보강, StatMod 계열 7노드):
+  Chain Bounty(폭발 3+킬 보너스) / Wave Dividend(웨이브당 scrap) /
+  Compound Interest(새벽 이자, `dawnInterest()` in run.ts) / Midas Protocol(◆) /
+  War Insurance(도시 피격 보상) / Flux Capacitor·Singularity Core(◆, 어빌 쿨다운 감소).
+  신규 스탯 5종: abilityCooldownMul, cityHitScrap, waveClearScrap, multiKillScrap,
+  scrapInterestRate. 2차 예정: 유틸 건물(BUILDING_NODES — Shield/Repair/Harvester),
+  3차: Radar/Jammer/Decoy/Scrap Surge (설계는 채팅 로그 기준 합의됨)
 
 ## 핵심 파일 지도
 - `src/core/sim.ts` — 메인 시뮬레이션(step 루프, 포탑·적·어빌리티·보스 로직)
