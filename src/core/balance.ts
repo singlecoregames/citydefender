@@ -43,7 +43,7 @@ export const TURRET = {
   /** A contact projectile within this distance of an enemy hits it. */
   projectileHitRadius: 3.5,
   /** Per-node-level damage bonus: damage × (1 + levelDamageBonus × (level-1)). */
-  levelDamageBonus: 0.3,
+  levelDamageBonus: 0.2,
 } as const;
 
 export interface TurretKindSpec {
@@ -146,6 +146,12 @@ export const ENEMY = {
 /** How many swarmers spawn together when a swarm spawn is chosen. */
 export const SWARMER_GROUP = 4;
 
+/** Children (splitter splits, carrier/boss minions) inherit only this share
+ *  of the night's hp scale — the parent already paid for its hp, and full
+ *  inheritance made splitter/carrier-heavy spawn rolls the deciding RNG
+ *  spike of late nights (balance-sim: seed-dependent N50 walls). */
+export const CHILD_HP_FACTOR = 0.6;
+
 /** Manual abilities (Tech branch). Each unlock node level reduces cooldown and
  *  boosts effect; level 0 = not owned. */
 export const ABILITIES = {
@@ -214,8 +220,10 @@ export const DATA = {
 export const BOSS_NIGHT_INTERVAL = 10;
 
 export const BOSS = {
-  /** Base hp before the night's hpScale; very tanky. */
-  hp: 55,
+  /** Base hp before the night's hpScale; very tanky. 45 (not 55) keeps the
+   *  N50 finale winnable across seeds/skill — the boss soaks the army's whole
+   *  dps while waves leak, so its hp sets the finale's variance. */
+  hp: 45,
   /** Very slow descent — it looms rather than races. */
   speed: 1.6,
   scrapReward: 120,
@@ -259,7 +267,7 @@ export const NIGHT_SCALING = {
    *  difficulty rides on hp/speed instead of raw volume. */
   baseCount: 5,
   countGrowth: 1.05,
-  maxWaveCount: 28,
+  maxWaveCount: 32,
   /** Per-night enemy hp = round((1 + hpLinearPerNight*(n-1)) * hpGrowth^(n-1)).
    *  A linear term plus the exponential makes hp climb sooner and harder, so
    *  raw turret dps can't trivialise mid/late nights. The linear term governs
@@ -267,8 +275,14 @@ export const NIGHT_SCALING = {
    *  Balance-sim findings: total threat (hp×count) must stay near the power
    *  curve the tree can actually buy, or the run walls mid-game. 1.10/1.07
    *  keeps first 2-hp enemies at N5 and N50 hp ≈ 210 (was 890). */
-  hpGrowth: 1.13,
-  hpLinearPerNight: 0,
+  /** ~1.14 is the ceiling that still rounds N4 enemies to 1 hp (growth³<1.5);
+   *  higher walls the opening nights. 1.135 (vs 1.14) is the half-step that
+   *  turns N50 from an 8-defeat wall into a climactic-but-beatable finale. */
+  hpGrowth: 1.135,
+  /** Tiny linear term to land the finale between "first-try" (lin 0) and
+   *  "8-defeat wall" (growth 1.14). Must satisfy (1+3·lin)·growth³ < 1.5
+   *  so N4 enemies still round to 1 hp. */
+  hpLinearPerNight: 0.004,
   speedGrowth: 1.035,
   /** Kill rewards must grow *slower* than node costs compound, or the tree
    *  maxes out mid-run and income loses its sink (sim: maxed by N13 at 1.13). */

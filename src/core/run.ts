@@ -39,9 +39,13 @@ export function nightSeed(run: RunState): number {
   return (run.seed + run.night * 2654435761) >>> 0;
 }
 
-/** Compound Interest node: bonus scrap paid at dawn on the unspent bank. */
-export function dawnInterest(scrap: number, rate: number): number {
-  return rate > 0 ? Math.floor(scrap * rate) : 0;
+/** Compound Interest node: bonus scrap paid at dawn on the unspent bank,
+ *  capped at that night's earnings — an uncapped percentage compounds the
+ *  bank into absurdity once the tree has nothing left to sell (sim: ×114
+ *  over the back half of a run). */
+export function dawnInterest(scrap: number, rate: number, nightEarnings: number): number {
+  if (rate <= 0) return 0;
+  return Math.min(Math.floor(scrap * rate), Math.max(0, nightEarnings));
 }
 
 /** Cores paid for clearing `night` for the first time (0 before fromNight). */

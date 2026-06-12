@@ -137,11 +137,14 @@ describe('skill tree / stats', () => {
     }
   });
 
-  it('dawn interest pays floor(scrap * rate), nothing at rate 0', () => {
-    expect(dawnInterest(100, 0.04)).toBe(4);
-    expect(dawnInterest(117, 0.04)).toBe(4); // floor(4.68)
-    expect(dawnInterest(500, 0)).toBe(0);
-    expect(dawnInterest(0, 0.2)).toBe(0);
+  it('dawn interest pays floor(scrap * rate), capped at the night earnings', () => {
+    expect(dawnInterest(100, 0.04, 999)).toBe(4);
+    expect(dawnInterest(117, 0.04, 999)).toBe(4); // floor(4.68)
+    expect(dawnInterest(500, 0, 999)).toBe(0);
+    expect(dawnInterest(0, 0.2, 999)).toBe(0);
+    // The cap stops the bank from compounding off itself late-game.
+    expect(dawnInterest(1_000_000, 0.2, 350)).toBe(350);
+    expect(dawnInterest(1_000_000, 0.2, -5)).toBe(0);
   });
 });
 

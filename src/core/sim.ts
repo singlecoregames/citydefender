@@ -12,6 +12,7 @@ import {
   BUILDING_TUNING,
   BUILDINGS,
   CANNON,
+  CHILD_HP_FACTOR,
   CITY,
   COMBO,
   DATA,
@@ -433,7 +434,7 @@ export class Sim {
     // Recover the night's hp scale from the parent (boss has no ENEMY entry).
     const parentBaseHp = parent.kind === 'boss' ? BOSS.hp : ENEMY[parent.kind].hp;
     const hpScale = parent.maxHp / Math.max(1, parentBaseHp);
-    const hp = Math.max(1, Math.round(spec.hp * hpScale));
+    const hp = Math.max(1, Math.round(spec.hp * hpScale * CHILD_HP_FACTOR));
     const angle = this.rng.range(-0.5, 0.5);
     const dir = rotate({ x: 0, y: -1 }, angle);
     const speed = spec.speed * speedMul;

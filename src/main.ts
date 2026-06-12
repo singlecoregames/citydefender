@@ -67,7 +67,7 @@ container.addEventListener('pointerdown', (e) => {
 function resolveNight(outcome: 'victory' | 'defeat', scrapEarned: number, dataEarned: number): void {
   const clearedNight = run.night;
   run.scrap += scrapEarned;
-  run.scrap += dawnInterest(run.scrap, resolveStats(run.upgrades).scrapInterestRate);
+  run.scrap += dawnInterest(run.scrap, resolveStats(run.upgrades).scrapInterestRate, scrapEarned);
   run.data += dataEarned;
   if (outcome === 'victory') {
     if (clearedNight > run.bestNight) run.cores += firstClearCores(clearedNight);

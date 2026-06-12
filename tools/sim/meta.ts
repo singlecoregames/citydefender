@@ -150,7 +150,11 @@ export function simulateRun(options: Partial<SimulateOptions> = {}): RunReport {
     // Dawn payout — mirrors resolveNight() in src/main.ts.
     run.cores += result.coresEarned;
     run.scrap += result.scrapEarned;
-    run.scrap += dawnInterest(run.scrap, resolveStats(run.upgrades).scrapInterestRate);
+    run.scrap += dawnInterest(
+      run.scrap,
+      resolveStats(run.upgrades).scrapInterestRate,
+      result.scrapEarned,
+    );
     run.data += result.dataEarned;
     if (result.outcome === 'victory') {
       if (thisNight > run.bestNight) run.cores += firstClearCores(thisNight);
