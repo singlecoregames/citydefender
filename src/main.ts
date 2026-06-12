@@ -1,5 +1,5 @@
 import { BOSS_NIGHT_INTERVAL, DT } from './core/balance';
-import { dawnInterest, nightSeed, type RunState } from './core/run';
+import { dawnInterest, firstClearCores, newRun, nightSeed, type RunState } from './core/run';
 import { loadRun, saveRun } from './core/save';
 import { Sim, type NightConfig } from './core/sim';
 import type { Command } from './core/types';
@@ -30,6 +30,11 @@ const dayScreen = new DayScreen(
     sim = startNight(r);
     nightResolved = false;
   },
+  () => {
+    // on reset (double-confirmed in the UI): wipe the run and start over.
+    saveRun(store, newRun());
+    location.reload();
+  },
 );
 
 function nightConfigFor(r: RunState): NightConfig {
@@ -59,16 +64,18 @@ container.addEventListener('pointerdown', (e) => {
 });
 
 /** Apply the night result to the run, persist, and show the Day screen. */
-function resolveNight(outcome: 'victory' | 'defeat', scrapEarned: number): void {
+function resolveNight(outcome: 'victory' | 'defeat', scrapEarned: number, dataEarned: number): void {
   const clearedNight = run.night;
   run.scrap += scrapEarned;
   run.scrap += dawnInterest(run.scrap, resolveStats(run.upgrades).scrapInterestRate);
+  run.data += dataEarned;
   if (outcome === 'victory') {
+    if (clearedNight > run.bestNight) run.cores += firstClearCores(clearedNight);
     run.bestNight = Math.max(run.bestNight, run.night);
     run.night += 1;
   }
   saveRun(store, run);
-  dayScreen.show(run, outcome, clearedNight);
+  dayScreen.show(run, outcome, clearedNight, dataEarned);
 }
 
 // Fixed timestep with accumulator; render every animation frame.
@@ -93,7 +100,7 @@ function frame(now: number): void {
         }
         if (ev.type === 'nightEnded' && !nightResolved) {
           nightResolved = true;
-          resolveNight(ev.outcome, ev.scrapEarned);
+          resolveNight(ev.outcome, ev.scrapEarned, ev.dataEarned);
         }
       }
     }
@@ -101,7 +108,7 @@ function frame(now: number): void {
   }
 
   renderer.render(sim.state);
-  hud.render(sim.state, run.scrap + (nightResolved ? 0 : sim.state.scrap), run.cores);
+  hud.render(sim.state, run.scrap + (nightResolved ? 0 : sim.state.scrap), run.cores, run.data);
   abilityBar.render(sim.state);
   requestAnimationFrame(frame);
 }

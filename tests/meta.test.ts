@@ -124,6 +124,19 @@ describe('skill tree / stats', () => {
     expect(resolveStats({ wide_spectrum: 2 }).jammerRadiusMul).toBeCloseTo(1.2 * 1.2, 5);
   });
 
+  it('combo/overcharge/data nodes resolve their stats', () => {
+    expect(resolveStats({ overcharge_shot: 2 }).overchargeRate).toBeCloseTo(0.08, 5);
+    expect(resolveStats({ combo_memory: 3 }).comboRetention).toBeCloseTo(0.75, 5);
+    expect(resolveStats({ threat_analysis: 1 }).threatTargeting).toBe(1);
+    expect(resolveStats({ neural_lead: 2 }).turretSpreadMul).toBeCloseTo(0.85 * 0.85, 5);
+  });
+
+  it('data-priced nodes are marked with the data currency', () => {
+    for (const id of ['combo_memory', 'threat_analysis', 'neural_lead']) {
+      expect(getNode(id)!.currency).toBe('data');
+    }
+  });
+
   it('dawn interest pays floor(scrap * rate), nothing at rate 0', () => {
     expect(dawnInterest(100, 0.04)).toBe(4);
     expect(dawnInterest(117, 0.04)).toBe(4); // floor(4.68)
@@ -155,5 +168,7 @@ describe('save / load', () => {
     // The command core is always kept so branch roots stay unlocked.
     expect(restored.upgrades).toEqual({ core: 1 });
     expect(restored.bestNight).toBe(0);
+    // Saves from before the Data currency default to an empty bank.
+    expect(restored.data).toBe(0);
   });
 });

@@ -1,3 +1,4 @@
+import { FIRST_CLEAR } from './balance';
 import type { TreeLevels } from './tree';
 
 /** Persistent meta-game state spanning many nights (the "run"). A single
@@ -9,6 +10,9 @@ export interface RunState {
   scrap: number;
   /** Rare currency from bosses; gates the strongest nodes. */
   cores: number;
+  /** Skilled-play currency (perfect nights, combos); buys automation
+   *  intelligence. Flows from DATA.unlockNight on. */
+  data: number;
   /** Purchased skill-tree node levels by id. */
   upgrades: TreeLevels;
   /** Base seed; each night uses seed + night for its enemy RNG. */
@@ -22,6 +26,7 @@ export function newRun(seed = (Date.now() & 0xffffffff) >>> 0): RunState {
     night: 1,
     scrap: 0,
     cores: 0,
+    data: 0,
     // The command core is owned from the start so the branch roots unlock.
     upgrades: { core: 1 },
     seed,
@@ -37,4 +42,10 @@ export function nightSeed(run: RunState): number {
 /** Compound Interest node: bonus scrap paid at dawn on the unspent bank. */
 export function dawnInterest(scrap: number, rate: number): number {
   return rate > 0 ? Math.floor(scrap * rate) : 0;
+}
+
+/** Cores paid for clearing `night` for the first time (0 before fromNight). */
+export function firstClearCores(night: number): number {
+  if (night < FIRST_CLEAR.fromNight) return 0;
+  return FIRST_CLEAR.base + Math.floor(night / FIRST_CLEAR.scaleNights);
 }

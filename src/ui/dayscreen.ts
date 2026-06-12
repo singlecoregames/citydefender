@@ -1,5 +1,19 @@
 import type { RunState } from '../core/run';
-import { isUnlocked, nextCost, nodeCurrency, TREE, type TreeBranch, type TreeNode } from '../core/tree';
+import {
+  isUnlocked,
+  nextCost,
+  nodeCurrency,
+  TREE,
+  type Currency,
+  type TreeBranch,
+  type TreeNode,
+} from '../core/tree';
+
+const CURRENCY_ICON: Record<Currency, string> = { scrap: '⬡', cores: '◆', data: '▣' };
+
+function bankOf(run: RunState, cur: Currency): number {
+  return cur === 'cores' ? run.cores : cur === 'data' ? run.data : run.scrap;
+}
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -54,11 +68,33 @@ export class DayScreen {
   constructor(
     private readonly onPurchase: (run: RunState) => void,
     private readonly onNext: (run: RunState) => void,
+    onReset: () => void,
   ) {
     document.getElementById('day-next')!.addEventListener('click', () => {
       if (!this.run) return;
       this.hide();
       this.onNext(this.run);
+    });
+    this.wireResetButton(onReset);
+  }
+
+  /** Two-tap reset: the first tap arms the button (auto-disarms after 3s),
+   *  the second wipes the run — no accidental resets from a stray tap. */
+  private wireResetButton(onReset: () => void): void {
+    const btn = document.getElementById('day-reset')! as HTMLButtonElement;
+    let disarmTimer = 0;
+    btn.addEventListener('click', () => {
+      if (btn.classList.contains('armed')) {
+        clearTimeout(disarmTimer);
+        onReset();
+        return;
+      }
+      btn.classList.add('armed');
+      btn.textContent = 'ERASE EVERYTHING?';
+      disarmTimer = window.setTimeout(() => {
+        btn.classList.remove('armed');
+        btn.textContent = 'RESET RUN';
+      }, 3000);
     });
   }
 
@@ -66,15 +102,17 @@ export class DayScreen {
     return !this.root.classList.contains('hidden');
   }
 
-  show(run: RunState, outcome: 'victory' | 'defeat', clearedNight: number): void {
+  show(run: RunState, outcome: 'victory' | 'defeat', clearedNight: number, dataEarned = 0): void {
     this.run = run;
     this.titleEl.textContent =
       outcome === 'victory' ? `NIGHT ${clearedNight} SURVIVED` : 'CITIES LOST';
     this.titleEl.className = outcome;
-    this.subtitleEl.textContent =
+    let subtitle =
       outcome === 'victory'
         ? 'Spend scrap on your skill tree, then push on.'
         : 'You held what you could. Spend, then try again.';
+    if (dataEarned > 0) subtitle += `  ▣ +${dataEarned} data for skilled play.`;
+    this.subtitleEl.textContent = subtitle;
     // Unhide first so the container has a measurable size for centring.
     this.root.classList.remove('hidden');
     if (!this.built) this.buildTree();
@@ -347,9 +385,9 @@ export class DayScreen {
     const cost = nextCost(node, level);
 
     const cur = nodeCurrency(node);
-    const icon = cur === 'cores' ? '◆' : '⬡';
-    const bank = cur === 'cores' ? run.cores : run.scrap;
-    const need = cur === 'cores' ? 'need more cores' : 'need more scrap';
+    const icon = CURRENCY_ICON[cur];
+    const bank = bankOf(run, cur);
+    const need = `need more ${cur}`;
 
     let status: string;
     if (node.branch === 'core') {
@@ -396,7 +434,7 @@ export class DayScreen {
 
   private refresh(): void {
     const run = this.run!;
-    this.bankEl.textContent = `⬡ ${run.scrap}    ◆ ${run.cores}`;
+    this.bankEl.textContent = `⬡ ${run.scrap}    ◆ ${run.cores}    ▣ ${run.data}`;
 
     for (const node of TREE) {
       const els = this.nodeEls.get(node.id)!;
@@ -405,8 +443,8 @@ export class DayScreen {
       const cost = nextCost(node, level);
       const color = BRANCH_COLOR[node.branch];
       const cur = nodeCurrency(node);
-      const icon = cur === 'cores' ? '◆' : '⬡';
-      const bank = cur === 'cores' ? run.cores : run.scrap;
+      const icon = CURRENCY_ICON[cur];
+      const bank = bankOf(run, cur);
 
       let fill = 'rgba(20,22,34,0.92)';
       let stroke = '#3a3f5a';
@@ -452,13 +490,10 @@ export class DayScreen {
     const cost = nextCost(node, level);
     if (cost === null) return;
     const cur = nodeCurrency(node);
-    if (cur === 'cores') {
-      if (run.cores < cost) return;
-      run.cores -= cost;
-    } else {
-      if (run.scrap < cost) return;
-      run.scrap -= cost;
-    }
+    if (bankOf(run, cur) < cost) return;
+    if (cur === 'cores') run.cores -= cost;
+    else if (cur === 'data') run.data -= cost;
+    else run.scrap -= cost;
     run.upgrades[node.id] = level + 1;
     this.onPurchase(run);
     this.refresh();

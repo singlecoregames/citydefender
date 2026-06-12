@@ -82,6 +82,8 @@ export interface Explosion {
   hitEnemyIds: number[];
   /** Enemies this explosion has killed (Chain Bounty pays out at 3). */
   kills?: number;
+  /** What spawned it. Only 'manual' blasts feed (or break) the combo meter. */
+  source?: 'manual' | 'turret' | 'ability';
 }
 
 export type EnemyKind =
@@ -130,7 +132,9 @@ export type GameEvent =
   | { type: 'bossSpawned' }
   | { type: 'bossKilled'; cores: number }
   | { type: 'abilityUsed'; ability: AbilityKind; pos?: Vec2 }
-  | { type: 'nightEnded'; outcome: 'victory' | 'defeat'; scrapEarned: number };
+  /** The combo streak broke (whiffed manual blast or a city took damage). */
+  | { type: 'comboBroken'; lost: number }
+  | { type: 'nightEnded'; outcome: 'victory' | 'defeat'; scrapEarned: number; dataEarned: number };
 
 export type Command =
   | { type: 'fire'; x: number; y: number }
@@ -160,6 +164,12 @@ export interface GameState {
   buildings: Building[];
   projectiles: TurretProjectile[];
   scrap: number;
+  /** Combo meter: current streak of manual-explosion kills (global scrap
+   *  multiplier) and the night's peak (pays out Data at dawn). */
+  combo: number;
+  maxCombo: number;
+  /** Total city HP lost this night (0 = perfect defence → Data bonus). */
+  cityDamageTaken: number;
   /** Manual ability state (Tech branch). Cooldowns count down to 0 (ready);
    *  the two timers are how long the active effects last. */
   ability: {

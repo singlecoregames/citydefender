@@ -64,6 +64,22 @@ body {
   color: #9aa0b4;
 }
 
+/* Combo meter: streak count + scrap multiplier, centred under the top bar. */
+#hud-combo {
+  position: absolute;
+  top: calc(48px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 16px;
+  letter-spacing: 1px;
+  color: #ff60c0;
+  text-shadow: 0 0 8px rgba(255, 96, 192, 0.6);
+}
+
+#hud-combo.hidden {
+  display: none;
+}
+
 #hud-ammo {
   position: absolute;
   bottom: calc(14px + env(safe-area-inset-bottom));
@@ -376,6 +392,34 @@ body {
 .shop-item button.maxed {
   color: #49d17a;
   border-color: #49d17a;
+}
+
+/* Run reset: small and muted in the corner; arming turns it loud red. */
+#day-reset {
+  position: absolute;
+  top: calc(10px + env(safe-area-inset-top));
+  right: calc(12px + env(safe-area-inset-right));
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #7a5560;
+  background: transparent;
+  border: 1px solid #4a3540;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#day-reset:hover {
+  color: #c06070;
+  border-color: #c06070;
+}
+
+#day-reset.armed {
+  color: #ff5070;
+  border-color: #ff5070;
+  background: rgba(255, 80, 112, 0.12);
+  box-shadow: 0 0 12px rgba(255, 80, 112, 0.45);
 }
 
 #day-next {

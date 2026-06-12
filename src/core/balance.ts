@@ -189,6 +189,27 @@ export const ABILITIES = {
   },
 } as const;
 
+/** Combo meter: consecutive manual-explosion kills build a global scrap
+ *  multiplier. A manual blast that kills nothing, or a city taking damage,
+ *  breaks the streak (Combo Memory retains a fraction). */
+export const COMBO = {
+  /** Scrap multiplier = 1 + scrapPerStack × min(combo, maxStacks). */
+  scrapPerStack: 0.02,
+  maxStacks: 50,
+} as const;
+
+/** Data (▣) — the skilled-play currency. Earned only on victorious nights
+ *  from night `unlockNight` on: a perfect-defence bonus plus a peak-combo
+ *  bonus. Spent on the automation-intelligence nodes. */
+export const DATA = {
+  unlockNight: 20,
+  /** Perfect night (cities took zero damage): perfectBase + floor(night/10). */
+  perfectBase: 2,
+  /** 1 data per this much peak combo, capped at comboDataCap. */
+  comboPerData: 20,
+  comboDataCap: 3,
+} as const;
+
 /** Boss appears every BOSS_NIGHT_INTERVAL nights (N10, 20, 30…). */
 export const BOSS_NIGHT_INTERVAL = 10;
 
@@ -214,24 +235,44 @@ export const ECONOMY = {
   nightCompleteBonusGrowth: 1.15,
 } as const;
 
+/** Cores trickle from clearing a night for the first time (on top of boss
+ *  drops) — the sim showed boss-only supply (~25◆ to N50) starves the ◆ tree. */
+export const FIRST_CLEAR = {
+  /** First clears from this night on pay cores. */
+  fromNight: 10,
+  /** Cores = base + floor(night / scaleNights). */
+  base: 1,
+  scaleNights: 25,
+} as const;
+
 /** How a night's wave layout and enemy strength scale with the night number.
  *  Tuned so nights 1–3 stay gentle (exponentials start near 1) but the curve
  *  climbs hard after that — count and speed are the main pressure. */
 export const NIGHT_SCALING = {
   /** Waves in night n = baseWaves + floor(n / nightsPerExtraWave). */
-  baseWaves: 3,
-  nightsPerExtraWave: 2,
-  /** Enemies in wave w of night n = round((baseCount + w) * countGrowth^n). */
+  baseWaves: 4,
+  nightsPerExtraWave: 3,
+  /** Enemies in wave w of night n = round((baseCount + w) * countGrowth^n),
+   *  capped at maxWaveCount. The cap bounds night length: spawn intervals
+   *  bottom out at spawnIntervalFloor, so unbounded counts made N30+ nights
+   *  physically longer than 10 minutes (balance-sim finding). Past the cap,
+   *  difficulty rides on hp/speed instead of raw volume. */
   baseCount: 5,
-  countGrowth: 1.09,
+  countGrowth: 1.05,
+  maxWaveCount: 28,
   /** Per-night enemy hp = round((1 + hpLinearPerNight*(n-1)) * hpGrowth^(n-1)).
    *  A linear term plus the exponential makes hp climb sooner and harder, so
    *  raw turret dps can't trivialise mid/late nights. The linear term governs
-   *  how *early* the ramp bites — kept gentle so nights 1–10 stay readable. */
-  hpGrowth: 1.12,
-  hpLinearPerNight: 0.05,
+   *  how *early* the ramp bites — kept gentle so nights 1–10 stay readable.
+   *  Balance-sim findings: total threat (hp×count) must stay near the power
+   *  curve the tree can actually buy, or the run walls mid-game. 1.10/1.07
+   *  keeps first 2-hp enemies at N5 and N50 hp ≈ 210 (was 890). */
+  hpGrowth: 1.13,
+  hpLinearPerNight: 0,
   speedGrowth: 1.035,
-  rewardGrowth: 1.13,
+  /** Kill rewards must grow *slower* than node costs compound, or the tree
+   *  maxes out mid-run and income loses its sink (sim: maxed by N13 at 1.13). */
+  rewardGrowth: 1.07,
   /** Spawn interval shrinks as nights progress (denser spawns). */
   spawnIntervalBase: [0.85, 1.3] as readonly [number, number],
   spawnIntervalFloor: 0.32,

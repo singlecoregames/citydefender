@@ -12,3 +12,5 @@ build an army of automated turrets as you climb a sprawling skill tree toward Ni
 
 - [Game Design Document](docs/GAME_DESIGN.md)
 - [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)
+- [Playtesting & Feedback Guide](docs/PLAYTESTING.md) — 테스트 방법과 피드백 전달 흐름
+- [Feedback Log](docs/FEEDBACK.md) — 플레이테스트 피드백 누적

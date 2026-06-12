@@ -1,9 +1,12 @@
 name: Deploy to GitHub Pages
 
+# Deploys the *current work branch* so playtesting always sees the latest
+# build (see docs/PLAYTESTING.md). Update the branch here when work moves.
 on:
   push:
     branches:
-      - claude/test-coverage-analysis-jx5cq5
+      - master
+      - claude/relaxed-cori-5mdg4y
   workflow_dispatch:
 
 permissions:
