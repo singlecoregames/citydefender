@@ -1,7 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <!-- Full-bleed background so the icon is safe to mask (round/squircle).
-       Colors follow the in-game SNKRX palette on neutral dark grey. -->
+       Colors follow the in-game SNKRX palette on neutral dark grey; every
+       sprite drops a hard shadow down-right, SNKRX-style. -->
   <rect width="512" height="512" fill="#1f1f1f"/>
+  <!-- Drop shadows (offset +7,+7) -->
+  <g fill="#000000" opacity="0.4">
+    <rect x="103" y="379" width="320" height="10" rx="5"/>
+    <rect x="157" y="339" width="40" height="40" rx="8"/>
+    <rect x="243" y="339" width="40" height="40" rx="8"/>
+    <rect x="329" y="339" width="40" height="40" rx="8"/>
+    <rect x="239" y="307" width="48" height="32" rx="8"/>
+    <rect x="253" y="275" width="20" height="40" rx="8"/>
+    <rect x="213" y="213" width="28" height="28" rx="8"/>
+    <circle cx="399" cy="139" r="30"/>
+  </g>
   <!-- Ground line -->
   <rect x="96" y="372" width="320" height="10" rx="5" fill="#404040"/>
   <!-- Three cities (green blocks) -->

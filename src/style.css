@@ -57,7 +57,7 @@ body {
   padding: calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 12px
     calc(16px + env(safe-area-inset-left));
   font-size: 18px;
-  text-shadow: 0 0 8px rgba(250, 207, 0, 0.5);
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
 }
 
 #hud-scrap {
@@ -77,7 +77,7 @@ body {
   font-size: 16px;
   letter-spacing: 1px;
   color: #f07021;
-  text-shadow: 0 0 8px rgba(240, 112, 33, 0.6);
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
 }
 
 #hud-combo.hidden {
@@ -120,6 +120,7 @@ body {
   align-items: flex-end;
   justify-content: center;
   padding-bottom: 6px;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
   -webkit-user-select: none;
   user-select: none;
 }
@@ -144,7 +145,7 @@ body {
 }
 
 .ability-btn.ready {
-  box-shadow: 0 0 12px rgba(142, 85, 158, 0.7);
+  border-color: #b478c8;
 }
 
 .ability-btn.cooling {
@@ -169,11 +170,11 @@ body {
   height: 18px;
   border: 1px solid #019bd6;
   border-radius: 2px;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
 }
 
 .ammo-pip.full {
   background: #019bd6;
-  box-shadow: 0 0 8px #019bd6;
 }
 
 #dayscreen {
@@ -198,7 +199,7 @@ body {
 #day-title {
   font-size: 34px;
   letter-spacing: 5px;
-  text-shadow: 0 0 18px currentColor;
+  text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
 }
 
 #day-title.victory {
@@ -217,7 +218,7 @@ body {
 #day-bank {
   font-size: 22px;
   color: #facf00;
-  text-shadow: 0 0 10px rgba(250, 207, 0, 0.5);
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
   margin-bottom: 4px;
 }
 
@@ -229,6 +230,7 @@ body {
   border: 1px solid #404040;
   border-radius: 8px;
   background: rgba(18, 18, 18, 0.6);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.4);
   touch-action: none;
   cursor: grab;
 }
@@ -251,7 +253,7 @@ body {
   background: rgba(24, 24, 24, 0.97);
   border: 1px solid #555555;
   border-radius: 7px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.5);
   pointer-events: none;
   text-align: left;
 }
@@ -322,6 +324,7 @@ body {
   background: rgba(31, 31, 31, 0.85);
   border: 1px solid #404040;
   border-radius: 6px;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
   cursor: pointer;
 }
 
@@ -384,6 +387,7 @@ body {
   background: transparent;
   border: 1px solid #facf00;
   border-radius: 4px;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
   cursor: pointer;
 }
 
@@ -411,6 +415,7 @@ body {
   background: transparent;
   border: 1px solid #4b3238;
   border-radius: 4px;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
   cursor: pointer;
 }
 
@@ -423,7 +428,6 @@ body {
   color: #e91d39;
   border-color: #e91d39;
   background: rgba(233, 29, 57, 0.12);
-  box-shadow: 0 0 12px rgba(233, 29, 57, 0.45);
 }
 
 #day-next {
@@ -436,10 +440,10 @@ body {
   background: transparent;
   border: 1px solid #019bd6;
   border-radius: 4px;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.45);
   cursor: pointer;
 }
 
 #day-next:hover {
   background: rgba(1, 155, 214, 0.14);
-  box-shadow: 0 0 14px rgba(1, 155, 214, 0.5);
 }

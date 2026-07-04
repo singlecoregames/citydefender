@@ -21,6 +21,10 @@ const RESOLUTION = 360;
 /** Checkerboard cell size in world units. */
 const CHECKER_CELL = 8;
 
+/** SNKRX drop shadows: every sprite casts a hard shadow this far down-right
+ *  (world units; ~4 render pixels at the 360p internal resolution). */
+const SHADOW_OFFSET = 1.1;
+
 /** The SNKRX palette — the six saturated class colours plus a warm-white fg,
  *  on flat neutral dark greys. Everything on screen is built from these. */
 const SNKRX = {
@@ -111,6 +115,7 @@ interface BeamFx {
 
 interface EnemyView {
   head: THREE.Mesh;
+  shadow: THREE.Mesh;
   /** Base render size, re-applied around the spawn pop-in. */
   size: number;
   /** Seconds since the view was created (drives the spawn pop-in). */
@@ -168,6 +173,37 @@ export class Renderer {
     transparent: true,
     opacity: 0.8,
   });
+  /** One shared translucent-black material for every drop shadow, so shadows
+   *  darken whatever they fall on (floor, cities, other sprites). */
+  private readonly shadowMat = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: 0.4,
+    depthWrite: false,
+  });
+
+  /** Attach an SNKRX-style drop shadow to a mesh: a dark copy of its shape,
+   *  offset down-right by a constant world distance. Added as a child so it
+   *  follows position/scale/rotation for free; the local offset is corrected
+   *  for both (see placeShadow). Re-call placeShadow when scale or rotation
+   *  changes after creation. */
+  private addShadow(mesh: THREE.Mesh): THREE.Mesh {
+    const shadow = new THREE.Mesh(mesh.geometry, this.shadowMat);
+    shadow.position.z = -0.25; // just behind its caster, in front of the floor
+    mesh.add(shadow);
+    this.placeShadow(mesh, shadow);
+    return shadow;
+  }
+
+  /** Keep the shadow's world offset at (+d, -d) regardless of the caster's
+   *  scale and z-rotation: express the offset in the caster's local frame. */
+  private placeShadow(mesh: THREE.Mesh, shadow: THREE.Object3D): void {
+    const c = Math.cos(mesh.rotation.z);
+    const s = Math.sin(mesh.rotation.z);
+    const d = SHADOW_OFFSET;
+    shadow.position.x = (d * (c - s)) / Math.max(mesh.scale.x, 0.001);
+    shadow.position.y = (-d * (c + s)) / Math.max(mesh.scale.y, 0.001);
+  }
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -327,6 +363,8 @@ export class Renderer {
     const barrel = new THREE.Mesh(this.roundedGeo, cannonMat);
     barrel.scale.set(2.2, 3, 1);
     barrel.position.set(CANNON.x, 4.5, 1);
+    this.addShadow(base);
+    this.addShadow(barrel);
     this.scene.add(base, barrel);
   }
 
@@ -375,6 +413,7 @@ export class Renderer {
         );
         mesh.scale.set(11, 6, 1);
         mesh.position.set(city.x, 3, 1);
+        this.addShadow(mesh);
         this.scene.add(mesh);
         this.cityMeshes.push(mesh);
       }
@@ -387,6 +426,7 @@ export class Renderer {
       mat.color.setHex(alive ? COLORS.city : COLORS.cityDead);
       mesh.scale.y = alive ? 6 : 2.6;
       mesh.position.y = alive ? 3 : 1.3;
+      this.placeShadow(mesh, mesh.children[0]!); // rubble is shorter — re-aim
     });
   }
 
@@ -402,6 +442,7 @@ export class Renderer {
       );
       mesh.scale.set(3, 3, 1);
       mesh.position.set(t.x, t.y + 3, 1.5);
+      this.addShadow(mesh);
       this.scene.add(mesh);
       this.turretMeshes.set(t.id, mesh);
     }
@@ -430,6 +471,7 @@ export class Renderer {
       );
       body.scale.set(6, 9, 1);
       body.position.set(b.x, 4.5, 1.5);
+      this.addShadow(body);
       this.scene.add(body);
       this.buildingMeshes.set(b.id, body);
     }
@@ -458,6 +500,7 @@ export class Renderer {
         );
         const size = p.kind === 'missile' ? 1.3 : p.kind === 'flak' ? 1 : 0.8;
         mesh.scale.set(size, size, 1);
+        this.addShadow(mesh);
         this.scene.add(mesh);
         this.projectileViews.set(p.id, mesh);
       }
@@ -493,6 +536,7 @@ export class Renderer {
         if (e.kind === 'splitter') head.rotation.z = Math.PI / 4;
         view = {
           head,
+          shadow: this.addShadow(head),
           size: enemySize(e.kind, e.maxHp),
           spawnT: 0,
           lastHp: e.hp,
@@ -510,6 +554,10 @@ export class Renderer {
       const t = view.spawnT / 0.25;
       const pop = t * (1.3 - 0.3 * t);
       view.head.scale.set(view.size * pop, view.size * pop, 1);
+      // Scale/rotation change every frame, so keep the shadow's world offset
+      // pinned down-right; phased enemies are ghosts and cast none.
+      this.placeShadow(view.head, view.shadow);
+      view.shadow.visible = !e.phased;
       // SNKRX hit-flash: blink white for a beat whenever hp drops.
       if (e.hp < view.lastHp) view.flash = 0.09;
       view.lastHp = e.hp;
@@ -556,6 +604,7 @@ export class Renderer {
           marker: new THREE.LineSegments(markerGeo, this.markerMat),
         };
         view.head.scale.set(1.4, 1.4, 1);
+        this.addShadow(view.head);
         this.scene.add(view.head, view.marker);
         this.interceptorViews.set(it.id, view);
       }
