@@ -21,56 +21,78 @@ const RESOLUTION = 360;
 /** Checkerboard cell size in world units. */
 const CHECKER_CELL = 8;
 
-const COLORS = {
-  // Two near-equal dark greys for the SNKRX-style checkerboard floor.
-  checkerA: 0x21212a,
-  checkerB: 0x191920,
-  ground: 0x3a3a48,
-  city: 0x49d17a,
-  cityDead: 0x3a2630,
-  cannon: 0x4aa0ff,
-  projectile: 0xaef0ff,
-  interceptorTrail: 0x2f6fb0,
-  interceptorHead: 0xbfe0ff,
-  targetMarker: 0x9fbfff,
-  enemyTrail: 0x7a2030,
-  enemyHead: 0xff5042,
-  explosion: 0xffd24a,
-  explosionRing: 0xff8c2a,
+/** The SNKRX palette — the six saturated class colours plus a warm-white fg,
+ *  on flat neutral dark greys. Everything on screen is built from these. */
+const SNKRX = {
+  fg: 0xdadada,
+  yellow: 0xfacf00,
+  orange: 0xf07021,
+  red: 0xe91d39,
+  green: 0x8bbf40,
+  blue: 0x019bd6,
+  purple: 0x8e559e,
 } as const;
 
-/** Per-kind turret body colors (also used for their projectiles/beams). */
+const COLORS = {
+  // Two near-equal neutral dark greys for the SNKRX-style checkerboard floor.
+  checkerA: 0x262626,
+  checkerB: 0x1f1f1f,
+  // Arena walls / ground line: the lighter grey SNKRX frames its board with.
+  wall: 0x404040,
+  city: SNKRX.green,
+  cityDead: 0x454545, // dead cities collapse to neutral grey rubble
+  cannon: SNKRX.blue,
+  interceptorTrail: 0x9c9c9c,
+  interceptorHead: SNKRX.fg,
+  targetMarker: SNKRX.fg,
+  explosion: SNKRX.yellow,
+  explosionRing: SNKRX.orange,
+} as const;
+
+/** Per-kind turret body colors (also used for their projectiles/beams).
+ *  One SNKRX class colour per turret, like the snake's unit classes. */
 const TURRET_COLORS: Record<TurretKind, number> = {
-  gatling: 0x36e0b0,
-  flak: 0xffa030,
-  laser: 0xff6a4a,
-  missile: 0xffdc50,
-  railgun: 0xe8f4ff,
-  tesla: 0x7ae0ff,
+  gatling: SNKRX.green,
+  flak: SNKRX.orange,
+  laser: SNKRX.red,
+  missile: SNKRX.yellow,
+  railgun: SNKRX.fg,
+  tesla: SNKRX.blue,
 };
 
-const BEAM_COLORS = { laser: 0xff6a4a, railgun: 0xe8f4ff, tesla: 0x7ae0ff } as const;
+const BEAM_COLORS = { laser: SNKRX.red, railgun: SNKRX.fg, tesla: SNKRX.blue } as const;
 
-/** Support buildings read as muted hexagon-ish blocks, distinct from turrets. */
+/** Support buildings read as rounded blocks (structures), distinct from the
+ *  circular turret units. */
 const BUILDING_COLORS: Record<BuildingKind, number> = {
-  harvester: 0xffdc50, // gold — economy
-  shield: 0x6cc8ff, // cyan — protection
-  repair: 0x49d17a, // green — sustain
-  radar: 0xff60c0, // pink — tech
-  jammer: 0xb46cff, // purple — area denial
-  decoy: 0xff5042, // enemy-red — it wants to be shot at
+  harvester: SNKRX.yellow, // gold — economy
+  shield: SNKRX.blue, // blue — protection
+  repair: SNKRX.green, // green — sustain
+  radar: SNKRX.fg, // white — tech
+  jammer: SNKRX.purple, // purple — area denial
+  decoy: SNKRX.red, // enemy-red — it wants to be shot at
 };
 
-/** Per-kind enemy colours. */
+/** Per-kind enemy colours. Same palette as the player side — in SNKRX the
+ *  shape carries the team (circles = friendly, squares = hostile). */
 const ENEMY_COLORS: Record<EnemyKind, number> = {
-  ballistic: 0xff5042,
-  swarmer: 0xff9a5a,
-  splitter: 0xc060ff,
-  regenerator: 0x5ad07a,
-  phase: 0x60c8ff,
-  carrier: 0xd0304a,
-  boss: 0xff1840,
+  ballistic: SNKRX.red,
+  swarmer: SNKRX.orange,
+  splitter: SNKRX.purple,
+  regenerator: SNKRX.green,
+  phase: SNKRX.blue,
+  carrier: 0xb31730, // deep red — a heavier shade of the enemy red
+  boss: SNKRX.red,
 };
+
+/** Darkened copy of a palette colour, for trails behind their entity. */
+function darken(hex: number, f: number): number {
+  return new THREE.Color(hex).multiplyScalar(f).getHex();
+}
+
+const ENEMY_TRAIL_COLORS: Record<EnemyKind, number> = Object.fromEntries(
+  Object.entries(ENEMY_COLORS).map(([k, c]) => [k, darken(c, 0.55)]),
+) as Record<EnemyKind, number>;
 
 /** Base render size per enemy kind, with a capped hp-based bonus so late-game
  *  high-hp enemies read as bigger without ballooning off-screen. */
@@ -89,6 +111,15 @@ interface BeamFx {
 
 interface EnemyView {
   head: THREE.Mesh;
+  /** Base render size, re-applied around the spawn pop-in. */
+  size: number;
+  /** Seconds since the view was created (drives the spawn pop-in). */
+  spawnT: number;
+  /** Hp last frame — a drop triggers the SNKRX white hit-flash. */
+  lastHp: number;
+  /** Remaining hit-flash seconds. */
+  flash: number;
+  kind: EnemyKind;
 }
 
 interface InterceptorView {
@@ -123,8 +154,9 @@ export class Renderer {
   private lastRenderTime = 0;
 
   // Shared geometries/materials (entities are added/removed constantly).
-  // Every object is a rounded-corner square (unit 1x1, corner radius ~0.3),
-  // scaled per entity — the shared SNKRX-style shape language.
+  // SNKRX shape language: player-side units and shots are CIRCLES (the snake),
+  // enemies are ROUNDED SQUARES, and structures are rounded blocks. The two
+  // shared geometries below (unit-size, scaled per entity) carry all of it.
   private readonly roundedGeo = roundedRectGeometry(1, 1, 0.3);
   private readonly discGeo = new THREE.CircleGeometry(1, 32);
   private readonly ringGeo = new THREE.RingGeometry(0.92, 1, 32);
@@ -193,7 +225,7 @@ export class Renderer {
   private spawnEmpRing(): void {
     const mesh = new THREE.Mesh(
       this.ringGeo,
-      new THREE.MeshBasicMaterial({ color: 0x80e0ff, transparent: true, opacity: 0.9 }),
+      new THREE.MeshBasicMaterial({ color: 0x5fc9ef, transparent: true, opacity: 0.9 }),
     );
     mesh.position.set(0, WORLD.height / 2, 4);
     this.scene.add(mesh);
@@ -262,7 +294,7 @@ export class Renderer {
     this.syncTurrets(state);
     this.syncBuildings(state);
     this.syncProjectiles(state);
-    this.syncEnemies(state);
+    this.syncEnemies(state, dt);
     this.syncInterceptors(state);
     this.syncExplosions(state);
     this.particles.update(dt);
@@ -275,13 +307,17 @@ export class Renderer {
   private buildStaticScene(): void {
     this.addCheckerboard();
 
-    // Ground line.
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(WORLD.halfWidth * 2 + 40, 0.6),
-      new THREE.MeshBasicMaterial({ color: COLORS.ground }),
-    );
-    ground.position.set(0, 0, 0);
+    // SNKRX-style arena frame: a flat light-grey ground line plus thin side
+    // walls marking the playfield edges on the letterboxed checkerboard.
+    const wallMat = new THREE.MeshBasicMaterial({ color: COLORS.wall });
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(WORLD.halfWidth * 2 + 2.4, 1.2), wallMat);
+    ground.position.set(0, -0.3, 0);
     this.scene.add(ground);
+    for (const side of [-1, 1]) {
+      const wall = new THREE.Mesh(new THREE.PlaneGeometry(1.2, WORLD.height + 1.2), wallMat);
+      wall.position.set(side * (WORLD.halfWidth + 0.6), WORLD.height / 2 - 0.3, 0);
+      this.scene.add(wall);
+    }
 
     // Cannon: rounded-rect base block + short rounded barrel.
     const cannonMat = new THREE.MeshBasicMaterial({ color: COLORS.cannon });
@@ -310,6 +346,9 @@ export class Renderer {
     ctx.fillRect(1, 1, 1, 1);
 
     const tex = new THREE.CanvasTexture(c);
+    // The canvas holds sRGB pixel values; without this tag the renderer treats
+    // them as linear and re-encodes, washing the floor out to a light grey.
+    tex.colorSpace = THREE.SRGBColorSpace;
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
     tex.wrapS = THREE.RepeatWrapping;
@@ -353,14 +392,16 @@ export class Renderer {
 
   private syncTurrets(state: GameState): void {
     // Turrets are created once per night and don't move; just create on demand.
+    // Circles in their class colour — the player-side unit shape, like the
+    // snake bodies in SNKRX.
     for (const t of state.turrets) {
       if (this.turretMeshes.has(t.id)) continue;
       const mesh = new THREE.Mesh(
-        this.roundedGeo,
+        this.discGeo,
         new THREE.MeshBasicMaterial({ color: TURRET_COLORS[t.kind] }),
       );
-      mesh.scale.set(6, 6, 1);
-      mesh.position.set(t.x, t.y + 1, 1.5);
+      mesh.scale.set(3, 3, 1);
+      mesh.position.set(t.x, t.y + 3, 1.5);
       this.scene.add(mesh);
       this.turretMeshes.set(t.id, mesh);
     }
@@ -410,18 +451,20 @@ export class Renderer {
       seen.add(p.id);
       let mesh = this.projectileViews.get(p.id);
       if (!mesh) {
+        // Player shots are little discs in the turret's class colour.
         mesh = new THREE.Mesh(
-          this.roundedGeo,
+          this.discGeo,
           new THREE.MeshBasicMaterial({ color: TURRET_COLORS[p.kind] }),
         );
-        const size = p.kind === 'missile' ? 2.6 : p.kind === 'flak' ? 2 : 1.6;
+        const size = p.kind === 'missile' ? 1.3 : p.kind === 'flak' ? 1 : 0.8;
         mesh.scale.set(size, size, 1);
         this.scene.add(mesh);
         this.projectileViews.set(p.id, mesh);
       }
       mesh.position.set(p.pos.x, p.pos.y, 2);
       // Missiles leave a particle trail like the enemy/interceptor shots.
-      if (p.kind === 'missile') this.particles.emit(p.pos.x, p.pos.y);
+      if (p.kind === 'missile')
+        this.particles.emit(p.pos.x, p.pos.y, darken(TURRET_COLORS.missile, 0.6));
     }
     for (const [id, mesh] of this.projectileViews) {
       if (!seen.has(id)) {
@@ -432,31 +475,55 @@ export class Renderer {
     }
   }
 
-  private syncEnemies(state: GameState): void {
+  private syncEnemies(state: GameState, dt: number): void {
     const seen = new Set<number>();
     for (const e of state.enemies) {
       seen.add(e.id);
       let view = this.enemyViews.get(e.id);
       if (!view) {
-        // Per-kind colour; per-enemy material so phased enemies can fade.
+        // Per-kind colour; per-enemy material so phased enemies can fade and
+        // hit enemies can flash white.
         const mat = new THREE.MeshBasicMaterial({
           color: ENEMY_COLORS[e.kind],
           transparent: true,
           opacity: 1,
         });
-        view = { head: new THREE.Mesh(this.roundedGeo, mat) };
-        const sz = enemySize(e.kind, e.maxHp);
-        view.head.scale.set(sz, sz, 1);
+        const head = new THREE.Mesh(this.roundedGeo, mat);
+        // Splitters read as diamonds — the same rounded square turned 45°.
+        if (e.kind === 'splitter') head.rotation.z = Math.PI / 4;
+        view = {
+          head,
+          size: enemySize(e.kind, e.maxHp),
+          spawnT: 0,
+          lastHp: e.hp,
+          flash: 0,
+          kind: e.kind,
+        };
         this.scene.add(view.head);
         this.enemyViews.set(e.id, view);
       }
       view.head.position.set(e.pos.x, e.pos.y, 2);
+      // Bosses slowly spin, SNKRX-boss style.
+      if (e.kind === 'boss') view.head.rotation.z += dt * 0.5;
+      // Spawn pop-in: scale up fast with a slight overshoot.
+      view.spawnT = Math.min(view.spawnT + dt, 0.25);
+      const t = view.spawnT / 0.25;
+      const pop = t * (1.3 - 0.3 * t);
+      view.head.scale.set(view.size * pop, view.size * pop, 1);
+      // SNKRX hit-flash: blink white for a beat whenever hp drops.
+      if (e.hp < view.lastHp) view.flash = 0.09;
+      view.lastHp = e.hp;
+      view.flash = Math.max(0, view.flash - dt);
+      const mat = view.head.material as THREE.MeshBasicMaterial;
+      mat.color.setHex(view.flash > 0 ? 0xffffff : ENEMY_COLORS[e.kind]);
       // Phase Walkers fade out (and stop trailing) while untargetable.
-      (view.head.material as THREE.MeshBasicMaterial).opacity = e.phased ? 0.28 : 1;
-      if (!e.phased) this.particles.emit(e.pos.x, e.pos.y);
+      mat.opacity = e.phased ? 0.28 : 1;
+      if (!e.phased) this.particles.emit(e.pos.x, e.pos.y, ENEMY_TRAIL_COLORS[e.kind]);
     }
     for (const [id, view] of this.enemyViews) {
       if (!seen.has(id)) {
+        // Death pop: shower of particles in the enemy's own colour.
+        this.particles.burst(view.head.position.x, view.head.position.y, ENEMY_COLORS[view.kind]);
         this.scene.remove(view.head);
         (view.head.material as THREE.Material).dispose();
         this.enemyViews.delete(id);
@@ -484,15 +551,16 @@ export class Renderer {
           ),
         );
         view = {
-          head: new THREE.Mesh(this.roundedGeo, this.interceptorHeadMat),
+          // Player shots are white discs, like the snake's own bullets.
+          head: new THREE.Mesh(this.discGeo, this.interceptorHeadMat),
           marker: new THREE.LineSegments(markerGeo, this.markerMat),
         };
-        view.head.scale.set(2.8, 2.8, 1);
+        view.head.scale.set(1.4, 1.4, 1);
         this.scene.add(view.head, view.marker);
         this.interceptorViews.set(it.id, view);
       }
       view.head.position.set(it.pos.x, it.pos.y, 2);
-      this.particles.emit(it.pos.x, it.pos.y);
+      this.particles.emit(it.pos.x, it.pos.y, COLORS.interceptorTrail);
     }
     for (const [id, view] of this.interceptorViews) {
       if (!seen.has(id)) {
