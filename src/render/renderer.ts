@@ -626,7 +626,9 @@ export class Renderer {
         new THREE.MeshBasicMaterial({ color: TURRET_COLORS[t.kind] }),
       );
       mesh.scale.set(6, 7.5, 1);
-      mesh.position.set(t.x, t.y + 3.75, 1.5);
+      // Chip bottom flush with the ground line (t.y is the sim's muzzle
+      // height, not a terrain offset — using it left turrets floating).
+      mesh.position.set(t.x, 3.75, 1.5);
       this.addShadow(mesh);
       this.addGlyph(mesh, t.kind, 4.5);
       this.scene.add(mesh);
