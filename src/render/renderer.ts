@@ -89,6 +89,121 @@ const ENEMY_COLORS: Record<EnemyKind, number> = {
   boss: SNKRX.red,
 };
 
+/** 7x7 pixel rune stamped on each turret/building body, SNKRX-style, so
+ *  same-shape units read at a glance. '1' = ink pixel (dark, engraved). */
+const GLYPHS: Record<TurretKind | BuildingKind, string[]> = {
+  // Turrets — what the gun does.
+  gatling: [
+    '.1.1.1.',
+    '.1.1.1.',
+    '.1.1.1.',
+    '.......',
+    '.1.1.1.',
+    '.1.1.1.',
+    '.1.1.1.',
+  ], // triple barrels
+  flak: [
+    '1.....1',
+    '.1...1.',
+    '..1.1..',
+    '...1...',
+    '..1.1..',
+    '.1...1.',
+    '1.....1',
+  ], // air burst
+  laser: [
+    '...1...',
+    '...1...',
+    '...1...',
+    '...1...',
+    '...1...',
+    '..111..',
+    '.11111.',
+  ], // focused beam
+  missile: [
+    '...1...',
+    '..111..',
+    '.11111.',
+    '...1...',
+    '...1...',
+    '...1...',
+    '...1...',
+  ], // homing rocket
+  railgun: [
+    '.......',
+    '1...1..',
+    '.1...1.',
+    '..1...1',
+    '.1...1.',
+    '1...1..',
+    '.......',
+  ], // piercing chevrons
+  tesla: [
+    '.......',
+    '.11111.',
+    '....1..',
+    '...1...',
+    '..1....',
+    '.11111.',
+    '.......',
+  ], // zap
+  // Support buildings — what the structure provides.
+  harvester: [
+    '...1...',
+    '..111..',
+    '.11111.',
+    '1111111',
+    '.11111.',
+    '..111..',
+    '...1...',
+  ], // scrap gem
+  shield: [
+    '1111111',
+    '1.....1',
+    '1.....1',
+    '1.....1',
+    '.1...1.',
+    '..1.1..',
+    '...1...',
+  ], // shield crest
+  repair: [
+    '...1...',
+    '...1...',
+    '...1...',
+    '1111111',
+    '...1...',
+    '...1...',
+    '...1...',
+  ], // medic cross
+  radar: [
+    '..111..',
+    '.1...1.',
+    '1.....1',
+    '1..1..1',
+    '1.....1',
+    '.1...1.',
+    '..111..',
+  ], // scope ring
+  jammer: [
+    '.......',
+    '.11.11.',
+    '1..1..1',
+    '.......',
+    '.11.11.',
+    '1..1..1',
+    '.......',
+  ], // static waves
+  decoy: [
+    '...1...',
+    '...1...',
+    '...1...',
+    '...1...',
+    '...1...',
+    '.......',
+    '...1...',
+  ], // shoot me!
+};
+
 /** Darkened copy of a palette colour, for trails behind their entity. */
 function darken(hex: number, f: number): number {
   return new THREE.Color(hex).multiplyScalar(f).getHex();
@@ -201,6 +316,47 @@ export class Renderer {
     opacity: 0.95,
     depthWrite: false,
   });
+
+  // Kind runes: one canvas texture + material per kind, cached and shared by
+  // every unit of that kind.
+  private readonly glyphGeo = new THREE.PlaneGeometry(1, 1);
+  private readonly glyphMats = new Map<string, THREE.MeshBasicMaterial>();
+
+  private glyphMaterial(kind: TurretKind | BuildingKind): THREE.MeshBasicMaterial {
+    let mat = this.glyphMats.get(kind);
+    if (mat) return mat;
+    const rows = GLYPHS[kind];
+    const c = document.createElement('canvas');
+    c.width = 7;
+    c.height = 7;
+    const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#1f1f1f'; // dark ink on the coloured body = engraved rune
+    rows.forEach((row, y) => {
+      for (let x = 0; x < row.length; x++) if (row[x] === '1') ctx.fillRect(x, y, 1, 1);
+    });
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    mat = new THREE.MeshBasicMaterial({
+      map: tex,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+    });
+    this.glyphMats.set(kind, mat);
+    return mat;
+  }
+
+  /** Stamp a kind rune onto a body mesh, `size` world units square. The child
+   *  counter-scales the parent's (possibly non-uniform) scale so the rune's
+   *  pixels stay square. */
+  private addGlyph(mesh: THREE.Mesh, kind: TurretKind | BuildingKind, size: number): void {
+    const icon = new THREE.Mesh(this.glyphGeo, this.glyphMaterial(kind));
+    icon.scale.set(size / Math.max(mesh.scale.x, 0.001), size / Math.max(mesh.scale.y, 0.001), 1);
+    icon.position.z = 0.2;
+    mesh.add(icon);
+  }
 
   /** One shared translucent-black material for every drop shadow, so shadows
    *  darken whatever they fall on (floor, cities, other sprites). */
@@ -472,6 +628,7 @@ export class Renderer {
       mesh.scale.set(3, 3, 1);
       mesh.position.set(t.x, t.y + 3, 1.5);
       this.addShadow(mesh);
+      this.addGlyph(mesh, t.kind, 4.2);
       this.scene.add(mesh);
       this.turretMeshes.set(t.id, mesh);
     }
@@ -501,6 +658,7 @@ export class Renderer {
       body.scale.set(6, 9, 1);
       body.position.set(b.x, 4.5, 1.5);
       this.addShadow(body);
+      this.addGlyph(body, b.kind, 4.5);
       this.scene.add(body);
       this.buildingMeshes.set(b.id, body);
     }
