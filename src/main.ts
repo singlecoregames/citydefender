@@ -10,6 +10,7 @@ import { Renderer } from './render/renderer';
 import { AbilityBar } from './ui/abilitybar';
 import { DayScreen } from './ui/dayscreen';
 import { Hud } from './ui/hud';
+import { TitleScreen } from './ui/titlescreen';
 
 const container = document.getElementById('app')!;
 const renderer = new Renderer(container);
@@ -22,6 +23,17 @@ const abilityBar = new AbilityBar((kind) => {
 let run: RunState = loadRun(store);
 let sim: Sim = startNight(run);
 let nightResolved = false;
+
+// Launch title over the frozen night; the sim only steps once it's dismissed.
+const titleScreen = new TitleScreen(
+  () => {}, // START: just dismiss — the prepared night takes over
+  () => {
+    // RESET SAVE (double-confirmed in the UI): wipe and boot fresh.
+    saveRun(store, newRun());
+    location.reload();
+  },
+);
+titleScreen.show(run);
 
 const dayScreen = new DayScreen(
   (r) => saveRun(store, r), // on purchase
@@ -58,7 +70,7 @@ function startNight(r: RunState): Sim {
 let pending: Command[] = [];
 
 container.addEventListener('pointerdown', (e) => {
-  if (dayScreen.visible) return; // clicks belong to the shop UI
+  if (dayScreen.visible || titleScreen.visible) return; // clicks belong to the overlay UI
   const world = renderer.screenToWorld(e.clientX, e.clientY);
   pending.push({ type: 'fire', x: world.x, y: world.y });
 });
@@ -89,7 +101,7 @@ function frame(now: number): void {
 
   // Only advance the sim while actually playing a night.
   while (acc >= DT) {
-    if (sim.state.phase === 'playing') {
+    if (sim.state.phase === 'playing' && !titleScreen.visible) {
       const events = sim.step(pending);
       pending = [];
       renderer.onEvents(events);
