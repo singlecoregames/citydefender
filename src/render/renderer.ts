@@ -136,8 +136,8 @@ interface InterceptorView {
 
 interface ExplosionView {
   group: THREE.Group;
-  /** Border arc segments orbiting the rim, with their angular speeds. */
-  arcs: { mesh: THREE.Mesh; speed: number }[];
+  /** The four border arcs, spun together at a steady rate. */
+  rim: THREE.Group;
 }
 
 export class Renderer {
@@ -176,14 +176,14 @@ export class Renderer {
     transparent: true,
     opacity: 0.8,
   });
-  // SNKRX-style AoE: a bright additive white fill disc plus four chunky
-  // broken border arcs (~70° each) orbiting the rim fast. All geometries and
-  // materials are shared across explosions (unit radius, scaled per blast;
-  // never disposed per-view).
+  // SNKRX-style AoE: a soft additive white fill disc plus four chunky white
+  // border arcs (60° each, evenly spaced) orbiting the rim together at a
+  // steady rate. All geometries and materials are shared across explosions
+  // (unit radius, scaled per blast; never disposed per-view).
   private readonly explosionFillMat = new THREE.MeshBasicMaterial({
     color: 0xffffff,
     transparent: true,
-    opacity: 0.3,
+    opacity: 0.12, // kept gentle — the bloom pass adds the rest of the pop
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
@@ -193,12 +193,14 @@ export class Renderer {
     24,
     1,
     0,
-    (70 * Math.PI) / 180,
+    (60 * Math.PI) / 180,
   );
-  private readonly explosionArcMats = [SNKRX.fg, COLORS.explosion, COLORS.explosionRing, SNKRX.fg].map(
-    (c) =>
-      new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.95, depthWrite: false }),
-  );
+  private readonly explosionArcMat = new THREE.MeshBasicMaterial({
+    color: SNKRX.fg,
+    transparent: true,
+    opacity: 0.95,
+    depthWrite: false,
+  });
 
   /** One shared translucent-black material for every drop shadow, so shadows
    *  darken whatever they fall on (floor, cities, other sprites). */
@@ -662,22 +664,22 @@ export class Renderer {
         group.position.set(ex.pos.x, ex.pos.y, 3);
         const fill = new THREE.Mesh(this.discGeo, this.explosionFillMat);
         group.add(fill);
-        const arcs = this.explosionArcMats.map((mat, i) => {
-          const mesh = new THREE.Mesh(this.explosionArcGeo, mat);
-          mesh.position.z = 0.1;
-          // Spread the four arcs evenly, with a bit of random phase.
-          mesh.rotation.z = (i / 4) * Math.PI * 2 + Math.random();
-          group.add(mesh);
-          // Fast orbit, alternating directions between the arcs.
-          const speed = (4.5 + Math.random() * 2.5) * (i % 2 ? -1 : 1);
-          return { mesh, speed };
-        });
-        view = { group, arcs };
+        // Four evenly spaced white arcs on a rim group that spins as one.
+        const rim = new THREE.Group();
+        rim.position.z = 0.1;
+        rim.rotation.z = Math.random() * Math.PI * 2; // random phase per blast
+        for (let i = 0; i < 4; i++) {
+          const mesh = new THREE.Mesh(this.explosionArcGeo, this.explosionArcMat);
+          mesh.rotation.z = (i / 4) * Math.PI * 2;
+          rim.add(mesh);
+        }
+        group.add(rim);
+        view = { group, rim };
         this.scene.add(group);
         this.explosionViews.set(ex.id, view);
       }
       view.group.scale.setScalar(Math.max(explosionRadius(ex), 0.01));
-      for (const arc of view.arcs) arc.mesh.rotation.z += arc.speed * dt;
+      view.rim.rotation.z += 5.5 * dt;
     }
     for (const [id, view] of this.explosionViews) {
       if (!seen.has(id)) {
