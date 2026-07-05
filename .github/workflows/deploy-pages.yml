@@ -6,7 +6,7 @@ on:
   push:
     branches:
       - master
-      - claude/relaxed-cori-5mdg4y
+      - claude/game-graphics-pixel-art-1d8ayb
   workflow_dispatch:
 
 permissions:
@@ -33,7 +33,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # enablement: true lets the action (re)enable the Pages site via the API
+      # if it isn't configured — the repo's Pages setting was found disabled.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
