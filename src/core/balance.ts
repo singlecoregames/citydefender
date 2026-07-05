@@ -261,14 +261,19 @@ export const NIGHT_SCALING = {
   baseCount: 5,
   countGrowth: 1.05,
   maxWaveCount: 28,
-  /** Per-night enemy hp = round((1 + hpLinearPerNight*(n-1)) * hpGrowth^(n-1)).
+  /** Per-night enemy hp =
+   *  round((1 + hpLinearPerNight*(n-1)) * hpGrowth^max(0, n-hpRampStartNight)).
    *  A linear term plus the exponential makes hp climb sooner and harder, so
-   *  raw turret dps can't trivialise mid/late nights. The linear term governs
-   *  how *early* the ramp bites — kept gentle so nights 1–10 stay readable.
-   *  Balance-sim findings: total threat (hp×count) must stay near the power
-   *  curve the tree can actually buy, or the run walls mid-game. 1.10/1.07
-   *  keeps first 2-hp enemies at N5 and N50 hp ≈ 210 (was 890). */
+   *  raw turret dps can't trivialise mid/late nights. hpRampStartNight delays
+   *  the exponential's onset: the manual-only opening nights (before the first
+   *  turrets and damage nodes) stay at ~base hp, and the ramp only bites once
+   *  the player has tools. Balance-sim findings: with the ramp starting at N1
+   *  the scripted player walled at N6–N10 (repeated 0/3-city defeats) right
+   *  where the first 2-hp ballistics landed; starting the ramp at N4 pushes
+   *  the first 2-hp enemies to N8 and clears the wall, while N50 hp stays in
+   *  the same order (×277 vs ×403 — late nights were already comfortable). */
   hpGrowth: 1.13,
+  hpRampStartNight: 4,
   hpLinearPerNight: 0,
   speedGrowth: 1.035,
   /** Kill rewards must grow *slower* than node costs compound, or the tree

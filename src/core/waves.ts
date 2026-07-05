@@ -23,7 +23,9 @@ export function waveCountForNight(night: number): number {
  */
 export function generateNight(night: number): WaveSpec[] {
   const s = NIGHT_SCALING;
-  const hpScale = (1 + s.hpLinearPerNight * (night - 1)) * Math.pow(s.hpGrowth, night - 1);
+  const hpScale =
+    (1 + s.hpLinearPerNight * (night - 1)) *
+    Math.pow(s.hpGrowth, Math.max(0, night - s.hpRampStartNight));
   const speedScale = Math.pow(s.speedGrowth, night - 1);
   const rewardScale = Math.pow(s.rewardGrowth, night - 1);
   const intervalScale = Math.pow(s.spawnIntervalDecayPerNight, night - 1);
