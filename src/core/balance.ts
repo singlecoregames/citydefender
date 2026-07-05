@@ -31,8 +31,9 @@ export const CANNON = {
 
 export const EXPLOSION = {
   maxRadius: 8,
-  growSeconds: 0.35,
-  holdSeconds: 0.12,
+  /** At full blast radius from the instant of detonation... */
+  holdSeconds: 0.45,
+  /** ...then the radius shrinks to nothing over this long. */
   fadeSeconds: 0.3,
   damage: 1,
 } as const;
