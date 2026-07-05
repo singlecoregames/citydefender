@@ -27,12 +27,13 @@ const MIN_SCALE = 0.4;
 const MAX_SCALE = 2.5;
 
 const BRANCH_COLOR: Record<TreeBranch, string> = {
-  core: '#cfd6e8',
-  cannon: '#4aa0ff',
-  economy: '#ffdc50',
-  city: '#49d17a',
-  automation: '#b46cff',
-  tech: '#ff60c0',
+  // SNKRX palette, matching the renderer's entity colours.
+  core: '#dadada',
+  cannon: '#019bd6',
+  economy: '#facf00',
+  city: '#8bbf40',
+  automation: '#8e559e',
+  tech: '#f07021',
 };
 
 /**
@@ -446,8 +447,8 @@ export class DayScreen {
       const icon = CURRENCY_ICON[cur];
       const bank = bankOf(run, cur);
 
-      let fill = 'rgba(20,22,34,0.92)';
-      let stroke = '#3a3f5a';
+      let fill = 'rgba(24,24,24,0.92)';
+      let stroke = '#404040';
       let opacity = '1';
       let costText: string;
 
@@ -464,7 +465,7 @@ export class DayScreen {
         stroke = color;
         costText = `${icon}${cost} · ${level}/${node.maxLevel}`;
       } else {
-        stroke = '#5a4f3a';
+        stroke = '#6a5a20';
         opacity = '0.75';
         costText = `${icon}${cost} · ${level}/${node.maxLevel}`;
       }
@@ -477,7 +478,7 @@ export class DayScreen {
 
     for (const { line, to } of this.lineEls) {
       const bought = (run.upgrades[to.id] ?? 0) > 0;
-      line.setAttribute('stroke', bought ? BRANCH_COLOR[to.branch] : '#2c3046');
+      line.setAttribute('stroke', bought ? BRANCH_COLOR[to.branch] : '#383838');
       line.setAttribute('opacity', bought ? '0.9' : '0.5');
     }
   }

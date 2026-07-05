@@ -1,21 +1,34 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <!-- Full-bleed background so the icon is safe to mask (round/squircle). -->
-  <rect width="512" height="512" fill="#0a0a12"/>
+  <!-- Full-bleed background so the icon is safe to mask (round/squircle).
+       Colors follow the in-game SNKRX palette on neutral dark grey; every
+       sprite drops a hard shadow down-right, SNKRX-style. -->
+  <rect width="512" height="512" fill="#1f1f1f"/>
+  <!-- Drop shadows (offset +7,+7) -->
+  <g fill="#000000" opacity="0.4">
+    <rect x="103" y="379" width="320" height="10" rx="5"/>
+    <rect x="157" y="339" width="40" height="40" rx="8"/>
+    <rect x="243" y="339" width="40" height="40" rx="8"/>
+    <rect x="329" y="339" width="40" height="40" rx="8"/>
+    <rect x="239" y="307" width="48" height="32" rx="8"/>
+    <rect x="253" y="275" width="20" height="40" rx="8"/>
+    <rect x="213" y="213" width="28" height="28" rx="8"/>
+    <circle cx="399" cy="139" r="30"/>
+  </g>
   <!-- Ground line -->
-  <rect x="96" y="372" width="320" height="10" rx="5" fill="#3a3a48"/>
+  <rect x="96" y="372" width="320" height="10" rx="5" fill="#404040"/>
   <!-- Three cities (green blocks) -->
-  <rect x="150" y="332" width="40" height="40" rx="8" fill="#49d17a"/>
-  <rect x="236" y="332" width="40" height="40" rx="8" fill="#49d17a"/>
-  <rect x="322" y="332" width="40" height="40" rx="8" fill="#49d17a"/>
+  <rect x="150" y="332" width="40" height="40" rx="8" fill="#8bbf40"/>
+  <rect x="236" y="332" width="40" height="40" rx="8" fill="#8bbf40"/>
+  <rect x="322" y="332" width="40" height="40" rx="8" fill="#8bbf40"/>
   <!-- Central cannon -->
-  <rect x="232" y="300" width="48" height="32" rx="8" fill="#4aa0ff"/>
-  <rect x="246" y="268" width="20" height="40" rx="8" fill="#4aa0ff"/>
-  <!-- Interceptor arc -->
-  <path d="M256 280 Q336 150 392 132" fill="none" stroke="#2f6fb0" stroke-width="8" stroke-linecap="round" stroke-dasharray="2 18"/>
-  <!-- Incoming enemy missile (red) with trail -->
-  <path d="M150 130 L220 220" stroke="#7a2030" stroke-width="8" stroke-linecap="round"/>
-  <circle cx="220" cy="220" r="14" fill="#ff5042"/>
+  <rect x="232" y="300" width="48" height="32" rx="8" fill="#019bd6"/>
+  <rect x="246" y="268" width="20" height="40" rx="8" fill="#019bd6"/>
+  <!-- Interceptor arc (white player shot) -->
+  <path d="M256 280 Q336 150 392 132" fill="none" stroke="#9c9c9c" stroke-width="8" stroke-linecap="round" stroke-dasharray="2 18"/>
+  <!-- Incoming enemy missile (red rounded square) with trail -->
+  <path d="M150 130 L214 214" stroke="#801020" stroke-width="8" stroke-linecap="round"/>
+  <rect x="206" y="206" width="28" height="28" rx="8" fill="#e91d39"/>
   <!-- Detonation burst -->
-  <circle cx="392" cy="132" r="30" fill="#ffd24a"/>
-  <circle cx="392" cy="132" r="40" fill="none" stroke="#ff8c2a" stroke-width="6"/>
+  <circle cx="392" cy="132" r="30" fill="#facf00"/>
+  <circle cx="392" cy="132" r="40" fill="none" stroke="#f07021" stroke-width="6"/>
 </svg>

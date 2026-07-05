@@ -1,3 +1,7 @@
+/* UI palette = the SNKRX palette used by the renderer:
+   fg #dadada · yellow #facf00 · orange #f07021 · red #e91d39
+   green #8bbf40 · blue #019bd6 · purple #8e559e — on flat neutral greys. */
+
 * {
   margin: 0;
   padding: 0;
@@ -9,7 +13,7 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #0a0a12;
+  background: #1f1f1f;
   font-family: 'Courier New', monospace;
   user-select: none;
   -webkit-user-select: none;
@@ -43,7 +47,7 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  color: #e8e8f0;
+  color: #dadada;
 }
 
 #hud-top {
@@ -53,15 +57,15 @@ body {
   padding: calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 12px
     calc(16px + env(safe-area-inset-left));
   font-size: 18px;
-  text-shadow: 0 0 8px rgba(255, 220, 80, 0.6);
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
 }
 
 #hud-scrap {
-  color: #ffdc50;
+  color: #facf00;
 }
 
 #hud-wave {
-  color: #9aa0b4;
+  color: #9c9c9c;
 }
 
 /* Combo meter: streak count + scrap multiplier, centred under the top bar. */
@@ -72,8 +76,8 @@ body {
   transform: translateX(-50%);
   font-size: 16px;
   letter-spacing: 1px;
-  color: #ff60c0;
-  text-shadow: 0 0 8px rgba(255, 96, 192, 0.6);
+  color: #f07021;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
 }
 
 #hud-combo.hidden {
@@ -103,10 +107,10 @@ body {
   position: relative;
   width: 60px;
   height: 60px;
-  border: 2px solid #ff60c0;
+  border: 2px solid #8e559e;
   border-radius: 10px;
-  background: rgba(20, 14, 26, 0.7);
-  color: #ffd0ee;
+  background: rgba(31, 31, 31, 0.75);
+  color: #d9c3e2;
   font-family: inherit;
   font-size: 11px;
   letter-spacing: 0.5px;
@@ -116,6 +120,7 @@ body {
   align-items: flex-end;
   justify-content: center;
   padding-bottom: 6px;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
   -webkit-user-select: none;
   user-select: none;
 }
@@ -125,7 +130,7 @@ body {
   top: 4px;
   left: 6px;
   font-size: 10px;
-  color: #ff8fd6;
+  color: #b98cc9;
 }
 
 .ability-btn .cd {
@@ -135,25 +140,25 @@ body {
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  color: #fff;
+  color: #dadada;
   background: rgba(0, 0, 0, 0.62);
 }
 
 .ability-btn.ready {
-  box-shadow: 0 0 12px rgba(255, 96, 192, 0.6);
+  border-color: #b478c8;
 }
 
 .ability-btn.cooling {
-  border-color: #5a3a52;
-  color: #8a6a80;
+  border-color: #4b3a52;
+  color: #7d6b85;
 }
 
 #slowmo-tint {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(ellipse at center, transparent 40%, rgba(80, 120, 255, 0.18) 100%);
-  box-shadow: inset 0 0 120px rgba(60, 110, 255, 0.25);
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(1, 155, 214, 0.18) 100%);
+  box-shadow: inset 0 0 120px rgba(1, 155, 214, 0.25);
 }
 
 #slowmo-tint.hidden {
@@ -163,13 +168,13 @@ body {
 .ammo-pip {
   width: 10px;
   height: 18px;
-  border: 1px solid #28f0c8;
+  border: 1px solid #019bd6;
   border-radius: 2px;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
 }
 
 .ammo-pip.full {
-  background: #28f0c8;
-  box-shadow: 0 0 8px #28f0c8;
+  background: #019bd6;
 }
 
 #dayscreen {
@@ -181,8 +186,8 @@ body {
   justify-content: flex-start;
   gap: 10px;
   padding: 4vh 16px;
-  background: rgba(10, 10, 18, 0.88);
-  color: #e8e8f0;
+  background: rgba(24, 24, 24, 0.92);
+  color: #dadada;
   text-align: center;
   overflow-y: auto;
 }
@@ -194,26 +199,26 @@ body {
 #day-title {
   font-size: 34px;
   letter-spacing: 5px;
-  text-shadow: 0 0 18px currentColor;
+  text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
 }
 
 #day-title.victory {
-  color: #49d17a;
+  color: #8bbf40;
 }
 
 #day-title.defeat {
-  color: #ff5042;
+  color: #e91d39;
 }
 
 #day-subtitle {
   font-size: 15px;
-  color: #9aa0b4;
+  color: #9c9c9c;
 }
 
 #day-bank {
   font-size: 22px;
-  color: #ffdc50;
-  text-shadow: 0 0 10px rgba(255, 220, 80, 0.5);
+  color: #facf00;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
   margin-bottom: 4px;
 }
 
@@ -222,9 +227,10 @@ body {
   width: min(680px, 94vw);
   height: 56vh;
   overflow: hidden;
-  border: 1px solid #2a2f48;
+  border: 1px solid #404040;
   border-radius: 8px;
-  background: rgba(8, 9, 16, 0.6);
+  background: rgba(18, 18, 18, 0.6);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.4);
   touch-action: none;
   cursor: grab;
 }
@@ -244,10 +250,10 @@ body {
   z-index: 5;
   width: 200px;
   padding: 9px 11px;
-  background: rgba(14, 16, 26, 0.97);
-  border: 1px solid #4a5172;
+  background: rgba(24, 24, 24, 0.97);
+  border: 1px solid #555555;
   border-radius: 7px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.5);
   pointer-events: none;
   text-align: left;
 }
@@ -258,13 +264,13 @@ body {
 
 .node-tooltip .tt-name {
   font-size: 14px;
-  color: #eef2ff;
+  color: #ececec;
   margin-bottom: 3px;
 }
 
 .node-tooltip .tt-desc {
   font-size: 12px;
-  color: #aab2cc;
+  color: #a8a8a8;
   margin-bottom: 6px;
 }
 
@@ -276,28 +282,28 @@ body {
 }
 
 .node-tooltip .tt-buy {
-  color: #ffdc50;
+  color: #facf00;
 }
 
 .node-tooltip .tt-hint {
-  color: #49d17a;
+  color: #8bbf40;
   font-size: 11px;
 }
 
 .node-tooltip .tt-poor {
-  color: #c98a5a;
+  color: #f07021;
 }
 
 .node-tooltip .tt-locked {
-  color: #8890a8;
+  color: #8c8c8c;
 }
 
 .node-tooltip .tt-max {
-  color: #49d17a;
+  color: #8bbf40;
 }
 
 .node-tooltip .tt-core {
-  color: #cfd6e8;
+  color: #dadada;
 }
 
 .zoom-controls {
@@ -314,26 +320,27 @@ body {
   height: 38px;
   font-size: 22px;
   line-height: 1;
-  color: #cfe3ff;
-  background: rgba(20, 24, 40, 0.85);
-  border: 1px solid #3a3f5a;
+  color: #dadada;
+  background: rgba(31, 31, 31, 0.85);
+  border: 1px solid #404040;
   border-radius: 6px;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
   cursor: pointer;
 }
 
 .zoom-btn:hover {
-  border-color: #4aa0ff;
+  border-color: #019bd6;
 }
 
 .tree-name {
-  fill: #e8ecff;
+  fill: #dadada;
   font-size: 13px;
   font-family: inherit;
   pointer-events: none;
 }
 
 .tree-cost {
-  fill: #c8cee4;
+  fill: #b0b0b0;
   font-size: 11px;
   font-family: inherit;
   pointer-events: none;
@@ -345,9 +352,9 @@ body {
   justify-content: space-between;
   gap: 10px;
   padding: 10px 14px;
-  border: 1px solid #2f3450;
+  border: 1px solid #3a3a3a;
   border-radius: 6px;
-  background: rgba(40, 48, 80, 0.25);
+  background: rgba(70, 70, 70, 0.25);
   text-align: left;
 }
 
@@ -357,17 +364,17 @@ body {
 
 .shop-item .name {
   font-size: 15px;
-  color: #cfe3ff;
+  color: #dadada;
 }
 
 .shop-item .desc {
   font-size: 12px;
-  color: #8890a8;
+  color: #9c9c9c;
 }
 
 .shop-item .lvl {
   font-size: 11px;
-  color: #6a7290;
+  color: #7c7c7c;
   letter-spacing: 1px;
 }
 
@@ -376,22 +383,23 @@ body {
   padding: 8px 10px;
   font-family: inherit;
   font-size: 13px;
-  color: #ffdc50;
+  color: #facf00;
   background: transparent;
-  border: 1px solid #ffdc50;
+  border: 1px solid #facf00;
   border-radius: 4px;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
   cursor: pointer;
 }
 
 .shop-item button:disabled {
-  color: #555b70;
-  border-color: #353a50;
+  color: #5c5c5c;
+  border-color: #3a3a3a;
   cursor: default;
 }
 
 .shop-item button.maxed {
-  color: #49d17a;
-  border-color: #49d17a;
+  color: #8bbf40;
+  border-color: #8bbf40;
 }
 
 /* Run reset: small and muted in the corner; arming turns it loud red. */
@@ -403,23 +411,23 @@ body {
   font-family: inherit;
   font-size: 11px;
   letter-spacing: 1px;
-  color: #7a5560;
+  color: #7d5560;
   background: transparent;
-  border: 1px solid #4a3540;
+  border: 1px solid #4b3238;
   border-radius: 4px;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
   cursor: pointer;
 }
 
 #day-reset:hover {
-  color: #c06070;
-  border-color: #c06070;
+  color: #e91d39;
+  border-color: #e91d39;
 }
 
 #day-reset.armed {
-  color: #ff5070;
-  border-color: #ff5070;
-  background: rgba(255, 80, 112, 0.12);
-  box-shadow: 0 0 12px rgba(255, 80, 112, 0.45);
+  color: #e91d39;
+  border-color: #e91d39;
+  background: rgba(233, 29, 57, 0.12);
 }
 
 #day-next {
@@ -428,14 +436,14 @@ body {
   font-family: inherit;
   font-size: 17px;
   letter-spacing: 2px;
-  color: #4aa0ff;
+  color: #019bd6;
   background: transparent;
-  border: 1px solid #4aa0ff;
+  border: 1px solid #019bd6;
   border-radius: 4px;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.45);
   cursor: pointer;
 }
 
 #day-next:hover {
-  background: rgba(74, 160, 255, 0.14);
-  box-shadow: 0 0 14px rgba(74, 160, 255, 0.5);
+  background: rgba(1, 155, 214, 0.14);
 }
