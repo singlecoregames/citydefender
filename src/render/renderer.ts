@@ -617,18 +617,18 @@ export class Renderer {
 
   private syncTurrets(state: GameState): void {
     // Turrets are created once per night and don't move; just create on demand.
-    // Circles in their class colour — the player-side unit shape, like the
-    // snake bodies in SNKRX.
+    // Every deployed structure shares one SNKRX-chip shape — a rounded block
+    // in the kind's colour with its rune doing the telling-apart.
     for (const t of state.turrets) {
       if (this.turretMeshes.has(t.id)) continue;
       const mesh = new THREE.Mesh(
-        this.discGeo,
+        this.roundedGeo,
         new THREE.MeshBasicMaterial({ color: TURRET_COLORS[t.kind] }),
       );
-      mesh.scale.set(3, 3, 1);
-      mesh.position.set(t.x, t.y + 3, 1.5);
+      mesh.scale.set(6, 7.5, 1);
+      mesh.position.set(t.x, t.y + 3.75, 1.5);
       this.addShadow(mesh);
-      this.addGlyph(mesh, t.kind, 4.2);
+      this.addGlyph(mesh, t.kind, 4.5);
       this.scene.add(mesh);
       this.turretMeshes.set(t.id, mesh);
     }
@@ -646,17 +646,16 @@ export class Renderer {
   }
 
   private syncBuildings(state: GameState): void {
-    // Buildings are static for the night; create once, taller than turrets and
-    // crowned with a small cap so they read as support structures, not guns.
+    // Buildings are static for the night; the same chip shape as turrets, in
+    // the kind's support colour with its rune.
     for (const b of state.buildings) {
       if (this.buildingMeshes.has(b.id)) continue;
-      // Taller, narrower block than a turret, in the kind's support colour.
       const body = new THREE.Mesh(
         this.roundedGeo,
         new THREE.MeshBasicMaterial({ color: BUILDING_COLORS[b.kind] }),
       );
-      body.scale.set(6, 9, 1);
-      body.position.set(b.x, 4.5, 1.5);
+      body.scale.set(6, 7.5, 1);
+      body.position.set(b.x, 3.75, 1.5);
       this.addShadow(body);
       this.addGlyph(body, b.kind, 4.5);
       this.scene.add(body);
