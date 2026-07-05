@@ -10,6 +10,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { CANNON, WORLD } from '../core/balance';
+import { explosionRadius } from '../core/explosion';
 import type { BuildingKind, EnemyKind, GameEvent, GameState, TurretKind, Vec2 } from '../core/types';
 import { Particles } from './particles';
 
@@ -175,19 +176,26 @@ export class Renderer {
     transparent: true,
     opacity: 0.8,
   });
-  // SNKRX-style AoE: a translucent fill disc plus broken border arcs that
-  // orbit the rim fast. All geometries/materials are shared across explosions
-  // (unit radius, scaled per blast; never disposed per-view).
+  // SNKRX-style AoE: a bright additive white fill disc plus four chunky
+  // broken border arcs (~70° each) orbiting the rim fast. All geometries and
+  // materials are shared across explosions (unit radius, scaled per blast;
+  // never disposed per-view).
   private readonly explosionFillMat = new THREE.MeshBasicMaterial({
-    color: COLORS.explosion,
+    color: 0xffffff,
     transparent: true,
-    opacity: 0.22,
+    opacity: 0.3,
+    blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
-  private readonly explosionArcGeos = [2.4, 1.6, 2.0].map(
-    (len) => new THREE.RingGeometry(0.93, 1, 40, 1, 0, len),
+  private readonly explosionArcGeo = new THREE.RingGeometry(
+    0.85,
+    1,
+    24,
+    1,
+    0,
+    (70 * Math.PI) / 180,
   );
-  private readonly explosionArcMats = [COLORS.explosion, COLORS.explosionRing, SNKRX.fg].map(
+  private readonly explosionArcMats = [SNKRX.fg, COLORS.explosion, COLORS.explosionRing, SNKRX.fg].map(
     (c) =>
       new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.95, depthWrite: false }),
   );
@@ -647,18 +655,18 @@ export class Renderer {
       seen.add(ex.id);
       let view = this.explosionViews.get(ex.id);
       if (!view) {
-        // SNKRX AoE: the blast area shows at full size for its whole life —
-        // a translucent fill with broken arcs spinning fast around the rim —
-        // then simply vanishes. No grow/shrink animation.
+        // SNKRX AoE: full blast size the instant it lands — an additive white
+        // fill with four chunky arcs spinning fast around the rim — then the
+        // whole thing shrinks away (mirroring the damage radius).
         const group = new THREE.Group();
         group.position.set(ex.pos.x, ex.pos.y, 3);
-        group.scale.setScalar(ex.maxRadius);
         const fill = new THREE.Mesh(this.discGeo, this.explosionFillMat);
         group.add(fill);
-        const arcs = this.explosionArcGeos.map((geo, i) => {
-          const mesh = new THREE.Mesh(geo, this.explosionArcMats[i]!);
+        const arcs = this.explosionArcMats.map((mat, i) => {
+          const mesh = new THREE.Mesh(this.explosionArcGeo, mat);
           mesh.position.z = 0.1;
-          mesh.rotation.z = Math.random() * Math.PI * 2;
+          // Spread the four arcs evenly, with a bit of random phase.
+          mesh.rotation.z = (i / 4) * Math.PI * 2 + Math.random();
           group.add(mesh);
           // Fast orbit, alternating directions between the arcs.
           const speed = (4.5 + Math.random() * 2.5) * (i % 2 ? -1 : 1);
@@ -668,6 +676,7 @@ export class Renderer {
         this.scene.add(group);
         this.explosionViews.set(ex.id, view);
       }
+      view.group.scale.setScalar(Math.max(explosionRadius(ex), 0.01));
       for (const arc of view.arcs) arc.mesh.rotation.z += arc.speed * dt;
     }
     for (const [id, view] of this.explosionViews) {

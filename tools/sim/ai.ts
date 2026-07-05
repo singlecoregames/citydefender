@@ -99,8 +99,9 @@ export class NightAi {
     const origin: Vec2 = { x: CANNON.x, y: CANNON.y };
     const speed = this.cfg.stats.interceptorSpeed;
     const t = interceptTime(origin, target.pos, target.vel, speed) ?? 0.5;
-    // Aim a hair ahead so the blast is mid-growth when the enemy arrives.
-    const lead = t + EXPLOSION.growSeconds * 0.4;
+    // Blasts are at full radius from the moment of detonation, so aim at the
+    // enemy's position at impact time with no extra growth lead.
+    const lead = t;
     const at = (e: EnemyMissile): Vec2 => ({
       x: e.pos.x + e.vel.x * lead,
       y: e.pos.y + e.vel.y * lead,
@@ -132,8 +133,7 @@ export class NightAi {
     aim.y = Math.max(8, Math.min(WORLD.height, aim.y));
 
     const flight = Math.hypot(aim.x - origin.x, aim.y - origin.y) / speed;
-    const expires =
-      this.tick + Math.ceil((flight + EXPLOSION.growSeconds + EXPLOSION.holdSeconds) * TICK_RATE);
+    const expires = this.tick + Math.ceil((flight + EXPLOSION.holdSeconds) * TICK_RATE);
     for (const e of caught) {
       this.claims.push({ enemyId: e.id, damage: this.cfg.stats.explosionDamage, expiresTick: expires });
     }
