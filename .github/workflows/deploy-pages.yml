@@ -1,12 +1,14 @@
 name: Deploy to GitHub Pages
 
-# Deploys the *current work branch* so playtesting always sees the latest
-# build (see docs/PLAYTESTING.md). Update the branch here when work moves.
+# Deploys master only. Work branches are merged into master before deploying
+# (see docs/PLAYTESTING.md); triggering on both raced two runs into the shared
+# `pages` concurrency group within the same second, and the cancel/deploy
+# scramble intermittently failed GitHub's Pages backend ("Deployment failed,
+# try again later").
 on:
   push:
     branches:
       - master
-      - claude/game-graphics-pixel-art-1d8ayb
   workflow_dispatch:
 
 permissions:
