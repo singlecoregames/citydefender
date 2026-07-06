@@ -5,7 +5,7 @@ import { EXPLOSION_TOTAL_SECONDS } from '../src/core/explosion';
 import { defaultNightConfig, Sim } from '../src/core/sim';
 import { baseStats } from '../src/core/stats';
 import { enemyPool } from '../src/core/waves';
-import type { Command, EnemyKind, TurretKind } from '../src/core/types';
+import type { Command, EnemyKind, GameEvent, TurretKind } from '../src/core/types';
 
 function run(sim: Sim, ticks: number, commandsAt: Map<number, Command[]> = new Map()): void {
   for (let i = 0; i < ticks; i++) {
@@ -530,7 +530,7 @@ describe('boss nights', () => {
     const boss = sim.state.enemies.find((e) => e.kind === 'boss')!;
     boss.pos = { x: 40, y: 5 }; // just above the ground band
     boss.vel = { x: 0, y: -20 };
-    const events: ReturnType<typeof sim.step> = [];
+    const events: GameEvent[] = [];
     for (let i = 0; i < 10; i++) events.push(...sim.step([]));
     expect(sim.state.cities.every((c) => c.hp <= 0)).toBe(true);
     expect(events.filter((e) => e.type === 'cityHit').length).toBe(sim.state.cities.length);
