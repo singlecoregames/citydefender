@@ -75,7 +75,10 @@ container.addEventListener('pointerdown', (e) => {
   pending.push({ type: 'fire', x: world.x, y: world.y });
 });
 
-/** Apply the night result to the run, persist, and show the Day screen. */
+/** Apply the night result to the run, persist, flash the outcome banner over
+ *  the frozen field for a beat, then open the Day screen. */
+const bannerEl = document.getElementById('night-banner')!;
+
 function resolveNight(outcome: 'victory' | 'defeat', scrapEarned: number, dataEarned: number): void {
   const clearedNight = run.night;
   run.scrap += scrapEarned;
@@ -87,7 +90,12 @@ function resolveNight(outcome: 'victory' | 'defeat', scrapEarned: number, dataEa
     run.night += 1;
   }
   saveRun(store, run);
-  dayScreen.show(run, outcome, clearedNight, dataEarned);
+  bannerEl.textContent = outcome === 'victory' ? `NIGHT ${clearedNight} SURVIVED` : 'CITIES LOST';
+  bannerEl.className = outcome;
+  setTimeout(() => {
+    bannerEl.className = 'hidden';
+    dayScreen.show(run, outcome, clearedNight, dataEarned);
+  }, 1800);
 }
 
 // Fixed timestep with accumulator; render every animation frame.

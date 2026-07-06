@@ -832,36 +832,41 @@ export class Sim {
       const edt = jam && dist(jam, e.pos) <= jam.radius ? dt * jam.factor : dt;
       e.pos.x += e.vel.x * edt;
       e.pos.y += e.vel.y * edt;
-      if (e.pos.y <= 0) {
+      // Enemies collide with a living city's BODY (inside its hit radius, at
+      // block height) — not with the ground underneath it.
+      const city =
+        e.pos.y <= CITY.bodyHeight
+          ? s.cities.find(
+              (c) => c.hp > 0 && Math.abs(e.pos.x - c.x) <= this.cfg.stats.cityHitRadius,
+            )
+          : undefined;
+      if (city) {
         s.enemies.splice(i, 1);
-        this.handleGroundImpact(e);
+        this.hitCity(e, city);
+      } else if (e.pos.y <= 0) {
+        s.enemies.splice(i, 1);
+        // A miss: crater fx only, no damage — cities are only hit bodily.
+        s.events.push({ type: 'groundImpact', pos: { x: e.pos.x, y: 0 } });
       }
     }
   }
 
-  private handleGroundImpact(e: EnemyMissile): void {
+  private hitCity(e: EnemyMissile, city: City): void {
     const s = this.state;
-    const impact: Vec2 = { x: e.pos.x, y: 0 };
-    s.events.push({ type: 'groundImpact', pos: impact });
-    const hitCities = s.cities.filter(
-      (c) => c.hp > 0 && Math.abs(c.x - impact.x) <= this.cfg.stats.cityHitRadius,
-    );
-    if (hitCities.length === 0) return;
+    s.events.push({ type: 'groundImpact', pos: { x: e.pos.x, y: e.pos.y } });
 
     // Shield Generator soaks the whole impact for one charge.
     const shield = s.buildings.find((b) => b.kind === 'shield');
     if (shield && shield.charges > 0) {
       shield.charges--;
-      s.events.push({ type: 'shieldAbsorbed', cityId: hitCities[0]!.id });
+      s.events.push({ type: 'shieldAbsorbed', cityId: city.id });
       return;
     }
 
-    for (const city of hitCities) {
-      city.hp--;
-      s.cityDamageTaken++;
-      s.scrap += this.cfg.stats.cityHitScrap; // War Insurance compensation
-      s.events.push({ type: 'cityHit', cityId: city.id, destroyed: city.hp <= 0 });
-    }
+    city.hp--;
+    s.cityDamageTaken++;
+    s.scrap += this.cfg.stats.cityHitScrap; // War Insurance compensation
+    s.events.push({ type: 'cityHit', cityId: city.id, destroyed: city.hp <= 0 });
     this.breakCombo(); // taking damage breaks the streak
   }
 
