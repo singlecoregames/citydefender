@@ -390,8 +390,8 @@ export class Sim {
     for (const e of s.enemies) {
       switch (e.kind) {
         case 'boss': {
-          // Decelerate to a hover height so the fight has room.
-          if (e.pos.y <= BOSS.hoverY && e.vel.y < 0) e.vel.y = -BOSS.speed * 0.25;
+          // No hovering — the boss keeps descending; if it ever reaches the
+          // ground the night is lost (see moveEnemies).
           e.spawnTimer! -= dt;
           if (e.spawnTimer! <= 0) {
             this.spawnChild('swarmer', e, 1.3);
@@ -652,13 +652,14 @@ export class Sim {
   }
 
   /** Threat Analysis: true when this enemy's projected ground impact would
-   *  damage a living city. Enemies climbing or hovering count as non-threats. */
+   *  damage a living segment. Enemies climbing or hovering are non-threats. */
   private threatensCity(e: EnemyMissile): boolean {
     if (e.vel.y >= 0) return false;
-    const impactX = e.pos.x + e.vel.x * (e.pos.y / -e.vel.y);
-    return this.state.cities.some(
-      (c) => c.hp > 0 && Math.abs(c.x - impactX) <= this.cfg.stats.cityHitRadius,
-    );
+    const t = (e.pos.y - CITY.groundTop) / -e.vel.y;
+    if (t < 0) return false;
+    const impactX = e.pos.x + e.vel.x * t;
+    const seg = this.segmentAt(impactX);
+    return !!seg && seg.hp > 0;
   }
 
   /** Pick the most-progressed (lowest) enemy within range — the biggest threat
@@ -832,42 +833,61 @@ export class Sim {
       const edt = jam && dist(jam, e.pos) <= jam.radius ? dt * jam.factor : dt;
       e.pos.x += e.vel.x * edt;
       e.pos.y += e.vel.y * edt;
-      // Enemies collide with a living city's BODY (inside its hit radius, at
-      // block height) — not with the ground underneath it.
-      const city =
-        e.pos.y <= CITY.bodyHeight
-          ? s.cities.find(
-              (c) => c.hp > 0 && Math.abs(e.pos.x - c.x) <= this.cfg.stats.cityHitRadius,
-            )
-          : undefined;
-      if (city) {
+      // Enemies detonate on reaching the raised ground band; the segment
+      // under the impact takes the damage. A boss touching down ends the
+      // night outright, whichever segment it lands on.
+      if (e.pos.y <= CITY.groundTop) {
         s.enemies.splice(i, 1);
-        this.hitCity(e, city);
-      } else if (e.pos.y <= 0) {
-        s.enemies.splice(i, 1);
-        // A miss: crater fx only, no damage — cities are only hit bodily.
-        s.events.push({ type: 'groundImpact', pos: { x: e.pos.x, y: 0 } });
+        if (e.kind === 'boss') this.bossReachesGround(e);
+        else this.handleGroundImpact(e);
       }
     }
   }
 
-  private hitCity(e: EnemyMissile, city: City): void {
+  /** The ground segment ("city") under a world x. */
+  private segmentAt(x: number): City | undefined {
+    const s = this.state;
+    const w = (WORLD.halfWidth * 2) / s.cities.length;
+    const idx = Math.min(
+      s.cities.length - 1,
+      Math.max(0, Math.floor((x + WORLD.halfWidth) / w)),
+    );
+    return s.cities[idx];
+  }
+
+  private handleGroundImpact(e: EnemyMissile): void {
     const s = this.state;
     s.events.push({ type: 'groundImpact', pos: { x: e.pos.x, y: e.pos.y } });
+    const seg = this.segmentAt(e.pos.x);
+    if (!seg || seg.hp <= 0) return; // dead ground: crater fx only
 
     // Shield Generator soaks the whole impact for one charge.
     const shield = s.buildings.find((b) => b.kind === 'shield');
     if (shield && shield.charges > 0) {
       shield.charges--;
-      s.events.push({ type: 'shieldAbsorbed', cityId: city.id });
+      s.events.push({ type: 'shieldAbsorbed', cityId: seg.id });
       return;
     }
 
-    city.hp--;
+    seg.hp--;
     s.cityDamageTaken++;
     s.scrap += this.cfg.stats.cityHitScrap; // War Insurance compensation
-    s.events.push({ type: 'cityHit', cityId: city.id, destroyed: city.hp <= 0 });
+    s.events.push({ type: 'cityHit', cityId: seg.id, destroyed: seg.hp <= 0 });
     this.breakCombo(); // taking damage breaks the streak
+  }
+
+  /** A boss touching the ground is an immediate total loss: every segment is
+   *  flattened, which the end-of-tick check turns into the night's defeat. */
+  private bossReachesGround(e: EnemyMissile): void {
+    const s = this.state;
+    s.events.push({ type: 'groundImpact', pos: { x: e.pos.x, y: e.pos.y } });
+    for (const seg of s.cities) {
+      if (seg.hp <= 0) continue;
+      s.cityDamageTaken += seg.hp;
+      seg.hp = 0;
+      s.events.push({ type: 'cityHit', cityId: seg.id, destroyed: true });
+    }
+    this.breakCombo();
   }
 
   private updateExplosions(): void {
@@ -974,7 +994,9 @@ function createInitialState(cfg: NightConfig): GameState {
     phase: 'playing',
     outcome: null,
     cannon: { ammo: cfg.stats.maxAmmo, maxAmmo: cfg.stats.maxAmmo, reloadTimer: cfg.stats.reloadSeconds },
-    cities: CITY.xs.map((x, i) => ({ id: i, x, hp: cfg.stats.cityMaxHp, maxHp: cfg.stats.cityMaxHp })),
+    // Ground segments ("cities"): equal slices of the full field width, each
+    // with its own hp. Upgrades raise the count, splitting damage finer.
+    cities: groundSegments(cfg.stats),
     interceptors: [],
     explosions: [],
     enemies: [],
@@ -1033,6 +1055,19 @@ function estimateTurretDps(cfg: NightConfig): number {
 }
 
 /** Seconds between Repair Bay heals at a given level (shrinks to a floor). */
+/** Build the night's ground segments: cityCount equal slices of the field,
+ *  each with cityMaxHp. `x` is the segment centre (used by aiming/decoy). */
+function groundSegments(stats: DerivedStats): City[] {
+  const n = Math.max(1, Math.round(stats.cityCount));
+  const w = (WORLD.halfWidth * 2) / n;
+  return Array.from({ length: n }, (_, i) => ({
+    id: i,
+    x: -WORLD.halfWidth + w * (i + 0.5),
+    hp: stats.cityMaxHp,
+    maxHp: stats.cityMaxHp,
+  }));
+}
+
 function repairInterval(level: number): number {
   const t = BUILDING_TUNING.repair;
   return Math.max(t.intervalMin, t.intervalBase - t.intervalPerLevel * (level - 1));

@@ -16,10 +16,10 @@ export interface DerivedStats {
   scrapMul: number;
   /** Multiplier on the night-completion bonus specifically. */
   nightBonusMul: number;
-  /** Starting/max HP of each city. */
+  /** Starting/max HP of each ground segment ("city"). */
   cityMaxHp: number;
-  /** How close an enemy impact must be to damage a city (smaller = safer). */
-  cityHitRadius: number;
+  /** How many segments the ground is split into (more = finer damage). */
+  cityCount: number;
   /** Global multipliers applied to every deployed turret (which turrets exist
    *  is decided by the tree's turret nodes, not by stats). */
   turretDamageMul: number;
@@ -80,7 +80,7 @@ export function baseStats(): DerivedStats {
     scrapMul: 1,
     nightBonusMul: 1,
     cityMaxHp: CITY.hp,
-    cityHitRadius: CITY.hitRadius,
+    cityCount: CITY.baseCount,
     turretDamageMul: 1,
     turretFireRateMul: 1,
     turretRangeMul: 1,

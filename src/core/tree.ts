@@ -522,7 +522,7 @@ export const TREE: readonly TreeNode[] = [
   {
     id: 'reinforced',
     name: 'Reinforced',
-    description: '+1 city HP',
+    description: '+1 ground HP',
     branch: 'city',
     col: 1,
     row: 0,
@@ -560,8 +560,8 @@ export const TREE: readonly TreeNode[] = [
   },
   {
     id: 'compact',
-    name: 'Compact Grid',
-    description: '-6% city hit size',
+    name: 'Bulwark',
+    description: '+1 ground HP',
     branch: 'city',
     col: 2,
     row: 1,
@@ -569,7 +569,7 @@ export const TREE: readonly TreeNode[] = [
     baseCost: 70,
     costGrowth: 1.55,
     requires: ['reinforced'],
-    effects: [{ stat: 'cityHitRadius', op: 'mul', value: -0.06 }],
+    effects: [{ stat: 'cityMaxHp', op: 'add', value: 1 }],
   },
   {
     id: 'drum_magazine',
@@ -600,7 +600,7 @@ export const TREE: readonly TreeNode[] = [
   {
     id: 'bunker',
     name: 'Bunker',
-    description: '+1 city HP',
+    description: '+1 ground HP',
     branch: 'city',
     col: 3,
     row: -1,
@@ -652,7 +652,7 @@ export const TREE: readonly TreeNode[] = [
   {
     id: 'bastion_core',
     name: 'Bastion Core',
-    description: '+2 city HP',
+    description: '+2 ground HP',
     branch: 'city',
     col: 3,
     row: -2,
@@ -662,6 +662,20 @@ export const TREE: readonly TreeNode[] = [
     currency: 'cores',
     requires: ['bunker'],
     effects: [{ stat: 'cityMaxHp', op: 'add', value: 2 }],
+  },
+  {
+    id: 'districts',
+    name: 'Districts',
+    description: 'Split the ground into +1 segment — damage lands more locally',
+    branch: 'city',
+    col: 4,
+    row: 0,
+    maxLevel: 3,
+    baseCost: 3,
+    costGrowth: 1.7,
+    currency: 'cores',
+    requires: ['war_insurance'],
+    effects: [{ stat: 'cityCount', op: 'add', value: 1 }],
   },
 
   // ── NW · operator path: abilities, Radar, Railgun, turret range ────────
