@@ -1,14 +1,12 @@
 /**
  * Three.js view of the core sim. Reads GameState every frame and mirrors it
- * into scene objects. SNKRX-style: clean pixel-art shapes on a checkerboard,
- * with a gentle bloom. Rendered at a low internal resolution and upscaled with
- * nearest-neighbour (see RESOLUTION + CSS image-rendering: pixelated) so every
- * shape snaps to a chunky pixel grid instead of looking like smooth vectors.
+ * into scene objects. SNKRX-style: clean, flat pixel-art shapes on a
+ * checkerboard — no post-processing. Rendered at a low internal resolution and
+ * upscaled with nearest-neighbour (see RESOLUTION + CSS image-rendering:
+ * pixelated) so every shape snaps to a chunky pixel grid instead of looking
+ * like smooth vectors.
  */
 import * as THREE from 'three';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { CANNON, WORLD } from '../core/balance';
 import { explosionRadius } from '../core/explosion';
 import type { BuildingKind, EnemyKind, GameEvent, GameState, TurretKind, Vec2 } from '../core/types';
@@ -271,7 +269,6 @@ export class Renderer {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.OrthographicCamera;
-  private readonly composer: EffectComposer;
 
   private readonly enemyViews = new Map<number, EnemyView>();
   private readonly interceptorViews = new Map<number, InterceptorView>();
@@ -424,12 +421,6 @@ export class Renderer {
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
     this.camera.position.z = 10;
 
-    this.composer = new EffectComposer(this.renderer);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
-    // Gentle glow only: low strength, high threshold so just the bright cores bloom.
-    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.5, 0.55);
-    this.composer.addPass(bloom);
-
     this.buildStaticScene();
     this.scene.add(this.particles.points);
     this.resize();
@@ -545,7 +536,7 @@ export class Renderer {
     this.updateBeams(dt);
     this.updateEmpRings(dt);
     this.applyShake();
-    this.composer.render();
+    this.renderer.render(this.scene, this.camera);
   }
 
   private buildStaticScene(): void {
@@ -917,7 +908,6 @@ export class Renderer {
     const lowH = RESOLUTION;
     const lowW = Math.max(1, Math.round(RESOLUTION * aspect));
     this.renderer.setSize(lowW, lowH, false); // false: don't touch canvas CSS size
-    this.composer.setSize(lowW, lowH);
 
     // Always show the full world rect; letterbox with extra sky/sides.
     const worldAspect = (WORLD.halfWidth * 2) / WORLD.height;

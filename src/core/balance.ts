@@ -126,8 +126,11 @@ export const CITY = {
   /** Horizontal positions for the initial three cities. */
   xs: [-60, -30, 50] as readonly number[],
   hp: 1,
-  /** An enemy impact within this distance damages the city. */
+  /** An enemy within this horizontal distance of the city centre hits it. */
   hitRadius: 7,
+  /** Top of the city block (world y): enemies collide with the BODY —
+   *  inside the radius and at or below this height — not the ground under it. */
+  bodyHeight: 6,
 } as const;
 
 export const ENEMY = {

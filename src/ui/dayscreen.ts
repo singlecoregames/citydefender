@@ -466,6 +466,7 @@ export class DayScreen {
       let stroke = '#404040';
       let opacity = '1';
       let costText: string;
+      let costColor = ''; // '' = the default .tree-cost grey
 
       if (node.branch === 'core') {
         stroke = color;
@@ -477,15 +478,18 @@ export class DayScreen {
         stroke = color;
         costText = `${icon}${cost} · ${level}/${node.maxLevel}`;
       } else {
-        stroke = '#6a5a20';
-        opacity = '0.75';
+        // Unaffordable: red price so it can't be mistaken for a buyable node.
+        stroke = '#404040';
+        opacity = '0.8';
         costText = `${icon}${cost} · ${level}/${node.maxLevel}`;
+        costColor = '#e91d39';
       }
 
       els.box.setAttribute('fill', fill);
       els.box.setAttribute('stroke', stroke);
       g.setAttribute('opacity', opacity);
       els.cost.textContent = costText;
+      els.cost.style.fill = costColor; // inline style outranks the class rule
     }
 
     for (const { line, to } of this.lineEls) {
