@@ -1012,7 +1012,7 @@ function createInitialState(cfg: NightConfig): GameState {
       id: i,
       kind: t.kind,
       level: t.level,
-      x: TURRETS[t.kind].x,
+      x: t.slot === 1 ? TURRETS[t.kind].x2 : TURRETS[t.kind].x,
       y: TURRET.y,
       cooldown: 0,
     })),

@@ -52,6 +52,10 @@ export const TURRET = {
 export interface TurretKindSpec {
   /** Fixed deploy position for this turret kind. */
   x: number;
+  /** Deploy position of the SECOND copy (the *_twin nodes) — always on the
+   *  other side of the cannon, so a full build fields every kind once per
+   *  side. Not mirror-symmetric; slots are picked to avoid the buildings. */
+  x2: number;
   /** Shots (or bursts/beam ticks) per second. */
   fireRate: number;
   damage: number;
@@ -78,12 +82,12 @@ export interface TurretKindSpec {
  * short-range last line of defence.
  */
 export const TURRETS: Record<TurretKind, TurretKindSpec> = {
-  gatling: { x: -45, fireRate: 1.1, damage: 1, range: 58, projectileSpeed: 95, spreadDeg: 3.5 },
-  flak: { x: 45, fireRate: 0.45, damage: 1, range: 70, projectileSpeed: 70, spreadDeg: 5, burstRadius: 5 },
-  laser: { x: -80, fireRate: 0.8, damage: 1, range: 45 },
-  missile: { x: 80, fireRate: 0.4, damage: 2, range: 85, homingSpeed: 38 },
-  railgun: { x: -15, fireRate: 0.22, damage: 4, range: 95, pierceWidth: 3, spreadDeg: 1 },
-  tesla: { x: 15, fireRate: 0.7, damage: 1, range: 30, chainCount: 4, chainRadius: 18 },
+  gatling: { x: -45, x2: 38, fireRate: 1.1, damage: 1, range: 58, projectileSpeed: 95, spreadDeg: 3.5 },
+  flak: { x: 45, x2: -35, fireRate: 0.45, damage: 1, range: 70, projectileSpeed: 70, spreadDeg: 5, burstRadius: 5 },
+  laser: { x: -80, x2: 62, fireRate: 0.8, damage: 1, range: 45 },
+  missile: { x: 80, x2: -90, fireRate: 0.4, damage: 2, range: 85, homingSpeed: 38 },
+  railgun: { x: -15, x2: 22, fireRate: 0.22, damage: 4, range: 95, pierceWidth: 3, spreadDeg: 1 },
+  tesla: { x: 15, x2: -25, fireRate: 0.7, damage: 1, range: 30, chainCount: 4, chainRadius: 18 },
 };
 
 /** Shared support-building constants. Buildings sit on the ground line like

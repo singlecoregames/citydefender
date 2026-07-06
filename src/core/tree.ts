@@ -934,6 +934,86 @@ export const TREE: readonly TreeNode[] = [
     requires: ['flux_capacitor'],
     effects: [{ stat: 'abilityCooldownMul', op: 'mul', value: -0.15 }],
   },
+  // ── Twin deployments: outermost capstones — field a SECOND copy of the
+  //    turret on the other flank, sharing its deploy level and specs. ─────
+  {
+    id: 'gatling_twin',
+    name: 'Twin Gatling',
+    description: 'Deploy a second Gatling on the right flank',
+    branch: 'automation',
+    col: -2,
+    row: 4,
+    maxLevel: 1,
+    baseCost: 1000,
+    costGrowth: 1,
+    requires: ['gatling_belt'],
+    effects: [],
+  },
+  {
+    id: 'tesla_twin',
+    name: 'Twin Tesla',
+    description: 'Deploy a second Tesla coil on the left flank',
+    branch: 'automation',
+    col: 1,
+    row: 5,
+    maxLevel: 1,
+    baseCost: 1600,
+    costGrowth: 1,
+    requires: ['tesla_voltage'],
+    effects: [],
+  },
+  {
+    id: 'laser_twin',
+    name: 'Twin Laser',
+    description: 'Deploy a second Laser on the right flank',
+    branch: 'automation',
+    col: -2,
+    row: -5,
+    maxLevel: 1,
+    baseCost: 1400,
+    costGrowth: 1,
+    requires: ['laser_reach'],
+    effects: [],
+  },
+  {
+    id: 'flak_twin',
+    name: 'Twin Flak',
+    description: 'Deploy a second Flak on the left flank',
+    branch: 'automation',
+    col: -5,
+    row: 2,
+    maxLevel: 1,
+    baseCost: 1200,
+    costGrowth: 1,
+    requires: ['flak_fuses'],
+    effects: [],
+  },
+  {
+    id: 'missile_twin',
+    name: 'Twin Missile Pod',
+    description: 'Deploy a second Missile Pod on the left flank',
+    branch: 'automation',
+    col: 5,
+    row: -2,
+    maxLevel: 1,
+    baseCost: 1600,
+    costGrowth: 1,
+    requires: ['missile_warheads'],
+    effects: [],
+  },
+  {
+    id: 'railgun_twin',
+    name: 'Twin Railgun',
+    description: 'Deploy a second Railgun on the right flank',
+    branch: 'automation',
+    col: -6,
+    row: -2,
+    maxLevel: 1,
+    baseCost: 1800,
+    costGrowth: 1,
+    requires: ['railgun_caps'],
+    effects: [],
+  },
 ];
 
 /** Map of turret tree-node ids to the turret kind they deploy. */
@@ -949,14 +1029,34 @@ export const TURRET_NODES: Record<string, TurretKind> = {
 export interface TurretSpec {
   kind: TurretKind;
   level: number;
+  /** Deploy slot: 0 = the kind's home position, 1 = the twin on the other
+   *  flank (see TURRETS[kind].x / .x2). */
+  slot?: 0 | 1;
 }
+
+/** Twin-deployment nodes: field a SECOND copy of the kind on the other
+ *  flank. The copy shares the deploy node's level (and every per-kind spec),
+ *  so a full build has each turret once on each side of the cannon. */
+export const TURRET_TWIN_NODES: Record<string, TurretKind> = {
+  gatling_twin: 'gatling',
+  flak_twin: 'flak',
+  laser_twin: 'laser',
+  missile_twin: 'missile',
+  railgun_twin: 'railgun',
+  tesla_twin: 'tesla',
+};
 
 /** Derive the deployed turret list (kind + node level) from tree levels. */
 export function turretsFromTree(levels: TreeLevels): TurretSpec[] {
   const out: TurretSpec[] = [];
   for (const [nodeId, kind] of Object.entries(TURRET_NODES)) {
     const lvl = levels[nodeId] ?? 0;
-    if (lvl > 0) out.push({ kind, level: lvl });
+    if (lvl > 0) out.push({ kind, level: lvl, slot: 0 });
+  }
+  for (const [nodeId, kind] of Object.entries(TURRET_TWIN_NODES)) {
+    if ((levels[nodeId] ?? 0) <= 0) continue;
+    const lvl = levels[`turret_${kind}`] ?? 0;
+    if (lvl > 0) out.push({ kind, level: lvl, slot: 1 });
   }
   return out;
 }
