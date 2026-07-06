@@ -17,9 +17,11 @@ function bankOf(run: RunState, cur: Currency): number {
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-/** Pixel layout: nodes sit at (col*GAP_X, row*GAP_Y) around the core at (0,0). */
-const GAP_X = 132;
-const GAP_Y = 96;
+/** Pixel layout: nodes sit at (col*GAP_X, row*GAP_Y) around the core at (0,0).
+ *  Gaps are generous relative to the node box so the graph reads as islands
+ *  connected by lines, not a packed grid. */
+const GAP_X = 176;
+const GAP_Y = 130;
 const NODE_W = 116;
 const NODE_H = 50;
 
@@ -446,6 +448,19 @@ export class DayScreen {
       const cur = nodeCurrency(node);
       const icon = CURRENCY_ICON[cur];
       const bank = bankOf(run, cur);
+      const g = els.box.parentElement!;
+
+      // Nodes whose prerequisites aren't bought stay entirely hidden — the
+      // tree reveals itself one ring at a time as you buy into it.
+      if (node.branch !== 'core' && !unlocked) {
+        g.setAttribute('display', 'none');
+        if (this.selectedId === node.id) {
+          this.selectedId = null;
+          this.hideTooltip();
+        }
+        continue;
+      }
+      g.setAttribute('display', 'inline');
 
       let fill = 'rgba(24,24,24,0.92)';
       let stroke = '#404040';
@@ -458,9 +473,6 @@ export class DayScreen {
       } else if (cost === null) {
         stroke = color;
         costText = `✓ MAX · ${level}`;
-      } else if (!unlocked) {
-        opacity = '0.4';
-        costText = '🔒';
       } else if (bank >= cost) {
         stroke = color;
         costText = `${icon}${cost} · ${level}/${node.maxLevel}`;
@@ -472,11 +484,17 @@ export class DayScreen {
 
       els.box.setAttribute('fill', fill);
       els.box.setAttribute('stroke', stroke);
-      els.box.parentElement!.setAttribute('opacity', opacity);
+      g.setAttribute('opacity', opacity);
       els.cost.textContent = costText;
     }
 
     for (const { line, to } of this.lineEls) {
+      // A line only exists once its destination node is revealed.
+      if (!isUnlocked(to, run.upgrades)) {
+        line.setAttribute('display', 'none');
+        continue;
+      }
+      line.setAttribute('display', 'inline');
       const bought = (run.upgrades[to.id] ?? 0) > 0;
       line.setAttribute('stroke', bought ? BRANCH_COLOR[to.branch] : '#383838');
       line.setAttribute('opacity', bought ? '0.9' : '0.5');
