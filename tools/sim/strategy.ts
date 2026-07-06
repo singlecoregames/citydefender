@@ -78,24 +78,23 @@ function buy(run: RunState, pick: Candidate, bought: string[]): void {
  *  player rushes damage and the first turrets. After the list it goes greedy. */
 const BUILD_ORDER: { id: string; level: number }[] = [
   { id: 'blast_radius', level: 1 },
-  { id: 'magazine', level: 1 },
+  { id: 'turret_gatling', level: 1 },
+  { id: 'salvage', level: 2 },
   { id: 'autoloader', level: 2 },
+  { id: 'turret_flak', level: 1 }, // via salvage (quartermaster path)
+  { id: 'magazine', level: 1 },
   { id: 'wide_blast', level: 1 },
   { id: 'fast_intercept', level: 1 },
   { id: 'warhead', level: 1 },
-  { id: 'turret_gatling', level: 1 },
-  { id: 'salvage', level: 3 },
-  { id: 'turret_flak', level: 1 },
-  { id: 'warhead', level: 2 },
-  { id: 'ability_megabomb', level: 1 },
-  { id: 'turret_laser', level: 1 },
+  { id: 'ability_megabomb', level: 1 }, // via turret_flak
+  { id: 'turret_laser', level: 1 }, // via blast_radius (gunner path)
   { id: 'turret_speed', level: 2 },
   { id: 'turret_power', level: 2 },
-  { id: 'turret_tesla', level: 1 },
+  { id: 'turret_tesla', level: 1 }, // walks gatling_spin on the way
   { id: 'ability_emp', level: 1 },
-  { id: 'turret_missile', level: 1 },
-  { id: 'turret_railgun', level: 1 },
-  { id: 'warhead', level: 4 },
+  { id: 'turret_missile', level: 1 }, // walks reinforced (warden path)
+  { id: 'turret_railgun', level: 1 }, // walks turret_range (operator path)
+  { id: 'warhead', level: 3 },
   { id: 'heavy_warhead', level: 2 },
 ];
 

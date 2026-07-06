@@ -18,7 +18,7 @@ import {
   DT,
   ECONOMY,
   ENEMY,
-  SWARMER_GROUP,
+  swarmerGroupFor,
   TURRET,
   TURRETS,
   WAVE_BREAK_SECONDS,
@@ -298,7 +298,8 @@ export class Sim {
   private spawnFromPool(wave: WaveSpec): void {
     const kind = this.chooseEnemyKind();
     if (kind === 'swarmer') {
-      for (let i = 0; i < SWARMER_GROUP; i++) this.spawnEnemy('swarmer', wave);
+      const group = swarmerGroupFor(this.cfg.night);
+      for (let i = 0; i < group; i++) this.spawnEnemy('swarmer', wave);
     } else {
       this.spawnEnemy(kind, wave);
     }

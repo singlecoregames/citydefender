@@ -20,7 +20,7 @@ export const WORLD = {
 export const CANNON = {
   x: 0,
   y: 3,
-  maxAmmo: 6,
+  maxAmmo: 4,
   /** Seconds to regenerate one round. */
   reloadSeconds: 1.5,
   /** Interceptor flight speed, world units per second. */
@@ -144,8 +144,13 @@ export const ENEMY = {
   carrier: { speed: 4, hp: 10, scrapReward: 22, spawnInterval: 1.6 },
 } as const;
 
-/** How many swarmers spawn together when a swarm spawn is chosen. */
+/** How many swarmers spawn together when a swarm spawn is chosen. The pack
+ *  grows with the night so their debut (N3, still manual-cannon-only) is a
+ *  readable pair, not a full-size flood: 2 at N3–5, 3 at N6–8, 4 from N9. */
 export const SWARMER_GROUP = 4;
+export function swarmerGroupFor(night: number): number {
+  return Math.min(SWARMER_GROUP, 2 + Math.floor(Math.max(0, night - 3) / 3));
+}
 
 /** Manual abilities (Tech branch). Each unlock node level reduces cooldown and
  *  boosts effect; level 0 = not owned. */
