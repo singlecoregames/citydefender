@@ -50,13 +50,15 @@ body {
   color: #dadada;
 }
 
+/* In-game HUD sizes scale with the viewport (vh + clamps) so the UI doesn't
+   shrink into a corner on large/high-DPI screens. */
 #hud-top {
   display: flex;
   justify-content: space-between;
   /* Keep the readout clear of the notch/rounded corners in landscape. */
   padding: calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 12px
     calc(16px + env(safe-area-inset-left));
-  font-size: 18px;
+  font-size: clamp(15px, 2.6vh, 30px);
   text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
 }
 
@@ -71,10 +73,10 @@ body {
 /* Combo meter: streak count + scrap multiplier, centred under the top bar. */
 #hud-combo {
   position: absolute;
-  top: calc(48px + env(safe-area-inset-top));
+  top: calc(6.5vh + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
-  font-size: 16px;
+  font-size: clamp(14px, 2.3vh, 26px);
   letter-spacing: 1px;
   color: #f07021;
   text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
@@ -84,35 +86,47 @@ body {
   display: none;
 }
 
+/* Ammo stays bottom-centre (it's the cannon's magazine) but on a dark
+   backdrop chip so it stays readable over the structures behind it. */
 #hud-ammo {
   position: absolute;
-  bottom: calc(14px + env(safe-area-inset-bottom));
+  bottom: calc(10px + env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 6px;
+  gap: clamp(5px, 0.9vh, 10px);
+  padding: clamp(5px, 0.9vh, 10px) clamp(8px, 1.4vh, 16px);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
 }
 
+#hud-ammo:empty {
+  display: none;
+}
+
+/* Abilities live on the left edge, stacked vertically, clear of the field. */
 #ability-bar {
   position: absolute;
-  bottom: calc(40px + env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
+  left: calc(14px + env(safe-area-inset-left));
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: clamp(10px, 1.8vh, 20px);
   pointer-events: auto;
 }
 
 .ability-btn {
   position: relative;
-  width: 60px;
-  height: 60px;
+  width: clamp(58px, 9.5vh, 96px);
+  height: clamp(58px, 9.5vh, 96px);
   border: 2px solid #8e559e;
   border-radius: 10px;
   background: rgba(31, 31, 31, 0.75);
   color: #d9c3e2;
   font-family: inherit;
-  font-size: 11px;
+  font-size: clamp(10px, 1.7vh, 16px);
   letter-spacing: 0.5px;
   cursor: pointer;
   overflow: hidden;
@@ -129,7 +143,7 @@ body {
   position: absolute;
   top: 4px;
   left: 6px;
-  font-size: 10px;
+  font-size: clamp(9px, 1.5vh, 14px);
   color: #b98cc9;
 }
 
@@ -139,7 +153,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: clamp(16px, 2.9vh, 28px);
   color: #dadada;
   background: rgba(0, 0, 0, 0.62);
 }
@@ -166,8 +180,8 @@ body {
 }
 
 .ammo-pip {
-  width: 10px;
-  height: 18px;
+  width: clamp(9px, 1.6vh, 17px);
+  height: clamp(16px, 2.9vh, 30px);
   border: 1px solid #019bd6;
   border-radius: 2px;
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
