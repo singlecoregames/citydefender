@@ -23,10 +23,14 @@ const CHECKER_CELL = 8;
  *  (world units; ~4 render pixels at the 360p internal resolution). */
 const SHADOW_OFFSET = 1.1;
 
-/** Enemy hp readout: the body's rim stays solid at this world thickness
- *  (~6 screen px on a 1080p display) while the interior works as a vertical
- *  progress bar — colour fill over a dark inset, draining as hp drops. */
+/** Hp readout: the body's rim stays solid at this world thickness (~6 screen
+ *  px on a 1080p display) while the interior works as a vertical progress
+ *  bar — colour fill over a dark inset, draining as hp drops. The interior is
+ *  a plain FLAT QUAD (not a scaled rounded rect, which deformed into a blob
+ *  when squashed on big low-hp bodies); INNER_MAX caps its span so its square
+ *  corners always stay inside the body's rounded corners. */
 const HP_RIM = 0.55;
+const INNER_MAX = 0.8;
 
 /** The SNKRX palette — the six saturated class colours plus a warm-white fg,
  *  on flat neutral dark greys. Everything on screen is built from these. */
@@ -258,6 +262,16 @@ interface InterceptorView {
   marker: THREE.LineSegments;
 }
 
+/** A structure with the interior-gauge treatment (cities: hp, shield:
+ *  remaining charges). innerW/innerH are the interior span in local units. */
+interface GaugeView {
+  mesh: THREE.Mesh;
+  innerBg: THREE.Mesh;
+  fill: THREE.Mesh;
+  innerW: number;
+  innerH: number;
+}
+
 interface ExplosionView {
   group: THREE.Group;
   /** The four border arcs, spun together at a steady rate. */
@@ -275,8 +289,10 @@ export class Renderer {
   private readonly explosionViews = new Map<number, ExplosionView>();
   private readonly turretMeshes = new Map<number, THREE.Mesh>();
   private readonly buildingMeshes = new Map<number, THREE.Mesh>();
+  /** Shield Generators get a charge gauge; max = charges seen at creation. */
+  private readonly shieldGauges = new Map<number, GaugeView & { maxCharges: number }>();
   private readonly projectileViews = new Map<number, THREE.Mesh>();
-  private readonly cityMeshes: THREE.Mesh[] = [];
+  private readonly cityViews: GaugeView[] = [];
   private readonly beams: BeamFx[] = [];
   private readonly empRings: { mesh: THREE.Mesh; ttl: number; maxTtl: number }[] = [];
 
@@ -325,21 +341,45 @@ export class Renderer {
     depthWrite: false,
   });
 
-  // Dark interior materials for the enemy hp readout, one per kind, shared.
-  private readonly enemyHpBgMats = new Map<EnemyKind, THREE.MeshBasicMaterial>();
+  // Dark interior materials for the hp/charge gauges, one per colour, shared.
+  private readonly gaugeBgMats = new Map<number, THREE.MeshBasicMaterial>();
 
-  private enemyHpBgMat(kind: EnemyKind): THREE.MeshBasicMaterial {
-    let mat = this.enemyHpBgMats.get(kind);
+  private gaugeBgMat(color: number): THREE.MeshBasicMaterial {
+    let mat = this.gaugeBgMats.get(color);
     if (!mat) {
-      mat = new THREE.MeshBasicMaterial({ color: darken(ENEMY_COLORS[kind], 0.3) });
-      this.enemyHpBgMats.set(kind, mat);
+      mat = new THREE.MeshBasicMaterial({ color });
+      this.gaugeBgMats.set(color, mat);
     }
     return mat;
   }
 
+  /** Attach the interior gauge (dark inset + colour fill) to a structure
+   *  body. Interior spans counter the body's (possibly non-uniform) scale so
+   *  the rim keeps a constant world thickness on every side. */
+  private addGauge(mesh: THREE.Mesh, bgColor: number, fillMat: THREE.Material): GaugeView {
+    const innerW = Math.min(INNER_MAX, 1 - (2 * HP_RIM) / Math.max(mesh.scale.x, 0.001));
+    const innerH = Math.min(INNER_MAX, 1 - (2 * HP_RIM) / Math.max(mesh.scale.y, 0.001));
+    const innerBg = new THREE.Mesh(this.quadGeo, this.gaugeBgMat(bgColor));
+    innerBg.scale.set(innerW, innerH, 1);
+    innerBg.position.z = 0.05;
+    mesh.add(innerBg);
+    const fill = new THREE.Mesh(this.quadGeo, fillMat);
+    fill.position.z = 0.1;
+    mesh.add(fill);
+    return { mesh, innerBg, fill, innerW, innerH };
+  }
+
+  /** Point a gauge's bottom-anchored fill at a 0..1 fraction. */
+  private setGauge(g: GaugeView, frac: number): void {
+    const f = Math.max(0, Math.min(1, frac));
+    g.fill.scale.set(g.innerW, g.innerH * f, 1);
+    g.fill.position.y = (-g.innerH * (1 - f)) / 2;
+  }
+
   // Kind runes: one canvas texture + material per kind, cached and shared by
   // every unit of that kind.
-  private readonly glyphGeo = new THREE.PlaneGeometry(1, 1);
+  /** Unit flat quad shared by glyph icons and hp-bar interiors. */
+  private readonly quadGeo = new THREE.PlaneGeometry(1, 1);
   private readonly glyphMats = new Map<string, THREE.MeshBasicMaterial>();
 
   private glyphMaterial(kind: TurretKind | BuildingKind): THREE.MeshBasicMaterial {
@@ -372,7 +412,7 @@ export class Renderer {
    *  counter-scales the parent's (possibly non-uniform) scale so the rune's
    *  pixels stay square. */
   private addGlyph(mesh: THREE.Mesh, kind: TurretKind | BuildingKind, size: number): void {
-    const icon = new THREE.Mesh(this.glyphGeo, this.glyphMaterial(kind));
+    const icon = new THREE.Mesh(this.quadGeo, this.glyphMaterial(kind));
     icon.scale.set(size / Math.max(mesh.scale.x, 0.001), size / Math.max(mesh.scale.y, 0.001), 1);
     icon.position.z = 0.2;
     mesh.add(icon);
@@ -491,7 +531,7 @@ export class Renderer {
     points.forEach((p, i) => {
       arr[i * 3] = p.x;
       arr[i * 3 + 1] = p.y;
-      arr[i * 3 + 2] = 2.5;
+      arr[i * 3 + 2] = 2.7; // beams cut across everything but explosions
     });
     geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
     const mat = new THREE.LineBasicMaterial({
@@ -603,29 +643,33 @@ export class Renderer {
   }
 
   private syncCities(state: GameState): void {
-    if (this.cityMeshes.length === 0) {
+    if (this.cityViews.length === 0) {
       for (const city of state.cities) {
-        // City as a single rounded-rect block.
+        // City as a single rounded-rect block with an hp gauge interior.
         const mesh = new THREE.Mesh(
           this.roundedGeo,
           new THREE.MeshBasicMaterial({ color: COLORS.city }),
         );
         mesh.scale.set(11, 6, 1);
         mesh.position.set(city.x, 3, 1);
-        this.addShadow(mesh);
+        this.addShadow(mesh); // stays children[0] for placeShadow below
         this.scene.add(mesh);
-        this.cityMeshes.push(mesh);
+        this.cityViews.push(this.addGauge(mesh, darken(COLORS.city, 0.3), mesh.material));
       }
     }
     state.cities.forEach((city, i) => {
-      const mesh = this.cityMeshes[i];
-      if (!mesh) return;
-      const mat = mesh.material as THREE.MeshBasicMaterial;
+      const v = this.cityViews[i];
+      if (!v) return;
+      const mat = v.mesh.material as THREE.MeshBasicMaterial;
       const alive = city.hp > 0;
       mat.color.setHex(alive ? COLORS.city : COLORS.cityDead);
-      mesh.scale.y = alive ? 6 : 2.6;
-      mesh.position.y = alive ? 3 : 1.3;
-      this.placeShadow(mesh, mesh.children[0]!); // rubble is shorter — re-aim
+      v.mesh.scale.y = alive ? 6 : 2.6;
+      v.mesh.position.y = alive ? 3 : 1.3;
+      // Rubble is a plain grey stump — no gauge.
+      v.innerBg.visible = alive;
+      v.fill.visible = alive;
+      if (alive) this.setGauge(v, city.hp / city.maxHp);
+      this.placeShadow(v.mesh, v.mesh.children[0]!); // rubble is shorter — re-aim
     });
   }
 
@@ -673,9 +717,21 @@ export class Renderer {
       body.scale.set(6, 7.5, 1);
       body.position.set(b.x, 3.75, 1.5);
       this.addShadow(body);
+      // Shield Generators show remaining charges as an interior gauge (under
+      // the rune, which sits at a higher local z).
+      if (b.kind === 'shield') {
+        const gauge = this.addGauge(body, darken(BUILDING_COLORS.shield, 0.3), body.material);
+        this.shieldGauges.set(b.id, { ...gauge, maxCharges: Math.max(1, b.charges) });
+      }
       this.addGlyph(body, b.kind, 4.5);
       this.scene.add(body);
       this.buildingMeshes.set(b.id, body);
+    }
+    // Keep shield charge gauges current.
+    for (const b of state.buildings) {
+      if (b.kind !== 'shield') continue;
+      const g = this.shieldGauges.get(b.id);
+      if (g) this.setGauge(g, b.charges / g.maxCharges);
     }
     if (this.buildingMeshes.size > state.buildings.length) {
       const ids = new Set(state.buildings.map((b) => b.id));
@@ -684,6 +740,7 @@ export class Renderer {
           this.scene.remove(mesh);
           (mesh.material as THREE.Material).dispose();
           this.buildingMeshes.delete(id);
+          this.shieldGauges.delete(id);
         }
       }
     }
@@ -706,7 +763,7 @@ export class Renderer {
         this.scene.add(mesh);
         this.projectileViews.set(p.id, mesh);
       }
-      mesh.position.set(p.pos.x, p.pos.y, 2);
+      mesh.position.set(p.pos.x, p.pos.y, 2.5); // above the enemy slots
       // Missiles leave a particle trail like the enemy/interceptor shots.
       if (p.kind === 'missile')
         this.particles.emit(p.pos.x, p.pos.y, darken(TURRET_COLORS.missile, 0.6));
@@ -738,15 +795,15 @@ export class Renderer {
         if (e.kind === 'splitter') head.rotation.z = Math.PI / 4;
         // Hp readout: a constant-thickness rim of body colour around a dark
         // interior; the fill (sharing the body material, so it flashes and
-        // fades with it) drains bottom-up as hp drops.
+        // fades with it) drains bottom-up as hp drops. Flat quads — see HP_RIM.
         const size = enemySize(e.kind, e.maxHp);
-        const inner = 1 - 2 * Math.min(0.22, HP_RIM / size);
-        const innerBg = new THREE.Mesh(this.roundedGeo, this.enemyHpBgMat(e.kind));
+        const inner = Math.min(INNER_MAX, 1 - 2 * Math.min(0.22, HP_RIM / size));
+        const innerBg = new THREE.Mesh(this.quadGeo, this.gaugeBgMat(darken(ENEMY_COLORS[e.kind], 0.3)));
         innerBg.scale.set(inner, inner, 1);
-        innerBg.position.z = 0.05;
+        innerBg.position.z = 0.001;
         head.add(innerBg);
-        const fill = new THREE.Mesh(this.roundedGeo, mat);
-        fill.position.z = 0.1;
+        const fill = new THREE.Mesh(this.quadGeo, mat);
+        fill.position.z = 0.002;
         head.add(fill);
         view = {
           head,
@@ -766,7 +823,10 @@ export class Renderer {
         this.scene.add(view.head);
         this.enemyViews.set(e.id, view);
       }
-      view.head.position.set(e.pos.x, e.pos.y, 2);
+      // Deterministic per-enemy z slot (2.0–2.4) so overlapping enemies stack
+      // in a clear order instead of interleaving coplanar layers. The hp-bar
+      // children sit within a slot's 0.004 step; shots render above at 2.5+.
+      view.head.position.set(e.pos.x, e.pos.y, 2 + (e.id % 100) * 0.004);
       view.head.rotation.z += view.spin * dt;
       // Spawn pop-in: scale up fast with a slight overshoot.
       view.spawnT = Math.min(view.spawnT + dt, 0.25);
@@ -834,7 +894,7 @@ export class Renderer {
         this.scene.add(view.head, view.marker);
         this.interceptorViews.set(it.id, view);
       }
-      view.head.position.set(it.pos.x, it.pos.y, 2);
+      view.head.position.set(it.pos.x, it.pos.y, 2.5); // above the enemy slots
       this.particles.emit(it.pos.x, it.pos.y, COLORS.interceptorTrail);
     }
     for (const [id, view] of this.interceptorViews) {
