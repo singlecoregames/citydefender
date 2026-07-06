@@ -1,4 +1,4 @@
-import { NIGHT_SCALING } from './balance';
+import { BOSS_NIGHT_INTERVAL, NIGHT_SCALING } from './balance';
 import type { EnemyKind } from './types';
 
 /** One wave of a night: how many enemies and how fast they spawn, plus the
@@ -33,11 +33,15 @@ export function generateNight(night: number): WaveSpec[] {
 
   const waves: WaveSpec[] = [];
   const count = waveCountForNight(night);
+  // Boss nights thin the regular waves — the boss and its minions carry the
+  // pressure, and its descent deadline is the real clock.
+  const bossNight = night % BOSS_NIGHT_INTERVAL === 0;
+  const countMul = bossNight ? 0.75 : 1;
   for (let w = 0; w < count; w++) {
     waves.push({
       count: Math.min(
         s.maxWaveCount,
-        Math.round((s.baseCount + w) * Math.pow(s.countGrowth, night - 1)),
+        Math.round((s.baseCount + w) * Math.pow(s.countGrowth, night - 1) * countMul),
       ),
       spawnIntervalRange: [
         Math.max(s.spawnIntervalFloor, lo * intervalScale - w * 0.04),
