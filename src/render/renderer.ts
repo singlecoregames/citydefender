@@ -692,12 +692,13 @@ export class Renderer {
         this.roundedGeo,
         new THREE.MeshBasicMaterial({ color: TURRET_COLORS[t.kind] }),
       );
-      mesh.scale.set(6, 7.5, 1);
+      // Slightly smaller than the support buildings so the skyline varies.
+      mesh.scale.set(5, 6.3, 1);
       // Chip bottom flush with the top of the ground band (t.y is the sim's
       // muzzle height, not a terrain offset).
-      mesh.position.set(t.x, CITY.groundTop + 3.75, 1.5);
+      mesh.position.set(t.x, CITY.groundTop + 3.15, 1.5);
       this.addShadow(mesh);
-      this.addGlyph(mesh, t.kind, 4.5);
+      this.addGlyph(mesh, t.kind, 3.8);
       this.scene.add(mesh);
       this.turretMeshes.set(t.id, mesh);
     }

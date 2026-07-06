@@ -39,6 +39,7 @@ import type {
   GameEvent,
   GameState,
   Turret,
+  TurretKind,
   Vec2,
 } from './types';
 
@@ -497,15 +498,22 @@ export class Sim {
       turret.cooldown -= DT;
       if (turret.cooldown > 0) continue;
       const spec = TURRETS[turret.kind];
-      const range = spec.range * this.cfg.stats.turretRangeMul;
+      const range =
+        spec.range *
+        this.cfg.stats.turretRangeMul *
+        (turret.kind === 'laser' ? this.cfg.stats.laserRangeMul : 1);
       const damage =
         spec.damage *
         (1 + TURRET.levelDamageBonus * (turret.level - 1)) *
-        this.cfg.stats.turretDamageMul;
+        this.cfg.stats.turretDamageMul *
+        kindDamageMul(turret.kind, this.cfg.stats);
       const fired = this.fireTurret(turret, range, damage);
       if (fired) {
-        const kindRate = turret.kind === 'gatling' ? this.cfg.stats.gatlingFireRateMul : 1;
-        turret.cooldown += 1 / (spec.fireRate * this.cfg.stats.turretFireRateMul * kindRate);
+        const rate =
+          spec.fireRate *
+          this.cfg.stats.turretFireRateMul *
+          kindFireRateMul(turret.kind, this.cfg.stats);
+        turret.cooldown += 1 / rate;
       } else {
         turret.cooldown = 0; // stay ready; retry next tick
       }
@@ -551,7 +559,7 @@ export class Sim {
       }
       case 'laser': {
         // Instant single-target hit; never misses.
-        this.damageEnemy(target, damage * this.cfg.stats.laserDamageMul);
+        this.damageEnemy(target, damage); // laserDamageMul already folded in
         s.events.push({ type: 'beam', kind: 'laser', points: [origin, { ...target.pos }] });
         return true;
       }
@@ -1044,14 +1052,41 @@ function estimateTurretDps(cfg: NightConfig): number {
       spec.damage *
       (1 + TURRET.levelDamageBonus * (t.level - 1)) *
       cfg.stats.turretDamageMul *
-      (t.kind === 'laser' ? cfg.stats.laserDamageMul : 1);
-    const rate =
-      spec.fireRate *
-      cfg.stats.turretFireRateMul *
-      (t.kind === 'gatling' ? cfg.stats.gatlingFireRateMul : 1);
+      kindDamageMul(t.kind, cfg.stats);
+    const rate = spec.fireRate * cfg.stats.turretFireRateMul * kindFireRateMul(t.kind, cfg.stats);
     dps += damage * rate;
   }
   return dps;
+}
+
+/** Per-kind damage multiplier from the turret specialisation nodes. */
+function kindDamageMul(kind: TurretKind, stats: DerivedStats): number {
+  switch (kind) {
+    case 'gatling':
+      return stats.gatlingDamageMul;
+    case 'laser':
+      return stats.laserDamageMul;
+    case 'missile':
+      return stats.missileDamageMul;
+    case 'tesla':
+      return stats.teslaDamageMul;
+    default:
+      return 1;
+  }
+}
+
+/** Per-kind fire-rate multiplier from the turret specialisation nodes. */
+function kindFireRateMul(kind: TurretKind, stats: DerivedStats): number {
+  switch (kind) {
+    case 'gatling':
+      return stats.gatlingFireRateMul;
+    case 'flak':
+      return stats.flakFireRateMul;
+    case 'railgun':
+      return stats.railgunFireRateMul;
+    default:
+      return 1;
+  }
 }
 
 /** Seconds between Repair Bay heals at a given level (shrinks to a floor). */

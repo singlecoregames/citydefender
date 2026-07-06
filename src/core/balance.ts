@@ -149,10 +149,10 @@ export const ENEMY = {
 
 /** How many swarmers spawn together when a swarm spawn is chosen. The pack
  *  grows with the night so their debut (N3, still manual-cannon-only) is a
- *  readable pair, not a full-size flood: 2 at N3–5, 3 at N6–8, 4 from N9. */
+ *  readable pair, not a full-size flood: 2 at N3–7, 3 at N8–11, 4 from N12. */
 export const SWARMER_GROUP = 4;
 export function swarmerGroupFor(night: number): number {
-  return Math.min(SWARMER_GROUP, 2 + Math.floor(Math.max(0, night - 3) / 3));
+  return Math.min(SWARMER_GROUP, 2 + Math.floor(Math.max(0, night - 4) / 4));
 }
 
 /** Manual abilities (Tech branch). Each unlock node level reduces cooldown and
@@ -225,8 +225,9 @@ export const BOSS_NIGHT_INTERVAL = 10;
 export const BOSS = {
   /** Base hp before the night's hpScale; very tanky. */
   hp: 55,
-  /** Very slow descent — it looms rather than races. */
-  speed: 1.6,
+  /** Slow, relentless descent — reaching the ground ends the night, so this
+   *  sets the kill window (~105s from spawn to touchdown). */
+  speed: 1.1,
   scrapReward: 120,
   /** Seconds between shedding a minion. */
   spawnInterval: 1.1,
@@ -279,7 +280,7 @@ export const NIGHT_SCALING = {
    *  the first 2-hp enemies to N8 and clears the wall, while N50 hp stays in
    *  the same order (×277 vs ×403 — late nights were already comfortable). */
   hpGrowth: 1.13,
-  hpRampStartNight: 4,
+  hpRampStartNight: 5,
   hpLinearPerNight: 0,
   speedGrowth: 1.035,
   /** Kill rewards must grow *slower* than node costs compound, or the tree

@@ -32,6 +32,13 @@ export interface DerivedStats {
   flakRadiusMul: number; // burst radius multiplier
   laserDamageMul: number; // laser-only damage multiplier (tick dps)
   gatlingFireRateMul: number; // gatling-only fire rate multiplier
+  /** Second-tier per-turret specialisations. */
+  gatlingDamageMul: number;
+  flakFireRateMul: number;
+  laserRangeMul: number;
+  missileDamageMul: number;
+  railgunFireRateMul: number;
+  teslaDamageMul: number;
   /** Multiplier on every manual-ability cooldown (Flux Capacitor / Singularity Core). */
   abilityCooldownMul: number;
   /** Flat scrap compensation each time a city takes a hit (War Insurance). */
@@ -90,6 +97,12 @@ export function baseStats(): DerivedStats {
     flakRadiusMul: 1,
     laserDamageMul: 1,
     gatlingFireRateMul: 1,
+    gatlingDamageMul: 1,
+    flakFireRateMul: 1,
+    laserRangeMul: 1,
+    missileDamageMul: 1,
+    railgunFireRateMul: 1,
+    teslaDamageMul: 1,
     abilityCooldownMul: 1,
     cityHitScrap: 0,
     waveClearScrap: 0,
