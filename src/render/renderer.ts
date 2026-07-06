@@ -25,6 +25,11 @@ const CHECKER_CELL = 8;
  *  (world units; ~4 render pixels at the 360p internal resolution). */
 const SHADOW_OFFSET = 1.1;
 
+/** Enemy hp readout: the body's rim stays solid at this world thickness
+ *  (~6 screen px on a 1080p display) while the interior works as a vertical
+ *  progress bar — colour fill over a dark inset, draining as hp drops. */
+const HP_RIM = 0.55;
+
 /** The SNKRX palette — the six saturated class colours plus a warm-white fg,
  *  on flat neutral dark greys. Everything on screen is built from these. */
 const SNKRX = {
@@ -231,6 +236,12 @@ interface BeamFx {
 interface EnemyView {
   head: THREE.Mesh;
   shadow: THREE.Mesh;
+  /** Dark interior inset revealed as hp drains. */
+  innerBg: THREE.Mesh;
+  /** Body-coloured hp fill over the inset, bottom-anchored. */
+  fill: THREE.Mesh;
+  /** Interior span in the head's local units (1 - 2 * rim fraction). */
+  inner: number;
   /** Base render size, re-applied around the spawn pop-in. */
   size: number;
   /** Seconds since the view was created (drives the spawn pop-in). */
@@ -316,6 +327,18 @@ export class Renderer {
     opacity: 0.95,
     depthWrite: false,
   });
+
+  // Dark interior materials for the enemy hp readout, one per kind, shared.
+  private readonly enemyHpBgMats = new Map<EnemyKind, THREE.MeshBasicMaterial>();
+
+  private enemyHpBgMat(kind: EnemyKind): THREE.MeshBasicMaterial {
+    let mat = this.enemyHpBgMats.get(kind);
+    if (!mat) {
+      mat = new THREE.MeshBasicMaterial({ color: darken(ENEMY_COLORS[kind], 0.3) });
+      this.enemyHpBgMats.set(kind, mat);
+    }
+    return mat;
+  }
 
   // Kind runes: one canvas texture + material per kind, cached and shared by
   // every unit of that kind.
@@ -722,10 +745,25 @@ export class Renderer {
         const head = new THREE.Mesh(this.roundedGeo, mat);
         // Splitters read as diamonds — the same rounded square turned 45°.
         if (e.kind === 'splitter') head.rotation.z = Math.PI / 4;
+        // Hp readout: a constant-thickness rim of body colour around a dark
+        // interior; the fill (sharing the body material, so it flashes and
+        // fades with it) drains bottom-up as hp drops.
+        const size = enemySize(e.kind, e.maxHp);
+        const inner = 1 - 2 * Math.min(0.22, HP_RIM / size);
+        const innerBg = new THREE.Mesh(this.roundedGeo, this.enemyHpBgMat(e.kind));
+        innerBg.scale.set(inner, inner, 1);
+        innerBg.position.z = 0.05;
+        head.add(innerBg);
+        const fill = new THREE.Mesh(this.roundedGeo, mat);
+        fill.position.z = 0.1;
+        head.add(fill);
         view = {
           head,
           shadow: this.addShadow(head),
-          size: enemySize(e.kind, e.maxHp),
+          innerBg,
+          fill,
+          inner,
+          size,
           spawnT: 0,
           lastHp: e.hp,
           flash: 0,
@@ -756,6 +794,13 @@ export class Renderer {
       mat.color.setHex(view.flash > 0 ? 0xffffff : ENEMY_COLORS[e.kind]);
       // Phase Walkers fade out (and stop trailing) while untargetable.
       mat.opacity = e.phased ? 0.28 : 1;
+      // Interior hp bar: bottom-anchored fill draining with the hp fraction.
+      const frac = Math.max(0, Math.min(1, e.hp / e.maxHp));
+      view.fill.scale.set(view.inner, view.inner * frac, 1);
+      view.fill.position.y = (-view.inner * (1 - frac)) / 2;
+      // Ghosting phase walkers show as a plain translucent square, no bar.
+      view.innerBg.visible = !e.phased;
+      view.fill.visible = !e.phased;
       if (!e.phased) this.particles.emit(e.pos.x, e.pos.y, ENEMY_TRAIL_COLORS[e.kind]);
     }
     for (const [id, view] of this.enemyViews) {
