@@ -7,7 +7,7 @@
  * like smooth vectors.
  */
 import * as THREE from 'three';
-import { CANNON, WORLD } from '../core/balance';
+import { CANNON, CITY, WORLD } from '../core/balance';
 import { explosionRadius } from '../core/explosion';
 import type { BuildingKind, EnemyKind, GameEvent, GameState, TurretKind, Vec2 } from '../core/types';
 import { Particles } from './particles';
@@ -305,6 +305,9 @@ export class Renderer {
   // enemies are ROUNDED SQUARES, and structures are rounded blocks. The two
   // shared geometries below (unit-size, scaled per entity) carry all of it.
   private readonly roundedGeo = roundedRectGeometry(1, 1, 0.3);
+  /** Ground-segment slab: much gentler corners than the entity chips, so a
+   *  near-field-width slab doesn't read as a pill. */
+  private readonly segmentGeo = roundedRectGeometry(1, 1, 0.07);
   private readonly discGeo = new THREE.CircleGeometry(1, 32);
   private readonly ringGeo = new THREE.RingGeometry(0.92, 1, 32);
   private readonly interceptorHeadMat = new THREE.MeshBasicMaterial({
@@ -598,10 +601,10 @@ export class Renderer {
     const cannonMat = new THREE.MeshBasicMaterial({ color: COLORS.cannon });
     const base = new THREE.Mesh(this.roundedGeo, cannonMat);
     base.scale.set(7, 3.5, 1);
-    base.position.set(CANNON.x, 1.75, 1);
+    base.position.set(CANNON.x, CITY.groundTop + 1.75, 1);
     const barrel = new THREE.Mesh(this.roundedGeo, cannonMat);
     barrel.scale.set(2.2, 3, 1);
-    barrel.position.set(CANNON.x, 4.5, 1);
+    barrel.position.set(CANNON.x, CITY.groundTop + 4.5, 1);
     this.addShadow(base);
     this.addShadow(barrel);
     this.scene.add(base, barrel);
@@ -643,16 +646,24 @@ export class Renderer {
   }
 
   private syncCities(state: GameState): void {
-    if (this.cityViews.length === 0) {
+    // The defended ground: one raised slab per segment, spanning the full
+    // field width, each with an hp gauge interior. Rebuilt when the segment
+    // count changes (Districts upgrade between nights).
+    if (this.cityViews.length !== state.cities.length) {
+      for (const v of this.cityViews) {
+        this.scene.remove(v.mesh);
+        (v.mesh.material as THREE.Material).dispose();
+      }
+      this.cityViews.length = 0;
+      const segW = (WORLD.halfWidth * 2) / state.cities.length;
       for (const city of state.cities) {
-        // City as a single rounded-rect block with an hp gauge interior.
         const mesh = new THREE.Mesh(
-          this.roundedGeo,
+          this.segmentGeo,
           new THREE.MeshBasicMaterial({ color: COLORS.city }),
         );
-        mesh.scale.set(11, 6, 1);
-        mesh.position.set(city.x, 3, 1);
-        this.addShadow(mesh); // stays children[0] for placeShadow below
+        mesh.scale.set(segW - 1.4, CITY.groundTop, 1);
+        mesh.position.set(city.x, CITY.groundTop / 2, 1);
+        this.addShadow(mesh);
         this.scene.add(mesh);
         this.cityViews.push(this.addGauge(mesh, darken(COLORS.city, 0.3), mesh.material));
       }
@@ -660,16 +671,14 @@ export class Renderer {
     state.cities.forEach((city, i) => {
       const v = this.cityViews[i];
       if (!v) return;
-      const mat = v.mesh.material as THREE.MeshBasicMaterial;
       const alive = city.hp > 0;
-      mat.color.setHex(alive ? COLORS.city : COLORS.cityDead);
-      v.mesh.scale.y = alive ? 6 : 2.6;
-      v.mesh.position.y = alive ? 3 : 1.3;
-      // Rubble is a plain grey stump — no gauge.
+      (v.mesh.material as THREE.MeshBasicMaterial).color.setHex(
+        alive ? COLORS.city : COLORS.cityDead,
+      );
+      // Dead ground is a grey slab — no gauge.
       v.innerBg.visible = alive;
       v.fill.visible = alive;
       if (alive) this.setGauge(v, city.hp / city.maxHp);
-      this.placeShadow(v.mesh, v.mesh.children[0]!); // rubble is shorter — re-aim
     });
   }
 
@@ -684,9 +693,9 @@ export class Renderer {
         new THREE.MeshBasicMaterial({ color: TURRET_COLORS[t.kind] }),
       );
       mesh.scale.set(6, 7.5, 1);
-      // Chip bottom flush with the ground line (t.y is the sim's muzzle
-      // height, not a terrain offset — using it left turrets floating).
-      mesh.position.set(t.x, 3.75, 1.5);
+      // Chip bottom flush with the top of the ground band (t.y is the sim's
+      // muzzle height, not a terrain offset).
+      mesh.position.set(t.x, CITY.groundTop + 3.75, 1.5);
       this.addShadow(mesh);
       this.addGlyph(mesh, t.kind, 4.5);
       this.scene.add(mesh);
@@ -715,7 +724,7 @@ export class Renderer {
         new THREE.MeshBasicMaterial({ color: BUILDING_COLORS[b.kind] }),
       );
       body.scale.set(6, 7.5, 1);
-      body.position.set(b.x, 3.75, 1.5);
+      body.position.set(b.x, CITY.groundTop + 3.75, 1.5);
       this.addShadow(body);
       // Shield Generators show remaining charges as an interior gauge (under
       // the rune, which sits at a higher local z).

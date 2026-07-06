@@ -19,7 +19,8 @@ export const WORLD = {
 
 export const CANNON = {
   x: 0,
-  y: 3,
+  /** Muzzle height: on top of the raised ground band. */
+  y: 7.5,
   maxAmmo: 4,
   /** Seconds to regenerate one round. */
   reloadSeconds: 1.5,
@@ -40,7 +41,8 @@ export const EXPLOSION = {
 
 /** Shared turret constants. */
 export const TURRET = {
-  y: 2,
+  /** Muzzle height: on top of the raised ground band. */
+  y: 7.5,
   /** A contact projectile within this distance of an enemy hits it. */
   projectileHitRadius: 3.5,
   /** Per-node-level damage bonus: damage × (1 + levelDamageBonus × (level-1)). */
@@ -86,7 +88,7 @@ export const TURRETS: Record<TurretKind, TurretKindSpec> = {
 
 /** Shared support-building constants. Buildings sit on the ground line like
  *  turrets but never fire; each kind's effect scales with its node level. */
-export const BUILDING = { y: 2 } as const;
+export const BUILDING = { y: 7.5 } as const;
 
 export interface BuildingKindSpec {
   /** Fixed deploy position (chosen to sit between turrets/cities). */
@@ -122,15 +124,13 @@ export const BUILDING_TUNING = {
 } as const;
 
 export const CITY = {
-  count: 3,
-  /** Horizontal positions for the initial three cities. */
-  xs: [-60, -30, 50] as readonly number[],
+  /** Ground segments the field starts with; upgrades split the ground finer.
+   *  ("Cities" in code = the ground segments being defended.) */
+  baseCount: 3,
   hp: 1,
-  /** An enemy within this horizontal distance of the city centre hits it. */
-  hitRadius: 7,
-  /** Top of the city block (world y): enemies collide with the BODY —
-   *  inside the radius and at or below this height — not the ground under it. */
-  bodyHeight: 6,
+  /** Top of the raised ground band (world y). Enemies detonate on reaching
+   *  it, damaging whichever segment lies under the impact point. */
+  groundTop: 4.5,
 } as const;
 
 export const ENEMY = {
@@ -232,8 +232,6 @@ export const BOSS = {
   spawnInterval: 1.1,
   /** Cores awarded = coresBase + floor(night / BOSS_NIGHT_INTERVAL). */
   coresBase: 2,
-  /** Hovers at this height, descending only slowly, so the fight has room. */
-  hoverY: 80,
 } as const;
 
 export const ECONOMY = {

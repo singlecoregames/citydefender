@@ -523,6 +523,19 @@ describe('boss nights', () => {
     run(sim, TICK_RATE * 3);
     expect(sim.state.enemies.some((e) => e.kind === 'swarmer')).toBe(true);
   });
+
+  it('a boss reaching the ground flattens every segment and loses the night', () => {
+    const sim = new Sim(1, bossConfig(10));
+    sim.step([]); // spawn the boss
+    const boss = sim.state.enemies.find((e) => e.kind === 'boss')!;
+    boss.pos = { x: 40, y: 5 }; // just above the ground band
+    boss.vel = { x: 0, y: -20 };
+    const events: ReturnType<typeof sim.step> = [];
+    for (let i = 0; i < 10; i++) events.push(...sim.step([]));
+    expect(sim.state.cities.every((c) => c.hp <= 0)).toBe(true);
+    expect(events.filter((e) => e.type === 'cityHit').length).toBe(sim.state.cities.length);
+    expect(events.some((e) => e.type === 'nightEnded' && e.outcome === 'defeat')).toBe(true);
+  });
 });
 
 describe('abilities', () => {
@@ -998,21 +1011,22 @@ describe('combo / overcharge / data (skilled-play layer)', () => {
     expect(ended && ended.type === 'nightEnded' && ended.dataEarned).toBe(0);
   });
 
-  it('Threat Analysis retargets turrets onto city-bound missiles', () => {
-    // Laser at x=-80 (never misses): a low decoy falling onto empty ground vs
-    // a higher missile dead on course for the city at x=-60.
-    const cityBound = { x: -60, y: 30 };
-    const harmless = { x: -80, y: 20 };
+  it('Threat Analysis retargets turrets onto ground-threatening missiles', () => {
+    // Laser (never misses): a low missile falling onto an already-dead ground
+    // segment vs a higher missile on course for a living one.
+    const threatening = { x: -20, y: 30 }; // middle segment (alive)
+    const harmless = { x: -80, y: 20 }; // left segment (killed below)
     const kill = (threat: boolean): number => {
       const sim = new Sim(1, bareConfig(1, threat ? { threatTargeting: 1 } : {}));
-      sim.state.turrets.push({ id: 50, kind: 'laser', level: 1, x: -80, y: 2, cooldown: 0 });
-      injectEnemy(sim, 9001, cityBound, { x: 0, y: -10 });
+      sim.state.cities[0]!.hp = 0; // the left third is already rubble
+      sim.state.turrets.push({ id: 50, kind: 'laser', level: 1, x: -45, y: 2, cooldown: 0 });
+      injectEnemy(sim, 9001, threatening, { x: 0, y: -10 });
       injectEnemy(sim, 9002, harmless, { x: 0, y: -10 });
       sim.step([]);
       return sim.state.enemies[0]!.id; // the survivor of the first laser tick
     };
     expect(kill(false)).toBe(9001); // default: lowest enemy dies first → 9002 gone
-    expect(kill(true)).toBe(9002); // threat analysis: city-bound 9001 dies first
+    expect(kill(true)).toBe(9002); // threat analysis: ground-bound 9001 dies first
   });
 });
 

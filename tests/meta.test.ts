@@ -54,10 +54,10 @@ describe('skill tree / stats', () => {
     expect(resolveStats({ autoloader: 1 }).reloadSeconds).toBeCloseTo(base * 0.93, 5);
   });
 
-  it('city nodes raise city hp and shrink hit radius', () => {
+  it('city nodes raise ground hp and split extra segments', () => {
     expect(resolveStats({ reinforced: 2 }).cityMaxHp).toBe(baseStats().cityMaxHp + 2);
-    const base = baseStats().cityHitRadius;
-    expect(resolveStats({ compact: 1 }).cityHitRadius).toBeCloseTo(base * 0.94, 5);
+    expect(resolveStats({ compact: 1 }).cityMaxHp).toBe(baseStats().cityMaxHp + 1);
+    expect(resolveStats({ districts: 2 }).cityCount).toBe(baseStats().cityCount + 2);
   });
 
   it('cost grows with level and maxes out', () => {
