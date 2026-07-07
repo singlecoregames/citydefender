@@ -321,6 +321,25 @@ body {
   background: rgba(233, 29, 57, 0.12);
 }
 
+/* Language selector: same quiet chip as RESET SAVE, in a neutral grey. */
+#title-lang {
+  min-width: 260px;
+  padding: 10px 18px;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: #9a9a9a;
+  background: transparent;
+  border: 1px solid #454545;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#title-lang:hover {
+  color: #dadada;
+  border-color: #8b8b8b;
+}
+
 #title-version {
   position: absolute;
   bottom: calc(12px + env(safe-area-inset-bottom));

@@ -10,6 +10,7 @@ import { Renderer } from './render/renderer';
 import { AbilityBar } from './ui/abilitybar';
 import { DayScreen } from './ui/dayscreen';
 import { Hud } from './ui/hud';
+import { lang, t } from './ui/i18n';
 import { TitleScreen } from './ui/titlescreen';
 
 const container = document.getElementById('app')!;
@@ -24,6 +25,17 @@ let run: RunState = loadRun(store);
 let sim: Sim = startNight(run);
 let nightResolved = false;
 
+/** Re-label the static texts owned by the HTML (everything else re-reads the
+ *  string table when it renders). Called at boot and on language change. */
+function applyStaticText(): void {
+  document.documentElement.lang = lang();
+  document.getElementById('title-tagline')!.textContent = t().tagline;
+  document.getElementById('title-version')!.textContent = t().versionNote;
+  document.getElementById('day-next')!.textContent = t().nextNight;
+  document.getElementById('day-reset')!.textContent = t().resetRun;
+}
+applyStaticText();
+
 // Launch title over the frozen night; the sim only steps once it's dismissed.
 const titleScreen = new TitleScreen(
   () => {}, // START: just dismiss — the prepared night takes over
@@ -32,6 +44,7 @@ const titleScreen = new TitleScreen(
     saveRun(store, newRun());
     location.reload();
   },
+  applyStaticText, // language switched: refresh the shared static labels
 );
 titleScreen.show(run);
 
@@ -97,7 +110,8 @@ function resolveNight(outcome: 'victory' | 'defeat', scrapEarned: number, dataEa
     run.night += 1;
   }
   saveRun(store, run);
-  bannerEl.textContent = outcome === 'victory' ? `NIGHT ${clearedNight} SURVIVED` : 'CITIES LOST';
+  bannerEl.textContent =
+    outcome === 'victory' ? t().nightSurvived(clearedNight) : t().citiesLost;
   bannerEl.className = outcome;
   setTimeout(() => {
     bannerEl.className = 'hidden';

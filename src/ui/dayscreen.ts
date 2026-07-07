@@ -8,6 +8,7 @@ import {
   type TreeBranch,
   type TreeNode,
 } from '../core/tree';
+import { nodeDescription, nodeName, t } from './i18n';
 
 const CURRENCY_ICON: Record<Currency, string> = { scrap: '⬡', cores: '◆', data: '▣' };
 
@@ -93,10 +94,10 @@ export class DayScreen {
         return;
       }
       btn.classList.add('armed');
-      btn.textContent = 'ERASE EVERYTHING?';
+      btn.textContent = t().eraseConfirm;
       disarmTimer = window.setTimeout(() => {
         btn.classList.remove('armed');
-        btn.textContent = 'RESET RUN';
+        btn.textContent = t().resetRun;
       }, 3000);
     });
   }
@@ -108,13 +109,10 @@ export class DayScreen {
   show(run: RunState, outcome: 'victory' | 'defeat', clearedNight: number, dataEarned = 0): void {
     this.run = run;
     this.titleEl.textContent =
-      outcome === 'victory' ? `NIGHT ${clearedNight} SURVIVED` : 'CITIES LOST';
+      outcome === 'victory' ? t().nightSurvived(clearedNight) : t().citiesLost;
     this.titleEl.className = outcome;
-    let subtitle =
-      outcome === 'victory'
-        ? 'Spend scrap on your skill tree, then push on.'
-        : 'You held what you could. Spend, then try again.';
-    if (dataEarned > 0) subtitle += `  ▣ +${dataEarned} data for skilled play.`;
+    let subtitle = outcome === 'victory' ? t().daySubtitleVictory : t().daySubtitleDefeat;
+    if (dataEarned > 0) subtitle += t().dataForSkill(dataEarned);
     this.subtitleEl.textContent = subtitle;
     // Unhide first so the container has a measurable size for centring.
     this.root.classList.remove('hidden');
@@ -179,7 +177,7 @@ export class DayScreen {
       name.setAttribute('y', '20');
       name.setAttribute('text-anchor', 'middle');
       name.classList.add('tree-name');
-      name.textContent = node.name;
+      name.textContent = nodeName(node);
       g.appendChild(name);
 
       const cost = document.createElementNS(SVG_NS, 'text');
@@ -190,7 +188,7 @@ export class DayScreen {
       g.appendChild(cost);
 
       const tip = document.createElementNS(SVG_NS, 'title');
-      tip.textContent = node.description;
+      tip.textContent = nodeDescription(node);
       g.appendChild(tip);
 
       // Tap handling lives on the shop container's pointerup (see handleTap):
@@ -390,26 +388,25 @@ export class DayScreen {
     const cur = nodeCurrency(node);
     const icon = CURRENCY_ICON[cur];
     const bank = bankOf(run, cur);
-    const need = `need more ${cur}`;
 
     let status: string;
     if (node.branch === 'core') {
-      status = '<span class="tt-core">Command core</span>';
+      status = `<span class="tt-core">${t().ttCore}</span>`;
     } else if (cost === null) {
-      status = `<span class="tt-max">✓ Maxed (${level}/${node.maxLevel})</span>`;
+      status = `<span class="tt-max">${t().ttMaxed(level, node.maxLevel)}</span>`;
     } else if (!isUnlocked(node, run.upgrades)) {
-      status = '<span class="tt-locked">🔒 Locked — unlock its prerequisite first</span>';
+      status = `<span class="tt-locked">${t().ttLocked}</span>`;
     } else if (bank >= cost) {
       status =
-        `<span class="tt-buy">${icon} ${cost} · Lvl ${level}/${node.maxLevel}</span>` +
-        '<span class="tt-hint">Tap again to buy</span>';
+        `<span class="tt-buy">${t().ttPrice(icon, cost, level, node.maxLevel)}</span>` +
+        `<span class="tt-hint">${t().ttBuyHint}</span>`;
     } else {
-      status = `<span class="tt-poor">${icon} ${cost} · ${need} (Lvl ${level}/${node.maxLevel})</span>`;
+      status = `<span class="tt-poor">${t().ttNeedMore(icon, cost, cur, level, node.maxLevel)}</span>`;
     }
 
     this.tooltipEl.innerHTML =
-      `<div class="tt-name">${node.name}</div>` +
-      `<div class="tt-desc">${node.description}</div>` +
+      `<div class="tt-name">${nodeName(node)}</div>` +
+      `<div class="tt-desc">${nodeDescription(node)}</div>` +
       `<div class="tt-status">${status}</div>`;
   }
 
@@ -470,10 +467,10 @@ export class DayScreen {
 
       if (node.branch === 'core') {
         stroke = color;
-        costText = 'CORE';
+        costText = t().costCore;
       } else if (cost === null) {
         stroke = color;
-        costText = `✓ MAX · ${level}`;
+        costText = t().costMax(level);
       } else if (bank >= cost) {
         stroke = color;
         costText = `${icon}${cost} · ${level}/${node.maxLevel}`;

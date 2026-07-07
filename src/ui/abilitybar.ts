@@ -1,12 +1,13 @@
 import { ABILITIES } from '../core/balance';
 import type { AbilityKind, GameState } from '../core/types';
 import type { AbilityLevels } from '../core/tree';
+import { t } from './i18n';
 
-const ORDER: { kind: AbilityKind; label: string; key: string }[] = [
-  { kind: 'emp', label: 'EMP', key: '1' },
-  { kind: 'megabomb', label: 'BOMB', key: '2' },
-  { kind: 'slowmo', label: 'SLOW', key: '3' },
-  { kind: 'surge', label: 'SURGE', key: '4' },
+const ORDER: { kind: AbilityKind; key: string }[] = [
+  { kind: 'emp', key: '1' },
+  { kind: 'megabomb', key: '2' },
+  { kind: 'slowmo', key: '3' },
+  { kind: 'surge', key: '4' },
 ];
 
 function maxCooldown(kind: AbilityKind, level: number): number {
@@ -34,11 +35,11 @@ export class AbilityBar {
     this.owned = levels;
     this.bar.replaceChildren();
     this.buttons.clear();
-    for (const { kind, label, key } of ORDER) {
+    for (const { kind, key } of ORDER) {
       if (levels[kind] <= 0) continue;
       const el = document.createElement('button');
       el.className = 'ability-btn';
-      el.innerHTML = `<span class="key">${key}</span><span class="label">${label}</span>`;
+      el.innerHTML = `<span class="key">${key}</span><span class="label">${t().ability[kind]}</span>`;
       const cd = document.createElement('span');
       cd.className = 'cd';
       cd.style.display = 'none';
