@@ -434,12 +434,18 @@ export class Renderer {
    *  offset down-right by a constant world distance. Added as a child so it
    *  follows position/scale/rotation for free; the local offset is corrected
    *  for both (see placeShadow). Re-call placeShadow when scale or rotation
-   *  changes after creation. */
-  private addShadow(mesh: THREE.Mesh): THREE.Mesh {
+   *  changes after creation. Pass `grounded` for structures whose base sits
+   *  flush on the ground: their shadow offsets sideways only, so no dark band
+   *  spills below the base onto the floor. */
+  private addShadow(mesh: THREE.Mesh, grounded = false): THREE.Mesh {
     const shadow = new THREE.Mesh(mesh.geometry, this.shadowMat);
     shadow.position.z = -0.25; // just behind its caster, in front of the floor
     mesh.add(shadow);
-    this.placeShadow(mesh, shadow);
+    if (grounded) {
+      shadow.position.x = SHADOW_OFFSET / Math.max(mesh.scale.x, 0.001);
+    } else {
+      this.placeShadow(mesh, shadow);
+    }
     return shadow;
   }
 
@@ -605,7 +611,7 @@ export class Renderer {
     const barrel = new THREE.Mesh(this.roundedGeo, cannonMat);
     barrel.scale.set(2.2, 3, 1);
     barrel.position.set(CANNON.x, CITY.groundTop + 4.5, 1);
-    this.addShadow(base);
+    this.addShadow(base, true);
     this.addShadow(barrel);
     this.scene.add(base, barrel);
   }
@@ -697,7 +703,7 @@ export class Renderer {
       // Chip bottom flush with the top of the ground band (t.y is the sim's
       // muzzle height, not a terrain offset).
       mesh.position.set(t.x, CITY.groundTop + 3.15, 1.5);
-      this.addShadow(mesh);
+      this.addShadow(mesh, true);
       this.addGlyph(mesh, t.kind, 3.8);
       this.scene.add(mesh);
       this.turretMeshes.set(t.id, mesh);
@@ -726,7 +732,7 @@ export class Renderer {
       );
       body.scale.set(6, 7.5, 1);
       body.position.set(b.x, CITY.groundTop + 3.75, 1.5);
-      this.addShadow(body);
+      this.addShadow(body, true);
       // Shield Generators show remaining charges as an interior gauge (under
       // the rune, which sits at a higher local z).
       if (b.kind === 'shield') {
