@@ -24,7 +24,7 @@ import {
   WAVE_BREAK_SECONDS,
   WORLD,
 } from './balance';
-import { interceptDirection, rotate } from './aiming';
+import { interceptDirection, interceptTime, rotate } from './aiming';
 import { explosionIsDone, explosionIsLethal, explosionRadius } from './explosion';
 import { Rng } from './rng';
 import { baseStats, type DerivedStats } from './stats';
@@ -137,6 +137,9 @@ export class Sim {
       this.bossNeedsSpawn = false;
     }
 
+    // Any player activity (a shot, an ability, or a 'wake' aim ping) resets
+    // the idle timer that arms the auto-fire.
+    if (commands.length > 0) s.cannon.idleSeconds = 0;
     for (const cmd of commands) {
       if (cmd.type === 'fire') this.fire(cmd.x, cmd.y);
       else if (cmd.type === 'ability') this.useAbility(cmd.ability);
@@ -144,6 +147,7 @@ export class Sim {
 
     this.tickAbilities();
     this.regenAmmo();
+    this.tickAutoFire();
     this.runDirector();
     this.updateEnemyBehavior();
     this.updateBuildings();
@@ -158,7 +162,7 @@ export class Sim {
 
   // --- player ---
 
-  private fire(x: number, y: number): void {
+  private fire(x: number, y: number, auto = false): void {
     const s = this.state;
     if (s.cannon.ammo <= 0) {
       s.events.push({ type: 'fireDenied', reason: 'noAmmo' });
@@ -180,6 +184,7 @@ export class Sim {
       origin,
       target,
       speed: this.cfg.stats.interceptorSpeed,
+      auto,
     });
     s.events.push({ type: 'fired', target });
   }
@@ -192,6 +197,41 @@ export class Sim {
       c.ammo++;
       c.reloadTimer += this.cfg.stats.reloadSeconds;
     }
+  }
+
+  /** Idle auto-fire: the timer runs only while the magazine is FULL and no
+   *  input arrives (commands zero it in step). Once past the threshold the
+   *  cannon fires a lead-aimed shot; that drops the magazine off full, which
+   *  pauses the timer at the threshold — so the next shot comes exactly when
+   *  the reload tops the magazine back up: one shot per reload cycle. */
+  private tickAutoFire(): void {
+    const s = this.state;
+    if (s.cannon.ammo < this.cfg.stats.maxAmmo) return;
+    s.cannon.idleSeconds += DT;
+    if (s.cannon.idleSeconds < CANNON.autoFireIdleSeconds) return;
+    const aim = this.autoAimPoint();
+    if (aim) this.fire(aim.x, aim.y, true);
+  }
+
+  /** Where the auto-fire shoots: the lead-aimed future position of the most
+   *  urgent (lowest) targetable enemy, or null to hold fire. */
+  private autoAimPoint(): Vec2 | null {
+    let best: EnemyMissile | null = null;
+    for (const e of this.state.enemies) {
+      if (this.isUntouchable(e)) continue;
+      if (e.pos.y > WORLD.height || e.pos.y < 8) continue; // off-screen / about to land
+      if (!best || e.pos.y < best.pos.y) best = e;
+    }
+    if (!best) return null;
+    const origin: Vec2 = { x: CANNON.x, y: CANNON.y };
+    const t = interceptTime(origin, best.pos, best.vel, this.cfg.stats.interceptorSpeed) ?? 0;
+    const aim: Vec2 = {
+      x: clamp(best.pos.x + best.vel.x * t, -WORLD.halfWidth, WORLD.halfWidth),
+      y: clamp(best.pos.y + best.vel.y * t, 0, WORLD.height),
+    };
+    // Hold rather than spam fireDenied when the intercept sits in the cannon's
+    // dead zone.
+    return dist(origin, aim) < CANNON.minTargetDistance ? null : aim;
   }
 
   // --- manual abilities (Tech branch) ---
@@ -823,7 +863,8 @@ export class Sim {
           // Overcharge Shot: manual blasts ride on total turret DPS.
           damage: this.cfg.stats.explosionDamage + this.cfg.stats.overchargeRate * this.turretDps,
           hitEnemyIds: [],
-          source: 'manual',
+          // Auto-fire blasts neither feed nor break the combo meter.
+          source: it.auto ? 'auto' : 'manual',
         });
         s.events.push({ type: 'detonation', pos: { ...it.target } });
       } else {
@@ -1003,7 +1044,12 @@ function createInitialState(cfg: NightConfig): GameState {
     night: cfg.night,
     phase: 'playing',
     outcome: null,
-    cannon: { ammo: cfg.stats.maxAmmo, maxAmmo: cfg.stats.maxAmmo, reloadTimer: cfg.stats.reloadSeconds },
+    cannon: {
+      ammo: cfg.stats.maxAmmo,
+      maxAmmo: cfg.stats.maxAmmo,
+      reloadTimer: cfg.stats.reloadSeconds,
+      idleSeconds: 0,
+    },
     // Ground segments ("cities"): equal slices of the full field width, each
     // with its own hp. Upgrades raise the count, splitting damage finer.
     cities: groundSegments(cfg.stats),

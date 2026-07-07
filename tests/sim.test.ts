@@ -75,6 +75,85 @@ describe('cannon', () => {
   });
 });
 
+describe('idle auto-fire', () => {
+  const IDLE_TICKS = Math.ceil(CANNON.autoFireIdleSeconds * TICK_RATE) + 2;
+
+  function idleSim(): Sim {
+    const cfg = defaultNightConfig(1);
+    cfg.waves = []; // no natural spawns in these controlled tests
+    return new Sim(1, cfg);
+  }
+
+  function injectEnemy(
+    sim: Sim,
+    pos: { x: number; y: number },
+    vel = { x: 0, y: 0 },
+    hp = 1,
+  ): void {
+    sim.state.enemies.push({
+      id: 9999,
+      kind: 'ballistic',
+      pos: { ...pos },
+      origin: { x: pos.x, y: 100 },
+      vel: { ...vel },
+      hp,
+      maxHp: hp,
+      scrapReward: 5,
+    });
+  }
+
+  it('fires a lead-aimed auto shot once the full magazine idles past the threshold', () => {
+    const sim = idleSim();
+    injectEnemy(sim, { x: 30, y: 60 });
+    run(sim, IDLE_TICKS);
+    expect(sim.state.cannon.ammo).toBe(CANNON.maxAmmo - 1);
+    expect(sim.state.interceptors).toHaveLength(1);
+    expect(sim.state.interceptors[0]!.auto).toBe(true);
+  });
+
+  it('holds fire (and ammo) when there is no targetable enemy', () => {
+    const sim = idleSim();
+    injectEnemy(sim, { x: 0, y: 110 }); // still off-screen: keeps the night alive
+    run(sim, IDLE_TICKS * 2);
+    expect(sim.state.cannon.ammo).toBe(CANNON.maxAmmo);
+    expect(sim.state.interceptors).toHaveLength(0);
+    // The gauge is armed and waiting.
+    expect(sim.state.cannon.idleSeconds).toBeGreaterThan(CANNON.autoFireIdleSeconds);
+  });
+
+  it('any command resets the idle timer', () => {
+    const sim = idleSim();
+    injectEnemy(sim, { x: 30, y: 60 });
+    const almost = IDLE_TICKS - 30;
+    run(sim, almost);
+    sim.step([{ type: 'wake' }]);
+    run(sim, almost);
+    expect(sim.state.interceptors).toHaveLength(0);
+    expect(sim.state.cannon.ammo).toBe(CANNON.maxAmmo);
+  });
+
+  it('after arming, fires one shot each time the reload refills the magazine', () => {
+    const sim = idleSim();
+    // Tanky so the blasts don't remove the target between shots.
+    injectEnemy(sim, { x: -90, y: 95 }, { x: 0.1, y: -0.1 }, 99);
+    let fired = 0;
+    const reloadTicks = Math.ceil(CANNON.reloadSeconds * TICK_RATE);
+    for (let i = 0; i < IDLE_TICKS + reloadTicks * 2 + 10; i++) {
+      for (const ev of sim.step([])) if (ev.type === 'fired') fired++;
+    }
+    expect(fired).toBe(3); // armed shot + one per completed reload cycle
+  });
+
+  it('auto-fire kills do not feed the combo meter', () => {
+    const sim = idleSim();
+    injectEnemy(sim, { x: 30, y: 60 });
+    run(sim, IDLE_TICKS + TICK_RATE * 3);
+    expect(sim.state.enemies).toHaveLength(0); // the auto shot killed it
+    expect(sim.state.combo).toBe(0);
+    expect(sim.state.maxCombo).toBe(0);
+  });
+});
+
 describe('explosions', () => {
   it('interceptor detonates at its target point', () => {
     const sim = new Sim(1);

@@ -28,6 +28,11 @@ export const CANNON = {
   interceptorSpeed: 70,
   /** Minimum target distance so you can't detonate inside the cannon. */
   minTargetDistance: 5,
+  /** Idle auto-fire: once the magazine has sat FULL for this long with no
+   *  player input, the cannon lead-aims and fires on its own — one shot per
+   *  reload cycle (each shot drops the magazine off full; the next fires when
+   *  it refills). Any input resets the timer. */
+  autoFireIdleSeconds: 5,
 } as const;
 
 export const EXPLOSION = {

@@ -75,6 +75,13 @@ container.addEventListener('pointerdown', (e) => {
   pending.push({ type: 'fire', x: world.x, y: world.y });
 });
 
+// Aiming counts as presence: moving the pointer resets the auto-fire idle
+// timer without firing. One wake per tick is plenty.
+container.addEventListener('pointermove', () => {
+  if (dayScreen.visible || titleScreen.visible) return;
+  if (!pending.some((c) => c.type === 'wake')) pending.push({ type: 'wake' });
+});
+
 /** Apply the night result to the run, persist, flash the outcome banner over
  *  the frozen field for a beat, then open the Day screen. */
 const bannerEl = document.getElementById('night-banner')!;

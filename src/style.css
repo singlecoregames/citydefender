@@ -218,6 +218,29 @@ body {
   background: #019bd6;
 }
 
+/* Idle auto-fire gauge: a thin bar along the bottom edge of the ammo box that
+   fills while the full magazine sits untouched, then glows once armed. */
+.autofire-gauge {
+  position: absolute;
+  left: clamp(8px, 1.4vh, 16px);
+  right: clamp(8px, 1.4vh, 16px);
+  bottom: 2px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(1, 155, 214, 0.2);
+  overflow: hidden;
+}
+
+.autofire-fill {
+  height: 100%;
+  width: 0%;
+  background: rgba(1, 155, 214, 0.75);
+}
+
+.autofire-gauge.armed .autofire-fill {
+  background: #6fd8ff;
+}
+
 /* Launch title: full-screen overlay above the frozen night scene. */
 #titlescreen {
   position: absolute;

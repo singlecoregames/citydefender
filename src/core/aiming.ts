@@ -2,8 +2,8 @@ import type { Vec2 } from './types';
 
 /**
  * Lead-aim solver: given a shooter at `origin`, a target at `targetPos` moving
- * with constant `targetVel`, and a projectile speed, find the unit direction
- * to fire so the projectile and target arrive at the same point.
+ * with constant `targetVel`, and a projectile speed, find the time until the
+ * projectile and target can arrive at the same point.
  *
  * Solves |P + V·t - O| = s·t for the smallest positive t:
  *   (V·V - s²)t² + 2(D·V)t + D·D = 0,  D = P - O
@@ -11,12 +11,12 @@ import type { Vec2 } from './types';
  * Returns null when no positive-time solution exists (target faster than the
  * projectile and receding) — callers should fall back to aiming directly.
  */
-export function interceptDirection(
+export function interceptTime(
   origin: Vec2,
   targetPos: Vec2,
   targetVel: Vec2,
   projectileSpeed: number,
-): Vec2 | null {
+): number | null {
   const dx = targetPos.x - origin.x;
   const dy = targetPos.y - origin.y;
   const a = targetVel.x * targetVel.x + targetVel.y * targetVel.y - projectileSpeed * projectileSpeed;
@@ -37,10 +37,20 @@ export function interceptDirection(
     t = Math.min(...[t1, t2].filter((x) => x > 0));
     if (!isFinite(t)) return null;
   }
-  if (t <= 0) return null;
+  return t > 0 ? t : null;
+}
 
-  const aimX = dx + targetVel.x * t;
-  const aimY = dy + targetVel.y * t;
+/** Unit direction to fire so the projectile meets the target (see interceptTime). */
+export function interceptDirection(
+  origin: Vec2,
+  targetPos: Vec2,
+  targetVel: Vec2,
+  projectileSpeed: number,
+): Vec2 | null {
+  const t = interceptTime(origin, targetPos, targetVel, projectileSpeed);
+  if (t === null) return null;
+  const aimX = targetPos.x - origin.x + targetVel.x * t;
+  const aimY = targetPos.y - origin.y + targetVel.y * t;
   const len = Math.hypot(aimX, aimY);
   if (len < 1e-9) return null;
   return { x: aimX / len, y: aimY / len };

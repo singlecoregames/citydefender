@@ -1,4 +1,4 @@
-import { COMBO } from '../core/balance';
+import { CANNON, COMBO } from '../core/balance';
 import type { GameState } from '../core/types';
 
 /** DOM HUD: scrap counter, night/wave indicator, ammo pips, combo meter.
@@ -9,6 +9,16 @@ export class Hud {
   private readonly ammoEl = document.getElementById('hud-ammo')!;
   private readonly comboEl = document.getElementById('hud-combo')!;
   private pipCount = 0;
+  /** Idle auto-fire gauge: a thin bar under the ammo pips that fills while
+   *  the full magazine sits untouched, and stays lit during auto-fire. */
+  private readonly autoGauge = document.createElement('div');
+  private readonly autoFill = document.createElement('div');
+
+  constructor() {
+    this.autoGauge.className = 'autofire-gauge';
+    this.autoFill.className = 'autofire-fill';
+    this.autoGauge.appendChild(this.autoFill);
+  }
 
   render(state: GameState, totalScrap: number, cores: number, data: number): void {
     let bank = `⬡ ${totalScrap}`;
@@ -23,6 +33,9 @@ export class Hud {
     for (let i = 0; i < this.pipCount; i++) {
       this.ammoEl.children[i]!.classList.toggle('full', i < state.cannon.ammo);
     }
+    const idle = Math.min(1, state.cannon.idleSeconds / CANNON.autoFireIdleSeconds);
+    this.autoFill.style.width = `${idle * 100}%`;
+    this.autoGauge.classList.toggle('armed', idle >= 1);
   }
 
   /** Combo meter: hidden until a streak of 2, then count + scrap multiplier. */
@@ -36,7 +49,9 @@ export class Hud {
     this.comboEl.classList.remove('hidden');
   }
 
-  /** Rebuild ammo pips when the magazine size changes (upgrades). */
+  /** Rebuild ammo pips when the magazine size changes (upgrades). The pips
+   *  must stay the first `pipCount` children (render indexes into them); the
+   *  auto-fire gauge rides along as the last child. */
   private syncPips(maxAmmo: number): void {
     if (this.pipCount === maxAmmo) return;
     this.ammoEl.replaceChildren();
@@ -45,6 +60,7 @@ export class Hud {
       pip.className = 'ammo-pip';
       this.ammoEl.appendChild(pip);
     }
+    this.ammoEl.appendChild(this.autoGauge);
     this.pipCount = maxAmmo;
   }
 }

@@ -4,31 +4,11 @@
  * intercept math the sim uses, then jittered), rate-limited to approximate a
  * person, and it triggers owned abilities on simple panic/value heuristics.
  */
+import { interceptTime } from '../../src/core/aiming';
 import { CANNON, EXPLOSION, TICK_RATE, WORLD } from '../../src/core/balance';
 import { Rng } from '../../src/core/rng';
 import type { NightConfig } from '../../src/core/sim';
 import type { Command, EnemyMissile, GameState, Vec2 } from '../../src/core/types';
-
-/** Time for a projectile at `speed` to meet a target moving at `vel`. */
-function interceptTime(origin: Vec2, pos: Vec2, vel: Vec2, speed: number): number | null {
-  const dx = pos.x - origin.x;
-  const dy = pos.y - origin.y;
-  const a = vel.x * vel.x + vel.y * vel.y - speed * speed;
-  const b = 2 * (dx * vel.x + dy * vel.y);
-  const c = dx * dx + dy * dy;
-  let t: number | null = null;
-  if (Math.abs(a) < 1e-9) {
-    if (Math.abs(b) > 1e-9) t = -c / b;
-  } else {
-    const disc = b * b - 4 * a * c;
-    if (disc >= 0) {
-      const sq = Math.sqrt(disc);
-      const roots = [(-b - sq) / (2 * a), (-b + sq) / (2 * a)].filter((r) => r > 0);
-      if (roots.length > 0) t = Math.min(...roots);
-    }
-  }
-  return t !== null && Number.isFinite(t) && t > 0 ? t : null;
-}
 
 export class NightAi {
   private readonly rng: Rng;

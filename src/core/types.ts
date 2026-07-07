@@ -17,6 +17,8 @@ export interface Interceptor {
   origin: Vec2;
   target: Vec2;
   speed: number;
+  /** Fired by idle auto-fire, not the player (its blast skips the combo meter). */
+  auto?: boolean;
 }
 
 export type TurretKind = 'gatling' | 'flak' | 'laser' | 'missile' | 'railgun' | 'tesla';
@@ -82,8 +84,9 @@ export interface Explosion {
   hitEnemyIds: number[];
   /** Enemies this explosion has killed (Chain Bounty pays out at 3). */
   kills?: number;
-  /** What spawned it. Only 'manual' blasts feed (or break) the combo meter. */
-  source?: 'manual' | 'turret' | 'ability';
+  /** What spawned it. Only 'manual' blasts feed (or break) the combo meter;
+   *  'auto' is the idle auto-fire — cannon shots outside the player's hands. */
+  source?: 'manual' | 'auto' | 'turret' | 'ability';
 }
 
 export type EnemyKind =
@@ -138,7 +141,9 @@ export type GameEvent =
 
 export type Command =
   | { type: 'fire'; x: number; y: number }
-  | { type: 'ability'; ability: AbilityKind };
+  | { type: 'ability'; ability: AbilityKind }
+  /** Player activity that isn't a shot (aiming); only resets the idle timer. */
+  | { type: 'wake' };
 
 export type AbilityKind = 'emp' | 'megabomb' | 'slowmo' | 'surge';
 
@@ -155,6 +160,9 @@ export interface GameState {
     maxAmmo: number;
     /** Seconds until the next round regenerates. */
     reloadTimer: number;
+    /** Seconds the magazine has sat full with no player input; drives the
+     *  idle auto-fire (and its HUD gauge). Any command resets it. */
+    idleSeconds: number;
   };
   cities: City[];
   interceptors: Interceptor[];
