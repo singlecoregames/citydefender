@@ -196,6 +196,33 @@ describe('idle auto-fire', () => {
     expect(fired).toBe(3); // armed shot + one per completed reload cycle
   });
 
+  it('keeps the reload cadence during Free Fire instead of firing every tick', () => {
+    const cfg = defaultNightConfig(1);
+    cfg.waves = [];
+    cfg.abilities = { emp: 0, megabomb: 0, freefire: 1, surge: 0 };
+    cfg.stats = { ...cfg.stats, autoFireLevel: 1 };
+    const sim = new Sim(1, cfg);
+    sim.state.enemies.push({
+      id: 9999,
+      kind: 'ballistic',
+      pos: { x: -90, y: 95 },
+      origin: { x: -90, y: 100 },
+      vel: { x: 0.05, y: -0.05 },
+      hp: 9999,
+      maxHp: 9999,
+      scrapReward: 5,
+    });
+    run(sim, IDLE_TICKS); // arm the auto-fire
+    sim.step([{ type: 'ability', ability: 'freefire' }]); // magazine pinned at full
+    let fired = 0;
+    for (let i = 0; i < TICK_RATE * 4; i++) {
+      for (const ev of sim.step([])) if (ev.type === 'fired') fired++;
+    }
+    // 4s at one shot per reload (1.5s) — a handful, not 60/s.
+    expect(fired).toBeGreaterThan(0);
+    expect(fired).toBeLessThanOrEqual(Math.ceil(4 / CANNON.reloadSeconds) + 1);
+  });
+
   it('auto-fire kills do not feed the combo meter', () => {
     const sim = idleSim();
     injectEnemy(sim, { x: 30, y: 60 });

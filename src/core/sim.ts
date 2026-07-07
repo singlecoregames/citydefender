@@ -208,21 +208,29 @@ export class Sim {
     }
   }
 
+  /** Seconds until the auto-fire may shoot again (see tickAutoFire). */
+  private autoFireCooldown = 0;
+
   /** Idle auto-fire (locked until the auto_fire node is bought): the timer
    *  runs only while the magazine is FULL, and only a manual shot zeroes it
-   *  (see step). Once past the threshold the cannon fires a lead-aimed shot;
-   *  that drops the magazine off full, which pauses the timer at the
-   *  threshold — so the next shot comes exactly when the reload tops the
-   *  magazine back up: one shot per reload cycle. */
+   *  (see step). Once past the threshold the cannon fires a lead-aimed shot,
+   *  then holds for one reload's worth of cooldown. In normal play the shot
+   *  drops the magazine off full and the refill takes exactly that long, so
+   *  the cadence is unchanged — the explicit cooldown is what stops Free
+   *  Fire (magazine pinned at full) from turning this into a 60/s hose. */
   private tickAutoFire(): void {
     const s = this.state;
+    this.autoFireCooldown = Math.max(0, this.autoFireCooldown - DT);
     const threshold = s.cannon.autoFireThreshold;
     if (threshold <= 0) return; // node not owned
     if (s.cannon.ammo < this.cfg.stats.maxAmmo) return;
     s.cannon.idleSeconds += DT;
     if (s.cannon.idleSeconds < threshold) return;
+    if (this.autoFireCooldown > 0) return;
     const aim = this.autoAimPoint();
-    if (aim) this.fire(aim.x, aim.y, true);
+    if (!aim) return;
+    this.fire(aim.x, aim.y, true);
+    this.autoFireCooldown = this.cfg.stats.reloadSeconds;
   }
 
   /** Where the auto-fire shoots: the lead-aimed future position of the most
