@@ -6,6 +6,7 @@
  */
 import {
   ABILITIES,
+  autoFireThresholdFor,
   BOSS,
   BOSS_NIGHT_INTERVAL,
   BUILDING,
@@ -15,6 +16,7 @@ import {
   CITY,
   COMBO,
   DATA,
+  defeatScrapFactorFor,
   DT,
   ECONOMY,
   ENEMY,
@@ -60,6 +62,9 @@ export interface NightConfig {
   abilities: AbilityLevels;
   /** Whether a boss appears this night. */
   boss: boolean;
+  /** Consecutive defeats already suffered on this night — raises the defeat
+   *  payout (pity) so retries recover instead of grinding in place. */
+  failStreak: number;
 }
 
 /** Default config = night 1 with base stats (used by tests and the prototype). */
@@ -70,8 +75,9 @@ export function defaultNightConfig(night = 1): NightConfig {
     stats: baseStats(),
     turrets: [],
     buildings: [],
-    abilities: { emp: 0, megabomb: 0, slowmo: 0, surge: 0 },
+    abilities: { emp: 0, megabomb: 0, freefire: 0, surge: 0 },
     boss: night % BOSS_NIGHT_INTERVAL === 0,
+    failStreak: 0,
   };
 }
 
@@ -165,7 +171,9 @@ export class Sim {
 
   private fire(x: number, y: number, auto = false): void {
     const s = this.state;
-    if (s.cannon.ammo <= 0) {
+    // Free Fire: while active, shots neither need nor drain the magazine.
+    const free = s.ability.freefire > 0;
+    if (!free && s.cannon.ammo <= 0) {
       s.events.push({ type: 'fireDenied', reason: 'noAmmo' });
       return;
     }
@@ -178,7 +186,7 @@ export class Sim {
       s.events.push({ type: 'fireDenied', reason: 'tooClose' });
       return;
     }
-    s.cannon.ammo--;
+    if (!free) s.cannon.ammo--;
     s.interceptors.push({
       id: s.nextId++,
       pos: { ...origin },
@@ -200,16 +208,19 @@ export class Sim {
     }
   }
 
-  /** Idle auto-fire: the timer runs only while the magazine is FULL, and only
-   *  a manual shot zeroes it (see step). Once past the threshold the cannon
-   *  fires a lead-aimed shot; that drops the magazine off full, which pauses
-   *  the timer at the threshold — so the next shot comes exactly when the
-   *  reload tops the magazine back up: one shot per reload cycle. */
+  /** Idle auto-fire (locked until the auto_fire node is bought): the timer
+   *  runs only while the magazine is FULL, and only a manual shot zeroes it
+   *  (see step). Once past the threshold the cannon fires a lead-aimed shot;
+   *  that drops the magazine off full, which pauses the timer at the
+   *  threshold — so the next shot comes exactly when the reload tops the
+   *  magazine back up: one shot per reload cycle. */
   private tickAutoFire(): void {
     const s = this.state;
+    const threshold = s.cannon.autoFireThreshold;
+    if (threshold <= 0) return; // node not owned
     if (s.cannon.ammo < this.cfg.stats.maxAmmo) return;
     s.cannon.idleSeconds += DT;
-    if (s.cannon.idleSeconds < CANNON.autoFireIdleSeconds) return;
+    if (s.cannon.idleSeconds < threshold) return;
     const aim = this.autoAimPoint();
     if (aim) this.fire(aim.x, aim.y, true);
   }
@@ -225,10 +236,11 @@ export class Sim {
     }
     if (!best) return null;
     const origin: Vec2 = { x: CANNON.x, y: CANNON.y };
-    const t = interceptTime(origin, best.pos, best.vel, this.cfg.stats.interceptorSpeed) ?? 0;
+    const vel = this.effectiveVel(best);
+    const t = interceptTime(origin, best.pos, vel, this.cfg.stats.interceptorSpeed) ?? 0;
     const aim: Vec2 = {
-      x: clamp(best.pos.x + best.vel.x * t, -WORLD.halfWidth, WORLD.halfWidth),
-      y: clamp(best.pos.y + best.vel.y * t, 0, WORLD.height),
+      x: clamp(best.pos.x + vel.x * t, -WORLD.halfWidth, WORLD.halfWidth),
+      y: clamp(best.pos.y + vel.y * t, 0, WORLD.height),
     };
     // Hold rather than spam fireDenied when the intercept sits in the cannon's
     // dead zone.
@@ -241,10 +253,10 @@ export class Sim {
     const a = this.state.ability;
     a.cooldown.emp = Math.max(0, a.cooldown.emp - DT);
     a.cooldown.megabomb = Math.max(0, a.cooldown.megabomb - DT);
-    a.cooldown.slowmo = Math.max(0, a.cooldown.slowmo - DT);
+    a.cooldown.freefire = Math.max(0, a.cooldown.freefire - DT);
     a.cooldown.surge = Math.max(0, a.cooldown.surge - DT);
     a.empFreeze = Math.max(0, a.empFreeze - DT);
-    a.slowmo = Math.max(0, a.slowmo - DT);
+    a.freefire = Math.max(0, a.freefire - DT);
     a.surge = Math.max(0, a.surge - DT);
   }
 
@@ -280,11 +292,11 @@ export class Sim {
       });
       s.ability.cooldown.megabomb = cooldown(spec);
       s.events.push({ type: 'abilityUsed', ability: 'megabomb', pos });
-    } else if (kind === 'slowmo') {
-      const spec = ABILITIES.slowmo;
-      s.ability.slowmo = spec.duration + spec.durationPerLevel * (level - 1);
-      s.ability.cooldown.slowmo = cooldown(spec);
-      s.events.push({ type: 'abilityUsed', ability: 'slowmo' });
+    } else if (kind === 'freefire') {
+      const spec = ABILITIES.freefire;
+      s.ability.freefire = spec.duration + spec.durationPerLevel * (level - 1);
+      s.ability.cooldown.freefire = cooldown(spec);
+      s.events.push({ type: 'abilityUsed', ability: 'freefire' });
     } else {
       const spec = ABILITIES.surge;
       s.ability.surge = spec.duration + spec.durationPerLevel * (level - 1);
@@ -294,11 +306,21 @@ export class Sim {
   }
 
   /** Time multiplier applied to enemy motion/behaviour: 0 while EMP-frozen,
-   *  slowmo factor while Time Dilation is active, else 1. */
+   *  else 1. */
   private enemyTimeScale(): number {
     if (this.state.ability.empFreeze > 0) return 0;
-    if (this.state.ability.slowmo > 0) return ABILITIES.slowmo.factor;
     return 1;
+  }
+
+  /** An enemy's actual on-screen velocity: its nominal vel scaled by the
+   *  global time scale (EMP freeze / Time Dilation) and the Jammer field if
+   *  it's inside. Lead-aiming from the nominal vel whiffs badly on frozen or
+   *  slowed enemies — solve intercepts against this instead. */
+  private effectiveVel(e: EnemyMissile): Vec2 {
+    let ts = this.enemyTimeScale();
+    const jam = this.jammerField;
+    if (jam && dist(jam, e.pos) <= jam.radius) ts *= jam.factor;
+    return { x: e.vel.x * ts, y: e.vel.y * ts };
   }
 
   // --- wave director ---
@@ -695,7 +717,7 @@ export class Sim {
     spreadDeg: number,
   ): Vec2 {
     const lead =
-      interceptDirection(origin, target.pos, target.vel, projectileSpeed) ??
+      interceptDirection(origin, target.pos, this.effectiveVel(target), projectileSpeed) ??
       norm({ x: target.pos.x - origin.x, y: target.pos.y - origin.y });
     const deg = spreadDeg * this.spreadMul;
     const spreadRad = (this.rng.range(-deg, deg) * Math.PI) / 180;
@@ -999,7 +1021,7 @@ export class Sim {
     const s = this.state;
     const citiesAlive = s.cities.some((c) => c.hp > 0);
     if (!citiesAlive) {
-      s.scrap = Math.floor(s.scrap * ECONOMY.defeatScrapFactor);
+      s.scrap = Math.floor(s.scrap * defeatScrapFactorFor(this.cfg.failStreak));
       this.endNight('defeat');
       return;
     }
@@ -1050,6 +1072,7 @@ function createInitialState(cfg: NightConfig): GameState {
       maxAmmo: cfg.stats.maxAmmo,
       reloadTimer: cfg.stats.reloadSeconds,
       idleSeconds: 0,
+      autoFireThreshold: autoFireThresholdFor(cfg.stats.autoFireLevel),
     },
     // Ground segments ("cities"): equal slices of the full field width, each
     // with its own hp. Upgrades raise the count, splitting damage finer.
@@ -1072,9 +1095,9 @@ function createInitialState(cfg: NightConfig): GameState {
     maxCombo: 0,
     cityDamageTaken: 0,
     ability: {
-      cooldown: { emp: 0, megabomb: 0, slowmo: 0, surge: 0 },
+      cooldown: { emp: 0, megabomb: 0, freefire: 0, surge: 0 },
       empFreeze: 0,
-      slowmo: 0,
+      freefire: 0,
       surge: 0,
     },
     director: {

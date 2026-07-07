@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { interceptDirection, rotate } from '../src/core/aiming';
-import { CANNON, DATA, DT, EXPLOSION, TICK_RATE, TURRETS } from '../src/core/balance';
+import {
+  ABILITIES,
+  autoFireThresholdFor,
+  CANNON,
+  DATA,
+  DT,
+  EXPLOSION,
+  TICK_RATE,
+  TURRETS,
+} from '../src/core/balance';
 import { EXPLOSION_TOTAL_SECONDS } from '../src/core/explosion';
 import { defaultNightConfig, Sim } from '../src/core/sim';
 import { baseStats } from '../src/core/stats';
@@ -78,9 +87,10 @@ describe('cannon', () => {
 describe('idle auto-fire', () => {
   const IDLE_TICKS = Math.ceil(CANNON.autoFireIdleSeconds * TICK_RATE) + 2;
 
-  function idleSim(): Sim {
+  function idleSim(autoFireLevel = 1): Sim {
     const cfg = defaultNightConfig(1);
     cfg.waves = []; // no natural spawns in these controlled tests
+    cfg.stats = { ...cfg.stats, autoFireLevel };
     return new Sim(1, cfg);
   }
 
@@ -111,6 +121,22 @@ describe('idle auto-fire', () => {
     expect(sim.state.interceptors[0]!.auto).toBe(true);
   });
 
+  it('stays locked without the Auto-Fire node', () => {
+    const sim = idleSim(0);
+    injectEnemy(sim, { x: 30, y: 60 });
+    run(sim, IDLE_TICKS * 3);
+    expect(sim.state.cannon.ammo).toBe(CANNON.maxAmmo);
+    expect(sim.state.interceptors).toHaveLength(0);
+    expect(sim.state.cannon.autoFireThreshold).toBe(0); // HUD hides the gauge
+  });
+
+  it('higher node levels arm after a shorter wait, to a floor', () => {
+    expect(autoFireThresholdFor(0)).toBe(0);
+    expect(autoFireThresholdFor(1)).toBe(CANNON.autoFireIdleSeconds);
+    expect(autoFireThresholdFor(2)).toBe(CANNON.autoFireIdleSeconds - CANNON.autoFireIdlePerLevel);
+    expect(autoFireThresholdFor(99)).toBe(CANNON.autoFireIdleMin);
+  });
+
   it('holds fire (and ammo) when there is no targetable enemy', () => {
     const sim = idleSim();
     injectEnemy(sim, { x: 0, y: 110 }); // still off-screen: keeps the night alive
@@ -139,7 +165,8 @@ describe('idle auto-fire', () => {
   it('abilities and aiming do not reset the idle timer', () => {
     const cfg = defaultNightConfig(1);
     cfg.waves = [];
-    cfg.abilities = { emp: 1, megabomb: 0, slowmo: 0, surge: 0 };
+    cfg.abilities = { emp: 1, megabomb: 0, freefire: 0, surge: 0 };
+    cfg.stats = { ...cfg.stats, autoFireLevel: 1 };
     const sim = new Sim(1, cfg);
     sim.state.enemies.push({
       id: 9999,
@@ -281,6 +308,22 @@ describe('cities and night flow', () => {
     expect(sim.state.outcome).toBe('defeat');
     expect(sim.state.scrap).toBe(60);
     expect(events.some((e) => e.type === 'nightEnded')).toBe(true);
+  });
+
+  it('defeat pity raises the payout with each retry, capped at full value', () => {
+    const payoutAfterFails = (failStreak: number): number => {
+      const cfg = defaultNightConfig(1);
+      cfg.failStreak = failStreak;
+      const sim = new Sim(1, cfg);
+      sim.state.scrap = 100;
+      for (const c of sim.state.cities) c.hp = 0;
+      sim.step([]);
+      return sim.state.scrap;
+    };
+    expect(payoutAfterFails(0)).toBe(60); // base 0.6
+    expect(payoutAfterFails(1)).toBe(75); // +0.15 per prior defeat
+    expect(payoutAfterFails(3)).toBe(100); // 0.6 + 0.45, capped...
+    expect(payoutAfterFails(9)).toBe(100); // ...and stays capped
   });
 
   it('a full unplayed night ends in defeat eventually (cities get destroyed)', () => {
@@ -643,13 +686,13 @@ describe('boss nights', () => {
 });
 
 describe('abilities', () => {
-  function abilityConfig(levels: { emp?: number; megabomb?: number; slowmo?: number; surge?: number }) {
+  function abilityConfig(levels: { emp?: number; megabomb?: number; freefire?: number; surge?: number }) {
     const cfg = defaultNightConfig(1);
     cfg.waves = [];
     cfg.abilities = {
       emp: levels.emp ?? 0,
       megabomb: levels.megabomb ?? 0,
-      slowmo: levels.slowmo ?? 0,
+      freefire: levels.freefire ?? 0,
       surge: levels.surge ?? 0,
     };
     return cfg;
@@ -699,17 +742,26 @@ describe('abilities', () => {
     expect(sim.state.enemies.length).toBe(0);
   });
 
-  it('Time Dilation slows enemies for a while', () => {
-    const slow = new Sim(1, abilityConfig({ slowmo: 1 }));
-    const normal = new Sim(1, abilityConfig({ slowmo: 1 }));
-    addEnemy(slow, 1, { x: 0, y: 60 }, { x: 0, y: -20 });
-    addEnemy(normal, 1, { x: 0, y: 60 }, { x: 0, y: -20 });
-    slow.step([{ type: 'ability', ability: 'slowmo' }]);
-    normal.step([]); // no ability
-    run(slow, 30);
-    run(normal, 30);
-    // The slowed enemy travelled less far (higher y remaining).
-    expect(slow.state.enemies[0]!.pos.y).toBeGreaterThan(normal.state.enemies[0]!.pos.y);
+  it('Free Fire lets shots ignore the magazine while active', () => {
+    const sim = new Sim(1, abilityConfig({ freefire: 1 }));
+    sim.step([{ type: 'ability', ability: 'freefire' }]);
+    expect(sim.state.ability.freefire).toBeGreaterThan(0);
+    // Fire more shots than the magazine holds — none consume ammo.
+    for (let i = 0; i < CANNON.maxAmmo + 2; i++) {
+      sim.step([{ type: 'fire', x: i * 10 - 30, y: 60 }]);
+    }
+    expect(sim.state.cannon.ammo).toBe(CANNON.maxAmmo);
+    expect(sim.state.interceptors.length).toBe(CANNON.maxAmmo + 2);
+  });
+
+  it('Free Fire expires: shots drain ammo again afterwards', () => {
+    const sim = new Sim(1, abilityConfig({ freefire: 1 }));
+    addEnemy(sim, 1, { x: 0, y: 110 }, { x: 0, y: 0 }); // keeps the night alive
+    sim.step([{ type: 'ability', ability: 'freefire' }]);
+    run(sim, Math.ceil(ABILITIES.freefire.duration * TICK_RATE) + 5);
+    expect(sim.state.ability.freefire).toBe(0);
+    sim.step([{ type: 'fire', x: 0, y: 60 }]);
+    expect(sim.state.cannon.ammo).toBe(CANNON.maxAmmo - 1);
   });
 });
 
@@ -725,7 +777,7 @@ describe('phase-1 utility nodes (sim hooks)', () => {
     const mk = (mul: number) => {
       const cfg = defaultNightConfig(1);
       cfg.waves = [];
-      cfg.abilities = { emp: 1, megabomb: 0, slowmo: 0, surge: 0 };
+      cfg.abilities = { emp: 1, megabomb: 0, freefire: 0, surge: 0 };
       cfg.stats = { ...cfg.stats, abilityCooldownMul: mul };
       return new Sim(1, cfg);
     };
@@ -960,7 +1012,7 @@ describe('phase-3 buildings and Scrap Surge', () => {
 
   it('Scrap Surge doubles kill scrap while active', () => {
     const cfg = cfgWith();
-    cfg.abilities = { emp: 0, megabomb: 0, slowmo: 0, surge: 1 };
+    cfg.abilities = { emp: 0, megabomb: 0, freefire: 0, surge: 1 };
     const sim = new Sim(1, cfg);
     sim.state.enemies.push({
       id: 9001, kind: 'ballistic', pos: { x: 0, y: 50 }, origin: { x: 0, y: 100 },

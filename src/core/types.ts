@@ -143,7 +143,7 @@ export type Command =
   | { type: 'fire'; x: number; y: number }
   | { type: 'ability'; ability: AbilityKind };
 
-export type AbilityKind = 'emp' | 'megabomb' | 'slowmo' | 'surge';
+export type AbilityKind = 'emp' | 'megabomb' | 'freefire' | 'surge';
 
 export type NightPhase = 'playing' | 'ended';
 
@@ -159,8 +159,11 @@ export interface GameState {
     /** Seconds until the next round regenerates. */
     reloadTimer: number;
     /** Seconds the magazine has sat full with no player input; drives the
-     *  idle auto-fire (and its HUD gauge). Any command resets it. */
+     *  idle auto-fire (and its HUD gauge). A manual shot resets it. */
     idleSeconds: number;
+    /** Idle seconds needed to arm the auto-fire; 0 = the node isn't owned
+     *  (no auto-fire, and the HUD hides the gauge). */
+    autoFireThreshold: number;
   };
   cities: City[];
   interceptors: Interceptor[];
@@ -179,11 +182,11 @@ export interface GameState {
   /** Manual ability state (Tech branch). Cooldowns count down to 0 (ready);
    *  the two timers are how long the active effects last. */
   ability: {
-    cooldown: { emp: number; megabomb: number; slowmo: number; surge: number };
+    cooldown: { emp: number; megabomb: number; freefire: number; surge: number };
     /** Enemies frozen (EMP) for this many more seconds. */
     empFreeze: number;
-    /** Enemies move slowed (Time Dilation) for this many more seconds. */
-    slowmo: number;
+    /** Manual shots free (Free Fire: no ammo drain) for this many more seconds. */
+    freefire: number;
     /** Scrap earnings doubled (Scrap Surge) for this many more seconds. */
     surge: number;
   };

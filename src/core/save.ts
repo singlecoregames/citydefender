@@ -42,11 +42,17 @@ function migrate(env: SaveEnvelope): RunState {
   if (!env || typeof env.version !== 'number' || !env.run) return newRun();
   // Defensive defaults so older/partial saves never crash the sim.
   const base = newRun();
+  // Always keep the command core owned so branch roots stay unlocked.
+  const upgrades: RunState['upgrades'] = { core: 1, ...(env.run.upgrades ?? {}) };
+  // Time Dilation was remade into Free Fire — carry bought levels over.
+  if (upgrades['ability_slowmo'] !== undefined) {
+    upgrades['ability_freefire'] = upgrades['ability_slowmo'] ?? 0;
+    delete upgrades['ability_slowmo'];
+  }
   return {
     ...base,
     ...env.run,
-    // Always keep the command core owned so branch roots stay unlocked.
-    upgrades: { core: 1, ...(env.run.upgrades ?? {}) },
+    upgrades,
   };
 }
 

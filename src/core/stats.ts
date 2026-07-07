@@ -61,6 +61,9 @@ export interface DerivedStats {
   /** >0: turrets prefer enemies whose impact would hit a living city
    *  (Threat Analysis). */
   threatTargeting: number;
+  /** Auto-Fire node level: 0 = the idle auto-fire is locked; higher levels
+   *  arm it after a shorter idle wait (see autoFireThresholdFor). */
+  autoFireLevel: number;
   /** Multiplier on every turret's aim spread, stacking with the Radar Array
    *  (Neural Lead). */
   turretSpreadMul: number;
@@ -113,6 +116,7 @@ export function baseStats(): DerivedStats {
     overchargeRate: 0,
     comboRetention: 0,
     threatTargeting: 0,
+    autoFireLevel: 0,
     turretSpreadMul: 1,
   };
 }

@@ -1,4 +1,4 @@
-import { CANNON, COMBO } from '../core/balance';
+import { COMBO } from '../core/balance';
 import type { GameState } from '../core/types';
 import { t } from './i18n';
 
@@ -34,9 +34,14 @@ export class Hud {
     for (let i = 0; i < this.pipCount; i++) {
       this.ammoEl.children[i]!.classList.toggle('full', i < state.cannon.ammo);
     }
-    const idle = Math.min(1, state.cannon.idleSeconds / CANNON.autoFireIdleSeconds);
-    this.autoFill.style.width = `${idle * 100}%`;
-    this.autoGauge.classList.toggle('armed', idle >= 1);
+    // The auto-fire gauge only exists once the node is owned (threshold > 0).
+    const threshold = state.cannon.autoFireThreshold;
+    this.autoGauge.classList.toggle('hidden', threshold <= 0);
+    if (threshold > 0) {
+      const idle = Math.min(1, state.cannon.idleSeconds / threshold);
+      this.autoFill.style.width = `${idle * 100}%`;
+      this.autoGauge.classList.toggle('armed', idle >= 1);
+    }
   }
 
   /** Combo meter: hidden until a streak of 2, then count + scrap multiplier. */

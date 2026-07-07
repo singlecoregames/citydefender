@@ -6,7 +6,7 @@ import { t } from './i18n';
 const ORDER: { kind: AbilityKind; key: string }[] = [
   { kind: 'emp', key: '1' },
   { kind: 'megabomb', key: '2' },
-  { kind: 'slowmo', key: '3' },
+  { kind: 'freefire', key: '3' },
   { kind: 'surge', key: '4' },
 ];
 
@@ -19,9 +19,9 @@ function maxCooldown(kind: AbilityKind, level: number): number {
  *  night are shown; each reflects its cooldown and fires on tap/click. */
 export class AbilityBar {
   private readonly bar = document.getElementById('ability-bar')!;
-  private readonly tint = document.getElementById('slowmo-tint')!;
+  private readonly tint = document.getElementById('freefire-tint')!;
   private readonly buttons = new Map<AbilityKind, { el: HTMLButtonElement; cd: HTMLElement }>();
-  private owned: AbilityLevels = { emp: 0, megabomb: 0, slowmo: 0, surge: 0 };
+  private owned: AbilityLevels = { emp: 0, megabomb: 0, freefire: 0, surge: 0 };
 
   constructor(private readonly onUse: (kind: AbilityKind) => void) {
     window.addEventListener('keydown', (e) => {
@@ -67,7 +67,7 @@ export class AbilityBar {
         cd.textContent = Math.ceil(remaining).toString();
       }
     }
-    this.tint.classList.toggle('hidden', state.ability.slowmo <= 0);
+    this.tint.classList.toggle('hidden', state.ability.freefire <= 0);
   }
 }
 

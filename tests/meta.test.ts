@@ -171,4 +171,15 @@ describe('save / load', () => {
     // Saves from before the Data currency default to an empty bank.
     expect(restored.data).toBe(0);
   });
+
+  it('migrates Time Dilation levels onto Free Fire', () => {
+    const restored = deserialize(
+      JSON.stringify({
+        version: SAVE_VERSION,
+        run: { night: 12, upgrades: { core: 1, ability_slowmo: 3 } },
+      }),
+    );
+    expect(restored.upgrades['ability_freefire']).toBe(3);
+    expect(restored.upgrades['ability_slowmo']).toBeUndefined();
+  });
 });

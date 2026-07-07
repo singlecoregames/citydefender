@@ -43,15 +43,17 @@ const BRANCH_COLOR: Record<TreeBranch, string> = {
 };
 
 /** Key nodes are the run-defining picks — they deploy something new (a
- *  turret, its twin, a support building) or unlock a manual ability. They
- *  keep the full branch colour and a heavier outline; plain stat nodes get a
- *  muted stroke so the tree reads as landmarks among filler. */
+ *  turret, its twin, a support building) or unlock a mechanic (a manual
+ *  ability, the auto-fire). They keep the full branch colour and a heavier
+ *  outline; plain stat nodes get a muted stroke so the tree reads as
+ *  landmarks among filler. */
 function isKeyNode(node: TreeNode): boolean {
   return (
     node.id in TURRET_NODES ||
     node.id in TURRET_TWIN_NODES ||
     node.id in BUILDING_NODES ||
-    node.id.startsWith('ability_')
+    node.id.startsWith('ability_') ||
+    node.id === 'auto_fire'
   );
 }
 

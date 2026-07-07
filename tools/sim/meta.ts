@@ -3,7 +3,7 @@
  * the real meta loop in src/main.ts (night → dawn payout → shopping → next
  * night; defeats retry the same night). Produces one record per night played.
  */
-import { BOSS_NIGHT_INTERVAL, ECONOMY, TICK_RATE } from '../../src/core/balance';
+import { BOSS_NIGHT_INTERVAL, defeatScrapFactorFor, TICK_RATE } from '../../src/core/balance';
 import {
   dawnInterest,
   firstClearCores,
@@ -83,6 +83,7 @@ export function nightConfigFor(run: RunState): NightConfig {
     buildings: buildingsFromTree(run.upgrades),
     abilities: abilitiesFromTree(run.upgrades),
     boss: run.night % BOSS_NIGHT_INTERVAL === 0,
+    failStreak: run.failStreak,
   };
 }
 
@@ -118,7 +119,7 @@ export function playNight(
   }
   if (outcome === 'timeout') {
     // Stalemate (e.g. an unkillable boss): treat like a defeat payout.
-    scrapEarned = Math.floor(sim.state.scrap * ECONOMY.defeatScrapFactor);
+    scrapEarned = Math.floor(sim.state.scrap * defeatScrapFactorFor(run.failStreak));
   }
   return {
     outcome,
@@ -138,7 +139,6 @@ export function simulateRun(options: Partial<SimulateOptions> = {}): RunReport {
   const run = newRun(opts.seed);
   const records: NightRecord[] = [];
   let attempt = 1;
-  let failStreak = 0;
   let stuck = false;
   const attemptBudget = opts.targetNight * 4;
 
@@ -157,10 +157,10 @@ export function simulateRun(options: Partial<SimulateOptions> = {}): RunReport {
       run.bestNight = Math.max(run.bestNight, run.night);
       run.night += 1;
       attempt = 1;
-      failStreak = 0;
+      run.failStreak = 0;
     } else {
       attempt += 1;
-      failStreak += 1;
+      run.failStreak += 1; // defeat pity: the retry pays out better
     }
 
     const purchases = shop(run, opts.strategy);
@@ -172,7 +172,7 @@ export function simulateRun(options: Partial<SimulateOptions> = {}): RunReport {
       bank: { scrap: run.scrap, cores: run.cores, data: run.data },
     });
 
-    if (failStreak >= opts.stuckLimit) {
+    if (run.failStreak >= opts.stuckLimit) {
       stuck = true;
       break;
     }

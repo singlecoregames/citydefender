@@ -71,7 +71,7 @@ const EN: Strings = {
   ttNeedMore: (icon, cost, cur, l, m) => `${icon} ${cost} · need more ${cur} (Lvl ${l}/${m})`,
   costCore: 'CORE',
   costMax: (l) => `✓ MAX · ${l}`,
-  ability: { emp: 'EMP', megabomb: 'BOMB', slowmo: 'SLOW', surge: 'SURGE' },
+  ability: { emp: 'EMP', megabomb: 'BOMB', freefire: 'FREE', surge: 'SURGE' },
 };
 
 const KO: Strings = {
@@ -100,7 +100,7 @@ const KO: Strings = {
     `${icon} ${cost} · ${CURRENCY_KO[cur]} 부족 (레벨 ${l}/${m})`,
   costCore: '코어',
   costMax: (l) => `✓ 최대 · ${l}`,
-  ability: { emp: 'EMP', megabomb: '폭탄', slowmo: '감속', surge: '서지' },
+  ability: { emp: 'EMP', megabomb: '폭탄', freefire: '연사', surge: '서지' },
 };
 
 const CURRENCY_KO: Record<Currency, string> = { scrap: '스크랩', cores: '코어', data: '데이터' };
@@ -123,6 +123,7 @@ const TREE_KO: Record<string, { name: string; description: string }> = {
   heavy_warhead: { name: '중탄두', description: '폭발 피해 +1' },
   laser_reach: { name: '빔 연장기', description: '레이저 사거리 +15%' },
   turret_gatling: { name: '개틀링', description: '개틀링 터렛 배치: 빠른 단일 대상 사격 (레벨 = 피해 +30%)' },
+  auto_fire: { name: '자동 발사', description: '입력 없이 탄창이 가득하면 캐넌이 스스로 발사 (레벨 = 더 빨리 발동)' },
   turret_power: { name: '터렛 출력', description: '모든 터렛 피해 +15%' },
   gatling_spin: { name: '스핀업', description: '개틀링 발사 속도 +18%' },
   turret_speed: { name: '오버드라이브', description: '모든 터렛 발사 속도 +12%' },
@@ -163,7 +164,7 @@ const TREE_KO: Record<string, { name: string; description: string }> = {
   missile_warheads: { name: '성형작약', description: '미사일 피해 +30%' },
   ability_emp: { name: 'EMP', description: '수동: 화면의 모든 적을 잠시 정지. 레벨업 시 쿨다운 감소 / 정지 연장' },
   turret_range: { name: '장포신', description: '모든 터렛 사거리 +12%' },
-  ability_slowmo: { name: '시간 팽창', description: '수동: 몇 초간 모든 적을 감속. 레벨업 시 지속 연장 / 쿨다운 감소' },
+  ability_freefire: { name: '프리 파이어', description: '수동: 몇 초간 탄약 무한 — 소모도 재장전도 없이 연사. 레벨업 시 지속 연장 / 쿨다운 감소' },
   turret_railgun: { name: '레일건', description: '레일건 배치: 모든 것을 관통하는 일직선 사격 (레벨 = 피해 증가)' },
   railgun_pierce: { name: '날탄', description: '레일건 관통 폭 +2' },
   bld_radar: { name: '레이더 어레이', description: '배치: 모든 터렛의 조준 정밀화 (레벨당 탄퍼짐 -15%)' },

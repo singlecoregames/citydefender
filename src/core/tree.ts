@@ -245,6 +245,19 @@ export const TREE: readonly TreeNode[] = [
     effects: [],
   },
   {
+    id: 'auto_fire',
+    name: 'Auto-Fire',
+    description: 'Cannon fires by itself when idle with a full magazine (lvl = arms faster)',
+    branch: 'automation',
+    col: 2,
+    row: 2,
+    maxLevel: 3,
+    baseCost: 160,
+    costGrowth: 1.6,
+    requires: ['turret_gatling'],
+    effects: [{ stat: 'autoFireLevel', op: 'add', value: 1 }],
+  },
+  {
     id: 'turret_power',
     name: 'Turret Power',
     description: '+15% all turret damage',
@@ -776,9 +789,9 @@ export const TREE: readonly TreeNode[] = [
     effects: [{ stat: 'turretRangeMul', op: 'mul', value: 0.12 }],
   },
   {
-    id: 'ability_slowmo',
-    name: 'Time Dilation',
-    description: 'Manual: slow all enemies for a few seconds. Levels extend duration / cut cooldown',
+    id: 'ability_freefire',
+    name: 'Free Fire',
+    description: 'Manual: unlimited ammo for a few seconds — no drain, no reload. Levels extend duration / cut cooldown',
     branch: 'tech',
     col: -2,
     row: -2,
@@ -824,7 +837,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 350,
     costGrowth: 1.9,
-    requires: ['ability_slowmo'],
+    requires: ['ability_freefire'],
     effects: [],
   },
   {
@@ -837,7 +850,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 380,
     costGrowth: 1.6,
-    requires: ['ability_slowmo'],
+    requires: ['ability_freefire'],
     effects: [{ stat: 'abilityCooldownMul', op: 'mul', value: -0.08 }],
   },
   {
@@ -1090,7 +1103,7 @@ export function buildingsFromTree(levels: TreeLevels): BuildingSpec[] {
 export interface AbilityLevels {
   emp: number;
   megabomb: number;
-  slowmo: number;
+  freefire: number;
   surge: number;
 }
 
@@ -1098,7 +1111,7 @@ export function abilitiesFromTree(levels: TreeLevels): AbilityLevels {
   return {
     emp: levels['ability_emp'] ?? 0,
     megabomb: levels['ability_megabomb'] ?? 0,
-    slowmo: levels['ability_slowmo'] ?? 0,
+    freefire: levels['ability_freefire'] ?? 0,
     surge: levels['ability_surge'] ?? 0,
   };
 }

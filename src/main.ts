@@ -44,7 +44,12 @@ const titleScreen = new TitleScreen(
     saveRun(store, newRun());
     location.reload();
   },
-  applyStaticText, // language switched: refresh the shared static labels
+  () => {
+    // Language switched: refresh the shared static labels and rebuild the
+    // ability bar, whose button labels were baked at startNight.
+    applyStaticText();
+    abilityBar.setOwned(abilitiesFromTree(run.upgrades));
+  },
 );
 titleScreen.show(run);
 
@@ -71,6 +76,7 @@ function nightConfigFor(r: RunState): NightConfig {
     buildings: buildingsFromTree(r.upgrades),
     abilities: abilitiesFromTree(r.upgrades),
     boss: r.night % BOSS_NIGHT_INTERVAL === 0,
+    failStreak: r.failStreak,
   };
 }
 
@@ -101,6 +107,9 @@ function resolveNight(outcome: 'victory' | 'defeat', scrapEarned: number, dataEa
     if (clearedNight > run.bestNight) run.cores += firstClearCores(clearedNight);
     run.bestNight = Math.max(run.bestNight, run.night);
     run.night += 1;
+    run.failStreak = 0;
+  } else {
+    run.failStreak += 1; // defeat pity: the retry pays out better
   }
   saveRun(store, run);
   bannerEl.textContent =

@@ -19,6 +19,9 @@ export interface RunState {
   seed: number;
   /** Highest night the player has cleared (for stats / "best"). */
   bestNight: number;
+  /** Consecutive defeats on the current night (drives the defeat-payout
+   *  pity). Reset to 0 on victory. */
+  failStreak: number;
 }
 
 export function newRun(seed = (Date.now() & 0xffffffff) >>> 0): RunState {
@@ -31,6 +34,7 @@ export function newRun(seed = (Date.now() & 0xffffffff) >>> 0): RunState {
     upgrades: { core: 1 },
     seed,
     bestNight: 0,
+    failStreak: 0,
   };
 }
 

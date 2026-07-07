@@ -40,11 +40,14 @@ export class NightAi {
     const out: Command[] = [];
     this.useAbilities(state, out);
 
-    if (this.fireCooldown <= 0 && state.cannon.ammo > 0) {
+    const freeFiring = state.ability.freefire > 0;
+    if (this.fireCooldown <= 0 && (state.cannon.ammo > 0 || freeFiring)) {
       const target = this.pickTarget(state);
       // Ammo discipline: with a near-empty magazine hold the last rounds for
-      // genuine emergencies; with a full one it's fine to engage early.
-      const engageY = state.cannon.ammo <= 2 ? 45 : state.cannon.ammo >= state.cannon.maxAmmo ? 95 : 85;
+      // genuine emergencies; with a full one (or Free Fire) engage early.
+      const engageY = freeFiring
+        ? 95
+        : state.cannon.ammo <= 2 ? 45 : state.cannon.ammo >= state.cannon.maxAmmo ? 95 : 85;
       if (target && target.pos.y < engageY) {
         out.push(this.planShot(state, target));
         this.fireCooldown = this.shotInterval;
@@ -136,9 +139,9 @@ export class NightAi {
     ) {
       out.push({ type: 'ability', ability: 'megabomb' });
     }
-    // Time Dilation: the screen is crowded.
-    if (a.slowmo > 0 && cd.slowmo <= 0 && enemies.length >= 8) {
-      out.push({ type: 'ability', ability: 'slowmo' });
+    // Free Fire: pop it when the screen is busy enough to spend the window.
+    if (a.freefire > 0 && cd.freefire <= 0 && enemies.length >= 6) {
+      out.push({ type: 'ability', ability: 'freefire' });
     }
     // Scrap Surge: enough targets on screen to profit from the window.
     if (a.surge > 0 && cd.surge <= 0 && enemies.length >= 5) {

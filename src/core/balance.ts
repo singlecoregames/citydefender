@@ -28,12 +28,24 @@ export const CANNON = {
   interceptorSpeed: 70,
   /** Minimum target distance so you can't detonate inside the cannon. */
   minTargetDistance: 5,
-  /** Idle auto-fire: once the magazine has sat FULL for this long with no
-   *  player input, the cannon lead-aims and fires on its own — one shot per
-   *  reload cycle (each shot drops the magazine off full; the next fires when
-   *  it refills). Any input resets the timer. */
+  /** Idle auto-fire (gated behind the auto_fire tree node): once the magazine
+   *  has sat FULL for this long with no player input, the cannon lead-aims
+   *  and fires on its own — one shot per reload cycle (each shot drops the
+   *  magazine off full; the next fires when it refills). A manual shot resets
+   *  the timer. Extra node levels shave the wait, to a floor. */
   autoFireIdleSeconds: 5,
+  autoFireIdlePerLevel: 1,
+  autoFireIdleMin: 3,
 } as const;
+
+/** Idle seconds before auto-fire arms at the given node level (0 = locked). */
+export function autoFireThresholdFor(level: number): number {
+  if (level <= 0) return 0;
+  return Math.max(
+    CANNON.autoFireIdleMin,
+    CANNON.autoFireIdleSeconds - CANNON.autoFireIdlePerLevel * (level - 1),
+  );
+}
 
 export const EXPLOSION = {
   maxRadius: 8,
@@ -187,14 +199,14 @@ export const ABILITIES = {
     /** Detonation height (world y). */
     y: 42,
   },
-  slowmo: {
-    baseCooldown: 20,
-    cooldownPerLevel: 1.5,
-    minCooldown: 10,
-    /** Enemy speed multiplier while active. */
-    factor: 0.4,
+  freefire: {
+    baseCooldown: 24,
+    cooldownPerLevel: 1.8,
+    minCooldown: 12,
+    /** Seconds of unlimited manual ammo: shots neither drain the magazine
+     *  nor wait for the reload while active. */
     duration: 4,
-    durationPerLevel: 0.6,
+    durationPerLevel: 0.75,
   },
   surge: {
     baseCooldown: 30,
@@ -247,10 +259,22 @@ export const BOSS = {
 export const ECONOMY = {
   /** Multiplier applied to all scrap when a night ends in defeat. */
   defeatScrapFactor: 0.6,
+  /** Pity: each consecutive defeat on the same night raises the defeat
+   *  payout by this much (capped at 1.0 — never above full value), so a
+   *  walled player's economy recovers faster with every retry instead of
+   *  grinding at 0.6 forever. Sim finding: without it, an unlucky seed
+   *  loses the N10 boss 8 times straight and stalls at ~600⬡ banked. */
+  defeatPityPerFail: 0.15,
   nightCompleteBonusBase: 25,
   /** Night-completion bonus grows with the night number. */
   nightCompleteBonusGrowth: 1.15,
 } as const;
+
+/** Defeat payout multiplier after `failStreak` prior consecutive defeats on
+ *  the night being retried (see ECONOMY.defeatPityPerFail). */
+export function defeatScrapFactorFor(failStreak: number): number {
+  return Math.min(1, ECONOMY.defeatScrapFactor + ECONOMY.defeatPityPerFail * failStreak);
+}
 
 /** Cores trickle from clearing a night for the first time (on top of boss
  *  drops) — the sim showed boss-only supply (~25◆ to N50) starves the ◆ tree. */
