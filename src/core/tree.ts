@@ -407,7 +407,7 @@ export const TREE: readonly TreeNode[] = [
   {
     id: 'salvage',
     name: 'Salvage',
-    description: '+12% scrap earned',
+    description: '+8% scrap earned',
     branch: 'economy',
     col: -1,
     row: 0,
@@ -415,7 +415,7 @@ export const TREE: readonly TreeNode[] = [
     baseCost: 40,
     costGrowth: 1.55,
     requires: ['core'],
-    effects: [{ stat: 'scrapMul', op: 'mul', value: 0.12 }],
+    effects: [{ stat: 'scrapMul', op: 'mul', value: 0.08 }],
   },
   {
     id: 'war_bonds',
@@ -498,7 +498,7 @@ export const TREE: readonly TreeNode[] = [
   {
     id: 'refinery',
     name: 'Refinery',
-    description: '+10% scrap earned',
+    description: '+6% scrap earned',
     branch: 'economy',
     col: -3,
     row: -1,
@@ -506,7 +506,7 @@ export const TREE: readonly TreeNode[] = [
     baseCost: 260,
     costGrowth: 1.7,
     requires: ['war_bonds'],
-    effects: [{ stat: 'scrapMul', op: 'mul', value: 0.1 }],
+    effects: [{ stat: 'scrapMul', op: 'mul', value: 0.06 }],
   },
   {
     id: 'wave_dividend',
@@ -563,7 +563,7 @@ export const TREE: readonly TreeNode[] = [
   {
     id: 'midas_protocol',
     name: 'Midas Protocol',
-    description: '+25% scrap earned',
+    description: '+15% scrap earned',
     branch: 'economy',
     col: -5,
     row: -1,
@@ -572,7 +572,7 @@ export const TREE: readonly TreeNode[] = [
     costGrowth: 1.7,
     currency: 'cores',
     requires: ['compound_interest'],
-    effects: [{ stat: 'scrapMul', op: 'mul', value: 0.25 }],
+    effects: [{ stat: 'scrapMul', op: 'mul', value: 0.15 }],
   },
 
   // ── RIGHT · warden path: ground defence, Missile Pod, spare ammo ───────

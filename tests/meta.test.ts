@@ -108,7 +108,7 @@ describe('skill tree / stats', () => {
   });
 
   it('phase-1 economy/city/tech nodes resolve their stats', () => {
-    expect(resolveStats({ midas_protocol: 1 }).scrapMul).toBeCloseTo(1.25, 5);
+    expect(resolveStats({ midas_protocol: 1 }).scrapMul).toBeCloseTo(1.15, 5);
     expect(resolveStats({ war_insurance: 2 }).cityHitScrap).toBe(20);
     expect(resolveStats({ wave_dividend: 1 }).waveClearScrap).toBe(5);
     expect(resolveStats({ chain_bounty: 2 }).multiKillScrap).toBe(4);

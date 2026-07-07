@@ -288,8 +288,12 @@ export const NIGHT_SCALING = {
   hpLinearPerNight: 0,
   speedGrowth: 1.035,
   /** Kill rewards must grow *slower* than node costs compound, or the tree
-   *  maxes out mid-run and income loses its sink (sim: maxed by N13 at 1.13). */
-  rewardGrowth: 1.07,
+   *  maxes out mid-run and income loses its sink (sim: maxed by N13 at 1.13;
+   *  at 1.07 cumulative income passed the whole tree's ~295k⬡ cost by ~N23
+   *  and nights paid 35k+⬡ with nothing left to buy). 1.05 walls one sim
+   *  seed at the N10 boss, so 1.06 is the floor that keeps every seed
+   *  clearing. */
+  rewardGrowth: 1.06,
   /** Spawn interval shrinks as nights progress (denser spawns). */
   spawnIntervalBase: [0.85, 1.3] as readonly [number, number],
   spawnIntervalFloor: 0.32,

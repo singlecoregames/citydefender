@@ -213,12 +213,17 @@ export class Sim {
     if (level <= 0) return; // not owned
     if (s.ability.cooldown[kind] > 0) return; // still cooling down
 
+    // minCooldown clamps AFTER the cooldown multiplier: it is the hard floor
+    // no combination of levels and Flux/Singularity discounts can pierce.
+    // (Clamping first let cdMul push Surge's cooldown below its duration —
+    // permanent ×2 scrap.)
     const cdMul = this.cfg.stats.abilityCooldownMul;
+    const cooldown = (spec: { baseCooldown: number; cooldownPerLevel: number; minCooldown: number }): number =>
+      Math.max(spec.minCooldown, (spec.baseCooldown - spec.cooldownPerLevel * (level - 1)) * cdMul);
     if (kind === 'emp') {
       const spec = ABILITIES.emp;
       s.ability.empFreeze = spec.freeze + spec.freezePerLevel * (level - 1);
-      s.ability.cooldown.emp =
-        Math.max(spec.minCooldown, spec.baseCooldown - spec.cooldownPerLevel * (level - 1)) * cdMul;
+      s.ability.cooldown.emp = cooldown(spec);
       s.events.push({ type: 'abilityUsed', ability: 'emp' });
     } else if (kind === 'megabomb') {
       const spec = ABILITIES.megabomb;
@@ -232,20 +237,17 @@ export class Sim {
         hitEnemyIds: [],
         source: 'ability',
       });
-      s.ability.cooldown.megabomb =
-        Math.max(spec.minCooldown, spec.baseCooldown - spec.cooldownPerLevel * (level - 1)) * cdMul;
+      s.ability.cooldown.megabomb = cooldown(spec);
       s.events.push({ type: 'abilityUsed', ability: 'megabomb', pos });
     } else if (kind === 'slowmo') {
       const spec = ABILITIES.slowmo;
       s.ability.slowmo = spec.duration + spec.durationPerLevel * (level - 1);
-      s.ability.cooldown.slowmo =
-        Math.max(spec.minCooldown, spec.baseCooldown - spec.cooldownPerLevel * (level - 1)) * cdMul;
+      s.ability.cooldown.slowmo = cooldown(spec);
       s.events.push({ type: 'abilityUsed', ability: 'slowmo' });
     } else {
       const spec = ABILITIES.surge;
       s.ability.surge = spec.duration + spec.durationPerLevel * (level - 1);
-      s.ability.cooldown.surge =
-        Math.max(spec.minCooldown, spec.baseCooldown - spec.cooldownPerLevel * (level - 1)) * cdMul;
+      s.ability.cooldown.surge = cooldown(spec);
       s.events.push({ type: 'abilityUsed', ability: 'surge' });
     }
   }
