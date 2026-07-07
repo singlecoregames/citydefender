@@ -141,9 +141,7 @@ export type GameEvent =
 
 export type Command =
   | { type: 'fire'; x: number; y: number }
-  | { type: 'ability'; ability: AbilityKind }
-  /** Player activity that isn't a shot (aiming); only resets the idle timer. */
-  | { type: 'wake' };
+  | { type: 'ability'; ability: AbilityKind };
 
 export type AbilityKind = 'emp' | 'megabomb' | 'slowmo' | 'surge';
 

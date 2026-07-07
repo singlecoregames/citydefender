@@ -1,9 +1,12 @@
 import type { RunState } from '../core/run';
 import {
+  BUILDING_NODES,
   isUnlocked,
   nextCost,
   nodeCurrency,
   TREE,
+  TURRET_NODES,
+  TURRET_TWIN_NODES,
   type Currency,
   type TreeBranch,
   type TreeNode,
@@ -38,6 +41,32 @@ const BRANCH_COLOR: Record<TreeBranch, string> = {
   automation: '#8e559e',
   tech: '#f07021',
 };
+
+/** Key nodes are the run-defining picks — they deploy something new (a
+ *  turret, its twin, a support building) or unlock a manual ability. They
+ *  keep the full branch colour and a heavier outline; plain stat nodes get a
+ *  muted stroke so the tree reads as landmarks among filler. */
+function isKeyNode(node: TreeNode): boolean {
+  return (
+    node.id in TURRET_NODES ||
+    node.id in TURRET_TWIN_NODES ||
+    node.id in BUILDING_NODES ||
+    node.id.startsWith('ability_')
+  );
+}
+
+function withAlpha(hex: string, alpha: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+/** A branch colour pulled most of the way toward the UI grey, for the muted
+ *  stat-node strokes. */
+function dimmed(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  const mix = (c: number) => Math.round(c * 0.4 + 0x58 * 0.6);
+  return `rgb(${mix((n >> 16) & 255)}, ${mix((n >> 8) & 255)}, ${mix(n & 255)})`;
+}
 
 /**
  * Between-night Day screen. Renders the skill tree as one connected graph
@@ -169,7 +198,7 @@ export class DayScreen {
       box.setAttribute('width', String(NODE_W));
       box.setAttribute('height', String(NODE_H));
       box.setAttribute('rx', '8');
-      box.setAttribute('stroke-width', '2');
+      box.setAttribute('stroke-width', isKeyNode(node) ? '3' : '2');
       g.appendChild(box);
 
       const name = document.createElementNS(SVG_NS, 'text');
@@ -177,6 +206,9 @@ export class DayScreen {
       name.setAttribute('y', '20');
       name.setAttribute('text-anchor', 'middle');
       name.classList.add('tree-name');
+      // Key node names carry the branch colour too, so they pop even before
+      // affordability lights the box up.
+      if (isKeyNode(node)) name.style.fill = BRANCH_COLOR[node.branch];
       name.textContent = nodeName(node);
       g.appendChild(name);
 
@@ -459,6 +491,7 @@ export class DayScreen {
       }
       g.setAttribute('display', 'inline');
 
+      const key = isKeyNode(node);
       let fill = 'rgba(24,24,24,0.92)';
       let stroke = '#404040';
       let opacity = '1';
@@ -469,15 +502,21 @@ export class DayScreen {
         stroke = color;
         costText = t().costCore;
       } else if (cost === null) {
+        // Maxed: the box fills with its branch colour so finished nodes read
+        // at a glance.
         stroke = color;
+        fill = withAlpha(color, 0.3);
         costText = t().costMax(level);
       } else if (bank >= cost) {
-        stroke = color;
+        // Importance carries the colour: key nodes glow full-strength, stat
+        // nodes get a muted version of their branch.
+        stroke = key ? color : dimmed(color);
         costText = `${icon}${cost} · ${level}/${node.maxLevel}`;
       } else {
         // Unaffordable: red price so it can't be mistaken for a buyable node.
-        stroke = '#404040';
-        opacity = '0.8';
+        // Key nodes keep their colour identity, just dimmed as a whole.
+        stroke = key ? color : '#404040';
+        opacity = key ? '0.55' : '0.8';
         costText = `${icon}${cost} · ${level}/${node.maxLevel}`;
         costColor = '#e91d39';
       }

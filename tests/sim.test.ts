@@ -121,15 +121,40 @@ describe('idle auto-fire', () => {
     expect(sim.state.cannon.idleSeconds).toBeGreaterThan(CANNON.autoFireIdleSeconds);
   });
 
-  it('any command resets the idle timer', () => {
+  it('a manual shot resets the idle timer', () => {
     const sim = idleSim();
-    injectEnemy(sim, { x: 30, y: 60 });
+    injectEnemy(sim, { x: 30, y: 60 }, { x: 0, y: 0 }, 99);
     const almost = IDLE_TICKS - 30;
     run(sim, almost);
-    sim.step([{ type: 'wake' }]);
+    sim.step([{ type: 'fire', x: -80, y: 90 }]); // resets the timer, ammo 3/4
+    // Refill takes 1.5s of the next 4.5s, so the full-magazine idle time is
+    // only ~3s — under the threshold: no auto shot yet.
     run(sim, almost);
-    expect(sim.state.interceptors).toHaveLength(0);
     expect(sim.state.cannon.ammo).toBe(CANNON.maxAmmo);
+    // Two more seconds of idling crosses the threshold and the auto shot goes.
+    run(sim, TICK_RATE * 2 + 5);
+    expect(sim.state.cannon.ammo).toBe(CANNON.maxAmmo - 1);
+  });
+
+  it('abilities and aiming do not reset the idle timer', () => {
+    const cfg = defaultNightConfig(1);
+    cfg.waves = [];
+    cfg.abilities = { emp: 1, megabomb: 0, slowmo: 0, surge: 0 };
+    const sim = new Sim(1, cfg);
+    sim.state.enemies.push({
+      id: 9999,
+      kind: 'ballistic',
+      pos: { x: 30, y: 60 },
+      origin: { x: 30, y: 100 },
+      vel: { x: 0, y: 0 },
+      hp: 99,
+      maxHp: 99,
+      scrapReward: 5,
+    });
+    run(sim, IDLE_TICKS - 30);
+    sim.step([{ type: 'ability', ability: 'emp' }]); // input, but not a shot
+    run(sim, 40);
+    expect(sim.state.cannon.ammo).toBe(CANNON.maxAmmo - 1); // auto shot still fired
   });
 
   it('after arming, fires one shot each time the reload refills the magazine', () => {

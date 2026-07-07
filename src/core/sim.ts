@@ -137,12 +137,13 @@ export class Sim {
       this.bossNeedsSpawn = false;
     }
 
-    // Any player activity (a shot, an ability, or a 'wake' aim ping) resets
-    // the idle timer that arms the auto-fire.
-    if (commands.length > 0) s.cannon.idleSeconds = 0;
     for (const cmd of commands) {
-      if (cmd.type === 'fire') this.fire(cmd.x, cmd.y);
-      else if (cmd.type === 'ability') this.useAbility(cmd.ability);
+      if (cmd.type === 'fire') {
+        // Only a deliberate shot disarms the auto-fire; aiming and abilities
+        // leave the idle timer running.
+        s.cannon.idleSeconds = 0;
+        this.fire(cmd.x, cmd.y);
+      } else if (cmd.type === 'ability') this.useAbility(cmd.ability);
     }
 
     this.tickAbilities();
@@ -199,11 +200,11 @@ export class Sim {
     }
   }
 
-  /** Idle auto-fire: the timer runs only while the magazine is FULL and no
-   *  input arrives (commands zero it in step). Once past the threshold the
-   *  cannon fires a lead-aimed shot; that drops the magazine off full, which
-   *  pauses the timer at the threshold — so the next shot comes exactly when
-   *  the reload tops the magazine back up: one shot per reload cycle. */
+  /** Idle auto-fire: the timer runs only while the magazine is FULL, and only
+   *  a manual shot zeroes it (see step). Once past the threshold the cannon
+   *  fires a lead-aimed shot; that drops the magazine off full, which pauses
+   *  the timer at the threshold — so the next shot comes exactly when the
+   *  reload tops the magazine back up: one shot per reload cycle. */
   private tickAutoFire(): void {
     const s = this.state;
     if (s.cannon.ammo < this.cfg.stats.maxAmmo) return;
