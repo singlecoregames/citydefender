@@ -577,6 +577,7 @@ export class Renderer {
     this.syncCities(state);
     this.syncTurrets(state);
     this.syncBuildings(state);
+    this.syncDrones(state);
     this.syncProjectiles(state);
     this.syncEnemies(state, dt);
     this.syncInterceptors(state);
@@ -760,6 +761,26 @@ export class Renderer {
         }
       }
     }
+  }
+
+  /** Prestige escort drones: little sky-blue discs riding the sim's orbit
+   *  positions, one mesh per drone, created/removed as the count changes. */
+  private readonly droneMeshes: THREE.Mesh[] = [];
+
+  private syncDrones(state: GameState): void {
+    while (this.droneMeshes.length < state.drones.length) {
+      const m = new THREE.Mesh(this.discGeo, new THREE.MeshBasicMaterial({ color: 0x6fd8ff }));
+      m.scale.set(1.5, 1.5, 1);
+      this.addShadow(m);
+      this.scene.add(m);
+      this.droneMeshes.push(m);
+    }
+    while (this.droneMeshes.length > state.drones.length) {
+      const m = this.droneMeshes.pop()!;
+      this.scene.remove(m);
+      (m.material as THREE.Material).dispose();
+    }
+    state.drones.forEach((d, i) => this.droneMeshes[i]!.position.set(d.x, d.y, 1.8));
   }
 
   private syncProjectiles(state: GameState): void {

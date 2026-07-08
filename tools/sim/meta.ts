@@ -3,9 +3,11 @@
  * the real meta loop in src/main.ts (night → dawn payout → shopping → next
  * night; defeats retry the same night). Produces one record per night played.
  */
-import { BOSS_NIGHT_INTERVAL, defeatScrapFactorFor, TICK_RATE } from '../../src/core/balance';
+import { BOSS_NIGHT_INTERVAL, defeatScrapFactorFor, prestigePoints, TICK_RATE } from '../../src/core/balance';
+import { applyPrestigeStats, PRESTIGE_UPGRADES, prestigeNextCost } from '../../src/core/prestige';
 import {
   dawnInterest,
+  doPrestige,
   firstClearCores,
   newRun,
   nightSeed,
@@ -33,6 +35,8 @@ export interface SimulateOptions {
   maxNightSeconds: number;
   /** Give up after this many consecutive non-victories on one night. */
   stuckLimit: number;
+  /** Walled runs prestige (bank ✦, buy upgrades, restart) instead of dying. */
+  prestigeLoop: boolean;
 }
 
 export const DEFAULT_OPTIONS: SimulateOptions = {
@@ -42,6 +46,7 @@ export const DEFAULT_OPTIONS: SimulateOptions = {
   skill: 0.7,
   maxNightSeconds: 600,
   stuckLimit: 8,
+  prestigeLoop: false,
 };
 
 export type NightOutcome = 'victory' | 'defeat' | 'timeout';
@@ -71,6 +76,8 @@ export interface RunReport {
   cleared: boolean;
   /** True when the run was abandoned after stuckLimit consecutive failures. */
   stuck: boolean;
+  /** Prestige events: the wall night each reset happened at, and the bank. */
+  prestiges: { atNight: number; pp: number }[];
 }
 
 /** Mirrors nightConfigFor() in src/main.ts. */
@@ -78,12 +85,14 @@ export function nightConfigFor(run: RunState): NightConfig {
   return {
     night: run.night,
     waves: generateNight(run.night),
-    stats: resolveStats(run.upgrades),
+    stats: applyPrestigeStats(resolveStats(run.upgrades), run.prestigeUpgrades),
     turrets: turretsFromTree(run.upgrades),
     buildings: buildingsFromTree(run.upgrades),
     abilities: abilitiesFromTree(run.upgrades),
     boss: run.night % BOSS_NIGHT_INTERVAL === 0,
     failStreak: run.failStreak,
+    drones: run.prestigeUpgrades['drone_escort'] ?? 0,
+    mirvLevel: run.prestigeUpgrades['mirv_warhead'] ?? 0,
   };
 }
 
@@ -136,11 +145,12 @@ export function playNight(
  *  stuck, or a generous attempt budget runs out. */
 export function simulateRun(options: Partial<SimulateOptions> = {}): RunReport {
   const opts: SimulateOptions = { ...DEFAULT_OPTIONS, ...options };
-  const run = newRun(opts.seed);
+  let run = newRun(opts.seed);
   const records: NightRecord[] = [];
+  const prestiges: { atNight: number; pp: number }[] = [];
   let attempt = 1;
   let stuck = false;
-  const attemptBudget = opts.targetNight * 4;
+  const attemptBudget = opts.targetNight * 6;
 
   while (run.bestNight < opts.targetNight && records.length < attemptBudget) {
     const thisNight = run.night;
@@ -173,10 +183,37 @@ export function simulateRun(options: Partial<SimulateOptions> = {}): RunReport {
     });
 
     if (run.failStreak >= opts.stuckLimit) {
+      // Walled. In prestige mode: bank ✦ at the wall, spend, climb again.
+      if (opts.prestigeLoop && prestigePoints(run.bestNight) > 0 && prestiges.length < 20) {
+        run = doPrestige(run);
+        buyPrestigeUpgrades(run);
+        prestiges.push({ atNight: records[records.length - 1]!.night, pp: run.pp });
+        attempt = 1;
+        continue;
+      }
       stuck = true;
       break;
     }
   }
 
-  return { options: opts, records, run, cleared: run.bestNight >= opts.targetNight, stuck };
+  return { options: opts, records, run, cleared: run.bestNight >= opts.targetNight, stuck, prestiges };
+}
+
+/** Greedy ✦ spender, damage first — mirrors how a walled player shops. */
+function buyPrestigeUpgrades(run: RunState): void {
+  const priority = ['arsenal_core', 'drone_escort', 'salvage_core', 'mirv_warhead', 'head_start'];
+  for (;;) {
+    let bought = false;
+    for (const id of priority) {
+      const u = PRESTIGE_UPGRADES.find((x) => x.id === id)!;
+      const cost = prestigeNextCost(u, run.prestigeUpgrades[id] ?? 0);
+      if (cost !== null && run.pp >= cost) {
+        run.pp -= cost;
+        run.prestigeUpgrades[id] = (run.prestigeUpgrades[id] ?? 0) + 1;
+        bought = true;
+        break;
+      }
+    }
+    if (!bought) return;
+  }
 }

@@ -28,6 +28,7 @@ import {
 } from './balance';
 import { interceptDirection, interceptTime, rotate } from './aiming';
 import { explosionIsDone, explosionIsLethal, explosionRadius } from './explosion';
+import { DRONE, MIRV } from './prestige';
 import { Rng } from './rng';
 import { baseStats, type DerivedStats } from './stats';
 import type { AbilityLevels, BuildingSpec, TurretSpec } from './tree';
@@ -65,6 +66,10 @@ export interface NightConfig {
   /** Consecutive defeats already suffered on this night — raises the defeat
    *  payout (pity) so retries recover instead of grinding in place. */
   failStreak: number;
+  /** Prestige escort drones orbiting the cannon (0 = none owned). */
+  drones: number;
+  /** MIRV warhead level: interceptor blasts split into extra submunitions. */
+  mirvLevel: number;
 }
 
 /** Default config = night 1 with base stats (used by tests and the prototype). */
@@ -78,6 +83,8 @@ export function defaultNightConfig(night = 1): NightConfig {
     abilities: { emp: 0, megabomb: 0, freefire: 0, surge: 0 },
     boss: night % BOSS_NIGHT_INTERVAL === 0,
     failStreak: 0,
+    drones: 0,
+    mirvLevel: 0,
   };
 }
 
@@ -155,6 +162,7 @@ export class Sim {
     this.tickAbilities();
     this.regenAmmo();
     this.tickAutoFire();
+    this.updateDrones();
     this.runDirector();
     this.updateEnemyBehavior();
     this.updateBuildings();
@@ -253,6 +261,56 @@ export class Sim {
     // Hold rather than spam fireDenied when the intercept sits in the cannon's
     // dead zone.
     return dist(origin, aim) < CANNON.minTargetDistance ? null : aim;
+  }
+
+  // --- prestige escort drones ---
+
+  /** Seconds until each escort drone may fire again. */
+  private droneCooldowns: number[] = [];
+
+  /** Escort drones ride a shared orbit above the cannon and pepper the
+   *  nearest enemy in range with gatling-class shots. Purely additive dps —
+   *  their punch comes from numbers, not upgrades. */
+  private updateDrones(): void {
+    const s = this.state;
+    const n = this.cfg.drones;
+    if (n <= 0) return;
+    if (this.droneCooldowns.length !== n) this.droneCooldowns = new Array<number>(n).fill(0);
+    s.drones.length = 0;
+    const baseAngle = (s.tick * DT * DRONE.orbitSpeed) % (Math.PI * 2);
+    for (let i = 0; i < n; i++) {
+      const a = baseAngle + (i * Math.PI * 2) / n;
+      const pos: Vec2 = {
+        x: CANNON.x + Math.cos(a) * DRONE.orbitRadius,
+        y: DRONE.orbitY + Math.sin(a) * DRONE.orbitRadius * 0.6,
+      };
+      s.drones.push(pos);
+      this.droneCooldowns[i] = Math.max(0, this.droneCooldowns[i]! - DT);
+      if (this.droneCooldowns[i]! > 0) continue;
+      let best: EnemyMissile | null = null;
+      let bestD: number = DRONE.range;
+      for (const e of s.enemies) {
+        if (this.isUntouchable(e) || e.pos.y > WORLD.height) continue;
+        const d = dist(pos, e.pos);
+        if (d < bestD) {
+          best = e;
+          bestD = d;
+        }
+      }
+      if (!best) continue;
+      const dir =
+        interceptDirection(pos, best.pos, this.effectiveVel(best), DRONE.projectileSpeed) ??
+        norm({ x: best.pos.x - pos.x, y: best.pos.y - pos.y });
+      s.projectiles.push({
+        id: s.nextId++,
+        kind: 'gatling', // renders/collides like a gatling round
+        pos: { ...pos },
+        vel: { x: dir.x * DRONE.projectileSpeed, y: dir.y * DRONE.projectileSpeed },
+        damage: DRONE.damage,
+        ttl: 3,
+      });
+      this.droneCooldowns[i] = 1 / DRONE.fireRate;
+    }
   }
 
   // --- manual abilities (Tech branch) ---
@@ -886,17 +944,42 @@ export class Sim {
       const stepLen = it.speed * DT;
       if (distLeft <= stepLen) {
         s.interceptors.splice(i, 1);
+        const radius = this.cfg.stats.explosionMaxRadius;
         s.explosions.push({
           id: s.nextId++,
           pos: { ...it.target },
           age: 0,
-          maxRadius: this.cfg.stats.explosionMaxRadius,
+          maxRadius: radius,
           // Overcharge Shot: manual blasts ride on total turret DPS.
           damage: this.cfg.stats.explosionDamage + this.cfg.stats.overchargeRate * this.turretDps,
           hitEnemyIds: [],
           // Auto-fire blasts neither feed nor break the combo meter.
           source: it.auto ? 'auto' : 'manual',
         });
+        // MIRV warhead (prestige): the blast splits into smaller submunitions
+        // fanned out to the sides. They ride the 'ability' source so they
+        // neither feed nor break the combo — only the core blast is "yours".
+        const splits = this.cfg.mirvLevel * MIRV.splitsPerLevel;
+        for (let k = 0; k < splits; k++) {
+          const side = k % 2 === 0 ? 1 : -1;
+          const ring = 1 + Math.floor(k / 2);
+          s.explosions.push({
+            id: s.nextId++,
+            pos: {
+              x: clamp(
+                it.target.x + side * ring * radius * MIRV.offsetFrac,
+                -WORLD.halfWidth,
+                WORLD.halfWidth,
+              ),
+              y: it.target.y,
+            },
+            age: 0,
+            maxRadius: radius * MIRV.radiusFrac,
+            damage: this.cfg.stats.explosionDamage,
+            hitEnemyIds: [],
+            source: 'ability',
+          });
+        }
         s.events.push({ type: 'detonation', pos: { ...it.target } });
       } else {
         it.pos.x += (toTarget.x / distLeft) * stepLen;
@@ -1098,6 +1181,7 @@ function createInitialState(cfg: NightConfig): GameState {
     })),
     buildings: cfg.buildings.map((b, i) => makeBuilding(i, b)),
     projectiles: [],
+    drones: [],
     scrap: 0,
     combo: 0,
     maxCombo: 0,

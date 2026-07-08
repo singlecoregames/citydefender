@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { NIGHT_SCALING } from '../src/core/balance';
 import { baseStats } from '../src/core/stats';
 import { dawnInterest, newRun } from '../src/core/run';
 import { deserialize, serialize, SAVE_VERSION } from '../src/core/save';
@@ -25,9 +26,9 @@ describe('waves', () => {
   });
 
   it('spawn intervals never go below the floor', () => {
-    for (let n = 1; n < 60; n++) {
+    for (let n = 1; n < 200; n += 7) {
       for (const w of generateNight(n)) {
-        expect(w.spawnIntervalRange[0]).toBeGreaterThanOrEqual(0.31);
+        expect(w.spawnIntervalRange[0]).toBeGreaterThanOrEqual(NIGHT_SCALING.spawnIntervalFloor - 1e-9);
       }
     }
   });

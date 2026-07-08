@@ -290,9 +290,12 @@ export const FIRST_CLEAR = {
  *  Tuned so nights 1–3 stay gentle (exponentials start near 1) but the curve
  *  climbs hard after that — count and speed are the main pressure. */
 export const NIGHT_SCALING = {
-  /** Waves in night n = baseWaves + floor(n / nightsPerExtraWave). */
+  /** Waves in night n = baseWaves + floor(n / nightsPerExtraWave), capped at
+   *  maxWaves — past the cap, pressure rides on per-wave volume instead, so
+   *  a 200-night run's nights stay minutes, not tens of minutes. */
   baseWaves: 4,
   nightsPerExtraWave: 3,
+  maxWaves: 10,
   /** Enemies in wave w of night n = round((baseCount + w) * countGrowth^n),
    *  capped at maxWaveCount. The cap bounds night length: spawn intervals
    *  bottom out at spawnIntervalFloor, so unbounded counts made N30+ nights
@@ -300,7 +303,10 @@ export const NIGHT_SCALING = {
    *  difficulty rides on hp/speed instead of raw volume. */
   baseCount: 5,
   countGrowth: 1.05,
+  /** Per-wave enemy cap = maxWaveCount + waveCapPerNight × night: volume is
+   *  THE late-game pressure axis — by N200 waves are ~250-strong floods. */
   maxWaveCount: 28,
+  waveCapPerNight: 1.1,
   /** Per-night enemy hp =
    *  round((1 + hpLinearPerNight*(n-1)) * hpGrowth^max(0, n-hpRampStartNight)).
    *  A linear term plus the exponential makes hp climb sooner and harder, so
@@ -312,10 +318,14 @@ export const NIGHT_SCALING = {
    *  where the first 2-hp ballistics landed; starting the ramp at N4 pushes
    *  the first 2-hp enemies to N8 and clears the wall, while N50 hp stays in
    *  the same order (×277 vs ×403 — late nights were already comfortable). */
-  hpGrowth: 1.13,
+  /** 200-night tune: hp is the wall axis (breakable by ✦ Arsenal power),
+   *  so it grows briskly, while speed — which no upgrade can answer — grows
+   *  slowly. Sim-measured: the maxed scrap tree walls first around N35-45,
+   *  and each prestige's ✦ pushes the wall deeper. */
+  hpGrowth: 1.09,
   hpRampStartNight: 5,
   hpLinearPerNight: 0,
-  speedGrowth: 1.035,
+  speedGrowth: 1.012,
   /** Kill rewards must grow *slower* than node costs compound, or the tree
    *  maxes out mid-run and income loses its sink (sim: maxed by N13 at 1.13;
    *  at 1.07 cumulative income passed the whole tree's ~295k⬡ cost by ~N23
@@ -325,9 +335,25 @@ export const NIGHT_SCALING = {
   rewardGrowth: 1.06,
   /** Spawn interval shrinks as nights progress (denser spawns). */
   spawnIntervalBase: [0.85, 1.3] as readonly [number, number],
-  spawnIntervalFloor: 0.32,
+  spawnIntervalFloor: 0.14,
   spawnIntervalDecayPerNight: 0.965,
 } as const;
 
 /** Seconds of breathing room between waves. */
 export const WAVE_BREAK_SECONDS = 2.5;
+
+/** Prestige: from minNight on, the Day screen offers a full reset back to
+ *  night 1 for prestige points (✦) paid by depth reached. The 200-night
+ *  curve outgrows the finite scrap tree, walling a run roughly every ~30
+ *  nights — pushing past a wall takes the permanent ✦ upgrades (see
+ *  core/prestige.ts). ✦ income is 1 per 10 nights reached, so the wall
+ *  cadence (N30/60/90/120/150) banks 3+6+9+12+15 = 45✦ — exactly the cost
+ *  of maxing every upgrade, which is why full completion lands near N150. */
+export const PRESTIGE = {
+  minNight: 20,
+} as const;
+
+export function prestigePoints(bestNight: number): number {
+  if (bestNight < PRESTIGE.minNight) return 0;
+  return Math.floor(bestNight / 10);
+}

@@ -172,6 +172,9 @@ export interface GameState {
   turrets: Turret[];
   buildings: Building[];
   projectiles: TurretProjectile[];
+  /** Prestige escort drones orbiting the cannon (positions re-computed each
+   *  tick from the orbit; empty when the upgrade isn't owned). */
+  drones: Vec2[];
   scrap: number;
   /** Combo meter: current streak of manual-explosion kills (global scrap
    *  multiplier) and the night's peak (pays out Data at dawn). */

@@ -11,18 +11,25 @@ export interface WaveSpec {
   rewardScale: number;
 }
 
-/** Number of waves in a given night. */
+/** Number of waves in a given night (capped — see NIGHT_SCALING.maxWaves). */
 export function waveCountForNight(night: number): number {
-  return NIGHT_SCALING.baseWaves + Math.floor(night / NIGHT_SCALING.nightsPerExtraWave);
+  return Math.min(
+    NIGHT_SCALING.maxWaves,
+    NIGHT_SCALING.baseWaves + Math.floor(night / NIGHT_SCALING.nightsPerExtraWave),
+  );
 }
 
 /**
- * Procedurally build a night's wave list from the night number. Deterministic:
- * the same night always produces the same spec, so saves and the balance sim
- * stay reproducible.
+ * Procedurally build a night's wave list from the night number. The per-wave
+ * enemy cap climbs with the night, so the 200-night curve ends in massed
+ * space-war floods rather than longer nights. Deterministic: the same night
+ * always produces the same spec, so saves and the balance sim stay
+ * reproducible.
  */
 export function generateNight(night: number): WaveSpec[] {
   const s = NIGHT_SCALING;
+  const waveCap = s.maxWaveCount + s.waveCapPerNight * night;
+  const spawnFloor = s.spawnIntervalFloor;
   const hpScale =
     (1 + s.hpLinearPerNight * (night - 1)) *
     Math.pow(s.hpGrowth, Math.max(0, night - s.hpRampStartNight));
@@ -40,12 +47,12 @@ export function generateNight(night: number): WaveSpec[] {
   for (let w = 0; w < count; w++) {
     waves.push({
       count: Math.min(
-        s.maxWaveCount,
+        waveCap,
         Math.round((s.baseCount + w) * Math.pow(s.countGrowth, night - 1) * countMul),
       ),
       spawnIntervalRange: [
-        Math.max(s.spawnIntervalFloor, lo * intervalScale - w * 0.04),
-        Math.max(s.spawnIntervalFloor + 0.1, hi * intervalScale - w * 0.05),
+        Math.max(spawnFloor, lo * intervalScale - w * 0.04),
+        Math.max(spawnFloor + 0.1, hi * intervalScale - w * 0.05),
       ],
       hpScale,
       speedScale,

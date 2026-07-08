@@ -44,6 +44,10 @@ interface Strings {
   costCore: string;
   costMax: (level: number) => string;
   ability: Record<AbilityKind, string>;
+  prestigeButton: (pts: number) => string;
+  prestigeConfirm: string;
+  prestigeLockedHint: (night: number) => string;
+  prestigeUpg: Record<string, { name: string; desc: string }>;
 }
 
 const EN: Strings = {
@@ -72,6 +76,16 @@ const EN: Strings = {
   costCore: 'CORE',
   costMax: (l) => `✓ MAX · ${l}`,
   ability: { emp: 'EMP', megabomb: 'BOMB', freefire: 'FREE', surge: 'SURGE' },
+  prestigeButton: (pts) => `✦ PRESTIGE +${pts}`,
+  prestigeConfirm: 'RESET THE RUN FOR ✦?',
+  prestigeLockedHint: (night) => `✦ prestige unlocks at night ${night}`,
+  prestigeUpg: {
+    arsenal_core: { name: 'Arsenal Core', desc: '×2 ALL damage, permanently' },
+    drone_escort: { name: 'Drone Escort', desc: '+1 orbiting combat drone' },
+    mirv_warhead: { name: 'MIRV Warhead', desc: 'Blasts split into +2 submunitions' },
+    head_start: { name: 'Head Start', desc: 'Start each run with +250⬡' },
+    salvage_core: { name: 'Salvage Core', desc: '+10% scrap, permanently' },
+  },
 };
 
 const KO: Strings = {
@@ -101,6 +115,16 @@ const KO: Strings = {
   costCore: '코어',
   costMax: (l) => `✓ 최대 · ${l}`,
   ability: { emp: 'EMP', megabomb: '폭탄', freefire: '연사', surge: '서지' },
+  prestigeButton: (pts) => `✦ 프레스티지 +${pts}`,
+  prestigeConfirm: '런을 초기화하고 ✦를 받을까요?',
+  prestigeLockedHint: (night) => `✦ 프레스티지는 ${night}번째 밤부터`,
+  prestigeUpg: {
+    arsenal_core: { name: '무장 코어', desc: '모든 피해 ×2 (영구)' },
+    drone_escort: { name: '드론 호위', desc: '궤도 전투 드론 +1' },
+    mirv_warhead: { name: 'MIRV 탄두', desc: '폭발이 자탄 +2개로 분열' },
+    head_start: { name: '초기 물자', desc: '런 시작 시 +250⬡' },
+    salvage_core: { name: '회수 코어', desc: '스크랩 +10% (영구)' },
+  },
 };
 
 const CURRENCY_KO: Record<Currency, string> = { scrap: '스크랩', cores: '코어', data: '데이터' };

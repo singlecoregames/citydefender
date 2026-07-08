@@ -1,5 +1,6 @@
 import { BOSS_NIGHT_INTERVAL, DT } from './core/balance';
-import { dawnInterest, firstClearCores, newRun, nightSeed, type RunState } from './core/run';
+import { applyPrestigeStats } from './core/prestige';
+import { dawnInterest, doPrestige, firstClearCores, newRun, nightSeed, type RunState } from './core/run';
 import { loadRun, saveRun } from './core/save';
 import { Sim, type NightConfig } from './core/sim';
 import type { Command } from './core/types';
@@ -65,18 +66,27 @@ const dayScreen = new DayScreen(
     saveRun(store, newRun());
     location.reload();
   },
+  (r) => {
+    // on prestige (double-confirmed in the UI): bank ✦, reset, dive back in.
+    run = doPrestige(r);
+    saveRun(store, run);
+    sim = startNight(run);
+    nightResolved = false;
+  },
 );
 
 function nightConfigFor(r: RunState): NightConfig {
   return {
     night: r.night,
     waves: generateNight(r.night),
-    stats: resolveStats(r.upgrades),
+    stats: applyPrestigeStats(resolveStats(r.upgrades), r.prestigeUpgrades),
     turrets: turretsFromTree(r.upgrades),
     buildings: buildingsFromTree(r.upgrades),
     abilities: abilitiesFromTree(r.upgrades),
     boss: r.night % BOSS_NIGHT_INTERVAL === 0,
     failStreak: r.failStreak,
+    drones: r.prestigeUpgrades['drone_escort'] ?? 0,
+    mirvLevel: r.prestigeUpgrades['mirv_warhead'] ?? 0,
   };
 }
 
