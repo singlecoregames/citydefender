@@ -246,6 +246,20 @@ export const BOSS_NIGHT_INTERVAL = 10;
 export const BOSS = {
   /** Base hp before the night's hpScale; very tanky. */
   hp: 55,
+  /** THE prestige walls. From wallFromNight on, boss hp switches to an
+   *  absolute gate: wallHp × wallGrowth^(night − wallFromNight). wallHp is
+   *  calibrated to the maxed scrap tree's kill capacity inside the descent
+   *  window, so a ✦-less run walls at the N30 boss; each Arsenal Core level
+   *  (×2 damage) buys log2/log(wallGrowth) ≈ 30 more nights — bosses every
+   *  30 nights ARE the walls, and the swarm curve stays playable between. */
+  wallFromNight: 30,
+  wallHp: 65000,
+  wallGrowth: 1.068,
+  /** Past taperNight the wall curve relaxes: the full-✦ build (which walls
+   *  around N140) outgrows it again at natural pace, opening the N140→200
+   *  victory stretch to the ending. */
+  wallTaperNight: 120,
+  wallGrowthLate: 1.0,
   /** Slow, relentless descent — reaching the ground ends the night, so this
    *  sets the kill window (~105s from spawn to touchdown). */
   speed: 1.1,
@@ -307,25 +321,21 @@ export const NIGHT_SCALING = {
    *  THE late-game pressure axis — by N200 waves are ~250-strong floods. */
   maxWaveCount: 28,
   waveCapPerNight: 1.1,
-  /** Per-night enemy hp =
-   *  round((1 + hpLinearPerNight*(n-1)) * hpGrowth^max(0, n-hpRampStartNight)).
-   *  A linear term plus the exponential makes hp climb sooner and harder, so
-   *  raw turret dps can't trivialise mid/late nights. hpRampStartNight delays
-   *  the exponential's onset: the manual-only opening nights (before the first
-   *  turrets and damage nodes) stay at ~base hp, and the ramp only bites once
-   *  the player has tools. Balance-sim findings: with the ramp starting at N1
-   *  the scripted player walled at N6–N10 (repeated 0/3-city defeats) right
-   *  where the first 2-hp ballistics landed; starting the ramp at N4 pushes
-   *  the first 2-hp enemies to N8 and clears the wall, while N50 hp stays in
-   *  the same order (×277 vs ×403 — late nights were already comfortable). */
-  /** 200-night tune: hp is the wall axis (breakable by ✦ Arsenal power),
-   *  so it grows briskly, while speed — which no upgrade can answer — grows
-   *  slowly. Sim-measured: the maxed scrap tree walls first around N35-45,
-   *  and each prestige's ✦ pushes the wall deeper. */
-  hpGrowth: 1.09,
+  /** Per-night enemy hp: an S-curve in two phases (see generateNight).
+   *  EARLY (to hpPivotNight): steep — it deliberately outruns the finite
+   *  scrap tree so a fresh, ✦-less run walls near the pivot: that wall IS
+   *  the first prestige prompt. LATE (past the pivot): gentle — sized so
+   *  each Arsenal Core level (×2 damage) buys roughly one wall interval
+   *  (log2 / log hpGrowthLate ≈ 25-30 nights), giving the ~30-night wall
+   *  cadence out to the N150 full-✦ finish and the N200 ending. */
+  hpGrowthEarly: 1.17,
+  hpPivotNight: 30,
+  hpGrowthLate: 1.023,
   hpRampStartNight: 5,
-  hpLinearPerNight: 0,
+  /** Speed is unanswerable by upgrades, so it grows mildly and CAPS — an
+   *  uncapped speed exponent was the old absolute-ceiling bug. */
   speedGrowth: 1.012,
+  speedCap: 3.5,
   /** Kill rewards must grow *slower* than node costs compound, or the tree
    *  maxes out mid-run and income loses its sink (sim: maxed by N13 at 1.13;
    *  at 1.07 cumulative income passed the whole tree's ~295k⬡ cost by ~N23

@@ -30,10 +30,14 @@ export function generateNight(night: number): WaveSpec[] {
   const s = NIGHT_SCALING;
   const waveCap = s.maxWaveCount + s.waveCapPerNight * night;
   const spawnFloor = s.spawnIntervalFloor;
+  const earlySpan = Math.min(
+    Math.max(0, night - s.hpRampStartNight),
+    s.hpPivotNight - s.hpRampStartNight,
+  );
   const hpScale =
-    (1 + s.hpLinearPerNight * (night - 1)) *
-    Math.pow(s.hpGrowth, Math.max(0, night - s.hpRampStartNight));
-  const speedScale = Math.pow(s.speedGrowth, night - 1);
+    Math.pow(s.hpGrowthEarly, earlySpan) *
+    Math.pow(s.hpGrowthLate, Math.max(0, night - s.hpPivotNight));
+  const speedScale = Math.min(s.speedCap, Math.pow(s.speedGrowth, night - 1));
   const rewardScale = Math.pow(s.rewardGrowth, night - 1);
   const intervalScale = Math.pow(s.spawnIntervalDecayPerNight, night - 1);
   const [lo, hi] = s.spawnIntervalBase;

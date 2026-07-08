@@ -498,7 +498,18 @@ export class Sim {
   private spawnBoss(): void {
     const s = this.state;
     const hpScale = this.cfg.waves[0]?.hpScale ?? 1;
-    const hp = Math.max(1, Math.round(BOSS.hp * hpScale));
+    // From wallFromNight on, bosses are the prestige walls: absolute hp
+    // gates that only permanent ✦ power pushes past (see BOSS in balance).
+    const n = this.cfg.night;
+    const steep = Math.min(n, BOSS.wallTaperNight) - BOSS.wallFromNight;
+    const hp =
+      n >= BOSS.wallFromNight
+        ? Math.round(
+            BOSS.wallHp *
+              Math.pow(BOSS.wallGrowth, steep) *
+              Math.pow(BOSS.wallGrowthLate, Math.max(0, n - BOSS.wallTaperNight)),
+          )
+        : Math.max(1, Math.round(BOSS.hp * hpScale));
     s.enemies.push({
       id: s.nextId++,
       kind: 'boss',
