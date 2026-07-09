@@ -188,7 +188,7 @@ const TREE_KO: Record<string, { name: string; description: string }> = {
   missile_warheads: { name: '성형작약', description: '미사일 피해 +30%' },
   ability_emp: { name: 'EMP', description: '수동: 화면의 모든 적을 잠시 정지. 레벨업 시 쿨다운 감소 / 정지 연장' },
   turret_range: { name: '장포신', description: '모든 터렛 사거리 +12%' },
-  ability_freefire: { name: '프리 파이어', description: '수동: 몇 초간 탄약 무한 — 소모도 재장전도 없이 연사. 레벨업 시 지속 연장 / 쿨다운 감소' },
+  ability_freefire: { name: '프리 파이어', description: '수동: 무료 사격 일제사 — 소모도 재장전도 없음. 레벨업 시 발수 증가 / 쿨다운 감소' },
   turret_railgun: { name: '레일건', description: '레일건 배치: 모든 것을 관통하는 일직선 사격 (레벨 = 피해 증가)' },
   railgun_pierce: { name: '날탄', description: '레일건 관통 폭 +2' },
   bld_radar: { name: '레이더 어레이', description: '배치: 모든 터렛의 조준 정밀화 (레벨당 탄퍼짐 -15%)' },

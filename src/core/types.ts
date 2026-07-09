@@ -188,7 +188,8 @@ export interface GameState {
     cooldown: { emp: number; megabomb: number; freefire: number; surge: number };
     /** Enemies frozen (EMP) for this many more seconds. */
     empFreeze: number;
-    /** Manual shots free (Free Fire: no ammo drain) for this many more seconds. */
+    /** Free Fire salvo: this many free shots remain (spent per shot, manual or
+     *  auto; 0 = not active). */
     freefire: number;
     /** Scrap earnings doubled (Scrap Surge) for this many more seconds. */
     surge: number;
