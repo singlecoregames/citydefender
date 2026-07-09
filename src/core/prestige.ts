@@ -25,8 +25,8 @@ export const PRESTIGE_UPGRADES: readonly PrestigeUpgrade[] = [
   /** Permanent scrap multiplier: +10% per level. */
   { id: 'salvage_core', maxLevel: 3, baseCost: 1, costGrowth: 2.0 },
 ] as const;
-// Total cost of maxing everything ≈ 44✦ ≈ cumulative ✦ from walls at
-// N30/60/90/120/150 — full completion lands near N150 by design.
+// Total cost of maxing everything ≈ 44✦ ≈ the wall cadence payout plus the
+// N200 finish (walls measured at ~N50/100/120, ✦ = bestNight/10).
 
 export type PrestigeLevels = Record<string, number>;
 

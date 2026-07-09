@@ -253,12 +253,12 @@ export const BOSS = {
    *  (×2 damage) buys log2/log(wallGrowth) ≈ 30 more nights — bosses every
    *  30 nights ARE the walls, and the swarm curve stays playable between. */
   wallFromNight: 30,
-  wallHp: 65000,
+  wallHp: 110000,
   wallGrowth: 1.068,
   /** Past taperNight the wall curve relaxes: the full-✦ build (which walls
    *  around N140) outgrows it again at natural pace, opening the N140→200
    *  victory stretch to the ending. */
-  wallTaperNight: 120,
+  wallTaperNight: 112,
   wallGrowthLate: 1.0,
   /** Slow, relentless descent — reaching the ground ends the night, so this
    *  sets the kill window (~105s from spawn to touchdown). */
