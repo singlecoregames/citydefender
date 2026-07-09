@@ -196,12 +196,13 @@ describe('idle auto-fire', () => {
     expect(fired).toBe(3); // armed shot + one per completed reload cycle
   });
 
-  it('keeps the reload cadence during Free Fire instead of firing every tick', () => {
+  it('auto-fire dumps the whole Free Fire salvo, but no more than its shots', () => {
     const cfg = defaultNightConfig(1);
     cfg.waves = [];
     cfg.abilities = { emp: 0, megabomb: 0, freefire: 1, surge: 0 };
     cfg.stats = { ...cfg.stats, autoFireLevel: 1 };
     const sim = new Sim(1, cfg);
+    // A high-hp target that never dies, so the salvo isn't cut short by a kill.
     sim.state.enemies.push({
       id: 9999,
       kind: 'ballistic',
@@ -213,14 +214,18 @@ describe('idle auto-fire', () => {
       scrapReward: 5,
     });
     run(sim, IDLE_TICKS); // arm the auto-fire
-    sim.step([{ type: 'ability', ability: 'freefire' }]); // magazine pinned at full
+    sim.step([{ type: 'ability', ability: 'freefire' }]);
+    const salvo = sim.state.ability.freefire;
+    expect(salvo).toBeGreaterThan(0);
     let fired = 0;
-    for (let i = 0; i < TICK_RATE * 4; i++) {
+    // Long enough for the fast salvo cadence to empty the pool.
+    for (let i = 0; i < TICK_RATE * 3; i++) {
       for (const ev of sim.step([])) if (ev.type === 'fired') fired++;
     }
-    // 4s at one shot per reload (1.5s) — a handful, not 60/s.
-    expect(fired).toBeGreaterThan(0);
-    expect(fired).toBeLessThanOrEqual(Math.ceil(4 / CANNON.reloadSeconds) + 1);
+    // The salvo is spent (fast), then normal reload-gated auto-fire resumes —
+    // so at least the salvo fired, but the salvo itself is capped.
+    expect(sim.state.ability.freefire).toBe(0);
+    expect(fired).toBeGreaterThanOrEqual(salvo);
   });
 
   it('auto-fire kills do not feed the combo meter', () => {
@@ -769,26 +774,36 @@ describe('abilities', () => {
     expect(sim.state.enemies.length).toBe(0);
   });
 
-  it('Free Fire lets shots ignore the magazine while active', () => {
+  it('Free Fire shots ignore the magazine and spend from the salvo', () => {
     const sim = new Sim(1, abilityConfig({ freefire: 1 }));
     sim.step([{ type: 'ability', ability: 'freefire' }]);
-    expect(sim.state.ability.freefire).toBeGreaterThan(0);
-    // Fire more shots than the magazine holds — none consume ammo.
-    for (let i = 0; i < CANNON.maxAmmo + 2; i++) {
+    const salvo = sim.state.ability.freefire;
+    expect(salvo).toBe(ABILITIES.freefire.shots);
+    // Fire more shots than the magazine holds — none consume ammo, each spends
+    // one salvo round instead.
+    const shots = Math.min(salvo, CANNON.maxAmmo + 2);
+    for (let i = 0; i < shots; i++) {
       sim.step([{ type: 'fire', x: i * 10 - 30, y: 60 }]);
     }
     expect(sim.state.cannon.ammo).toBe(CANNON.maxAmmo);
-    expect(sim.state.interceptors.length).toBe(CANNON.maxAmmo + 2);
+    expect(sim.state.interceptors.length).toBe(shots);
+    expect(sim.state.ability.freefire).toBe(salvo - shots);
   });
 
-  it('Free Fire expires: shots drain ammo again afterwards', () => {
+  it('Free Fire ends after its salvo is spent: shots drain ammo again', () => {
     const sim = new Sim(1, abilityConfig({ freefire: 1 }));
     addEnemy(sim, 1, { x: 0, y: 110 }, { x: 0, y: 0 }); // keeps the night alive
     sim.step([{ type: 'ability', ability: 'freefire' }]);
-    run(sim, Math.ceil(ABILITIES.freefire.duration * TICK_RATE) + 5);
+    const salvo = sim.state.ability.freefire;
+    // Spend every free shot.
+    for (let i = 0; i < salvo; i++) {
+      sim.step([{ type: 'fire', x: 0, y: 60 }]);
+    }
     expect(sim.state.ability.freefire).toBe(0);
+    // The magazine refilled while spending free shots, so the next shot drains.
+    const ammoBefore = sim.state.cannon.ammo;
     sim.step([{ type: 'fire', x: 0, y: 60 }]);
-    expect(sim.state.cannon.ammo).toBe(CANNON.maxAmmo - 1);
+    expect(sim.state.cannon.ammo).toBe(ammoBefore - 1);
   });
 });
 

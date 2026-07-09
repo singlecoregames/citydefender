@@ -185,6 +185,25 @@ body {
   background: rgba(0, 0, 0, 0.62);
 }
 
+/* Running effect: the remaining seconds / salvo shots, over a bright glow so
+   an active ability reads apart from a cooling one at a glance. */
+.ability-btn .active {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(16px, 2.9vh, 28px);
+  color: #ffffff;
+  background: rgba(180, 120, 200, 0.32);
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+.ability-btn.active {
+  border-color: #e6c2f5;
+  color: #ffffff;
+}
+
 .ability-btn.ready {
   border-color: #b478c8;
 }
