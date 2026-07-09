@@ -388,10 +388,10 @@ body {
 }
 
 #day-bank {
-  font-size: 22px;
+  font-size: 15px;
   color: #facf00;
   text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 /* Prestige strip: ✦ bank, permanent upgrades, and the reset button. */
@@ -401,7 +401,7 @@ body {
   justify-content: center;
   align-items: center;
   gap: 6px;
-  width: min(680px, 94vw);
+  width: min(1200px, 96vw);
   margin-bottom: 6px;
 }
 
@@ -455,8 +455,8 @@ body {
 
 #day-shop {
   position: relative;
-  width: min(680px, 94vw);
-  height: 56vh;
+  width: min(1200px, 96vw);
+  height: 64vh;
   overflow: hidden;
   border: 1px solid #404040;
   border-radius: 8px;
@@ -662,10 +662,10 @@ body {
 }
 
 #day-next {
-  margin-top: 10px;
-  padding: 14px 34px;
+  margin-top: 6px;
+  padding: 8px 22px;
   font-family: inherit;
-  font-size: 17px;
+  font-size: 13px;
   letter-spacing: 2px;
   color: #019bd6;
   background: transparent;
