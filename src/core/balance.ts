@@ -174,10 +174,13 @@ export const ENEMY = {
 
 /** How many swarmers spawn together when a swarm spawn is chosen. The pack
  *  grows with the night so their debut (N3, still manual-cannon-only) is a
- *  readable pair, not a full-size flood: 2 at N3–7, 3 at N8–11, 4 from N12. */
+ *  readable pair, not a full-size flood: 2 at N3–8, 3 at N9–13, 4 from N14.
+ *  The 4-pack used to land at N12, stacking onto the hp ramp there — the sim
+ *  piled 7-8 straight fails on that one night (a near-softlock); spreading
+ *  the growth one night-band wider breaks up the spike. */
 export const SWARMER_GROUP = 4;
 export function swarmerGroupFor(night: number): number {
-  return Math.min(SWARMER_GROUP, 2 + Math.floor(Math.max(0, night - 4) / 4));
+  return Math.min(SWARMER_GROUP, 2 + Math.floor(Math.max(0, night - 4) / 5));
 }
 
 /** Manual abilities (Tech branch). Each unlock node level reduces cooldown and
@@ -258,8 +261,14 @@ export const BOSS = {
    *  world's unlocked tier — the campaign's four climaxes. Mid-world bosses
    *  (N10, 20, 40, ...) use the regular hpScale formula, floored at a
    *  fraction of the previous gate so they stay relevant. */
-  gateHp: [55000, 500000, 2500000, 9000000] as readonly number[],
-  gateFloorFrac: 0.3,
+  gateHp: [55000, 1100000, 10000000, 30000000] as readonly number[],
+  /** Mid-world bosses (N40, 50, 70, …) climb the GEOMETRIC path between the
+   *  surrounding gates (prev × (next/prev)^(nightInWorld/30)) — each boss
+   *  night is a checkpoint that ramps to the world's gate. Swarm nights
+   *  can't carry this pressure: the sim shows turret DPS overkills wave hp
+   *  until far past the point where gate fights become unwinnable, so the
+   *  every-10th-night boss IS the difficulty spine of worlds 2-4. World 1
+   *  keeps the plain hp-curve bosses (N10/20 are tuned around defeat pity). */
   /** Slow, relentless descent — reaching the ground ends the night, so this
    *  sets the kill window (~105s from spawn to touchdown). */
   speed: 1.1,
@@ -319,16 +328,22 @@ export const NIGHT_SCALING = {
    *  THE late-game pressure axis — by N200 waves are ~250-strong floods. */
   maxWaveCount: 28,
   waveCapPerNight: 1.1,
-  /** Per-night enemy hp: an S-curve in two phases (see generateNight).
-   *  EARLY (to hpPivotNight): steep — it deliberately outruns the finite
-   *  scrap tree so a fresh, ✦-less run walls near the pivot: that wall IS
-   *  the first prestige prompt. LATE (past the pivot): gentle — sized so
-   *  each Arsenal Core level (×2 damage) buys roughly one wall interval
-   *  (log2 / log hpGrowthLate ≈ 25-30 nights), giving the ~30-night wall
-   *  cadence out to the N150 full-✦ finish and the N200 ending. */
+  /** Per-night enemy hp, in two phases (see generateNight).
+   *  WORLD 1 (to hpPivotNight): a steep exponential — it deliberately runs
+   *  ahead of the scrap income so the tree purchases are what carry the
+   *  player to the first gate (world 1's healthy 6-8 fails live here).
+   *  WORLDS 2-4: hp STEPS at each world boundary (worldHpStep, mirroring
+   *  worldRewardStep) and then regrows gently inside the world
+   *  (hpGrowthLate per night-in-world). The step lands while the new
+   *  world's tier is still unbought — the entry nights are the hard ones —
+   *  and the in-world spend catches back up before the gate. A single
+   *  smooth exponent can't do this: by the time world 2 feels it, world 4
+   *  is unwinnable (sim: hpGrowthLate 1.09 → world 4 stuck, worlds 2-3
+   *  still 0 fails). */
   hpGrowthEarly: 1.13,
   hpPivotNight: 30,
-  hpGrowthLate: 1.042,
+  hpGrowthLate: 1.045,
+  worldHpStep: [1, 4, 16, 40] as readonly number[],
   hpRampStartNight: 7,
   /** Speed is unanswerable by upgrades, so it grows mildly and CAPS — an
    *  uncapped speed exponent was the old absolute-ceiling bug. */

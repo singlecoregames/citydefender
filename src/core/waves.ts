@@ -34,9 +34,14 @@ export function generateNight(night: number): WaveSpec[] {
     Math.max(0, night - s.hpRampStartNight),
     s.hpPivotNight - s.hpRampStartNight,
   );
+  // Past the pivot (= world 1's end) hp steps per world and regrows inside
+  // the world, mirroring how kill pay is stepped — see NIGHT_SCALING.
+  const world = worldOf(night);
+  const lateSpan = night <= s.hpPivotNight ? 0 : world === 1 ? night - s.hpPivotNight : nightInWorld(night);
   const hpScale =
     Math.pow(s.hpGrowthEarly, earlySpan) *
-    Math.pow(s.hpGrowthLate, Math.max(0, night - s.hpPivotNight));
+    (night > s.hpPivotNight ? s.worldHpStep[world - 1] ?? 1 : 1) *
+    Math.pow(s.hpGrowthLate, lateSpan);
   const speedScale = Math.min(s.speedCap, Math.pow(s.speedGrowth, night - 1));
   const rewardScale =
     (s.worldRewardStep[worldOf(night) - 1] ?? 1) *
@@ -84,7 +89,10 @@ export function enemyPool(night: number): EnemyWeight[] {
   if (night >= 5) pool.push({ kind: 'splitter', weight: 5 });
   if (night >= 7) pool.push({ kind: 'regenerator', weight: 4 });
   if (night >= 9) pool.push({ kind: 'phase', weight: 4 });
-  if (night >= 12) pool.push({ kind: 'carrier', weight: 2 });
+  // Carriers ease in late and at half weight: their debut used to land on N12
+  // together with the hp ramp, and the sim piled every world-1 fail onto that
+  // single night (7-8 straight, a near-softlock at the 8-fail stuck limit).
+  if (night >= 13) pool.push({ kind: 'carrier', weight: night >= 17 ? 2 : 1 });
   // Thin out plain ballistics once the roster fills in.
   if (night >= 10) pool[0]!.weight = 5;
   return pool;

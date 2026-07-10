@@ -13,7 +13,7 @@ import {
   type TreeBranch,
   type TreeNode,
 } from '../core/tree';
-import { nodeDescription, nodeName, t } from './i18n';
+import { formatAmount, nodeDescription, nodeName, t } from './i18n';
 
 const CURRENCY_ICON: Record<Currency, string> = { scrap: '⬡', cores: '◆', data: '▣' };
 
@@ -445,10 +445,10 @@ export class DayScreen {
       status = `<span class="tt-locked">${t().ttLocked}</span>`;
     } else if (bank >= cost) {
       status =
-        `<span class="tt-buy">${t().ttPrice(icon, cost, level, node.maxLevel)}</span>` +
+        `<span class="tt-buy">${t().ttPrice(icon, formatAmount(cost), level, node.maxLevel)}</span>` +
         `<span class="tt-hint">${t().ttBuyHint}</span>`;
     } else {
-      status = `<span class="tt-poor">${t().ttNeedMore(icon, cost, cur, level, node.maxLevel)}</span>`;
+      status = `<span class="tt-poor">${t().ttNeedMore(icon, formatAmount(cost), cur, level, node.maxLevel)}</span>`;
     }
 
     this.tooltipEl.innerHTML =
@@ -481,7 +481,7 @@ export class DayScreen {
 
   private refresh(): void {
     const run = this.run!;
-    this.bankEl.textContent = `⬡ ${run.scrap}    ◆ ${run.cores}    ▣ ${run.data}`;
+    this.bankEl.textContent = `⬡ ${formatAmount(run.scrap)}    ◆ ${run.cores}    ▣ ${run.data}`;
 
     for (const node of TREE) {
       const els = this.nodeEls.get(node.id)!;
@@ -526,13 +526,13 @@ export class DayScreen {
         // Importance carries the colour: key nodes glow full-strength, stat
         // nodes get a muted version of their branch.
         stroke = key ? color : dimmed(color);
-        costText = `${icon}${cost} · ${level}/${node.maxLevel}`;
+        costText = `${icon}${formatAmount(cost)} · ${level}/${node.maxLevel}`;
       } else {
         // Unaffordable: red price so it can't be mistaken for a buyable node.
         // Key nodes keep their colour identity, just dimmed as a whole.
         stroke = key ? color : '#404040';
         opacity = key ? '0.55' : '0.8';
-        costText = `${icon}${cost} · ${level}/${node.maxLevel}`;
+        costText = `${icon}${formatAmount(cost)} · ${level}/${node.maxLevel}`;
         costColor = '#e91d39';
       }
 

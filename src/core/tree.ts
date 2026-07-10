@@ -187,7 +187,7 @@ export const TREE: readonly TreeNode[] = [
     col: -1,
     row: -4,
     maxLevel: 3,
-    baseCost: 2,
+    baseCost: 12,
     costGrowth: 1.7,
     currency: 'data',
     requires: ['wide_blast'],
@@ -864,7 +864,7 @@ export const TREE: readonly TreeNode[] = [
     col: -4,
     row: -3,
     maxLevel: 1,
-    baseCost: 4,
+    baseCost: 45,
     costGrowth: 1,
     currency: 'data',
     requires: ['bld_radar'],
@@ -878,7 +878,7 @@ export const TREE: readonly TreeNode[] = [
     col: -5,
     row: -3,
     maxLevel: 3,
-    baseCost: 2,
+    baseCost: 20,
     costGrowth: 1.7,
     currency: 'data',
     requires: ['threat_analysis'],
@@ -939,6 +939,10 @@ export const TREE: readonly TreeNode[] = [
   },
 
   // ── Tier 2 (world 2): the former prestige upgrades, now tree nodes ─────
+  // Scrap prices from here up are sized to the world that unlocks the tier
+  // (kill pay steps ×5/×20/×70 per world — see NIGHT_SCALING.worldRewardStep):
+  // each tier's scrap total ≈ 2/3 of its world's income, so the spend paces
+  // the world instead of being swallowed by the first night's payout.
   {
     id: 'arsenal_core',
     name: 'Arsenal Core',
@@ -965,7 +969,7 @@ export const TREE: readonly TreeNode[] = [
     col: 3,
     row: 3,
     maxLevel: 3,
-    baseCost: 4500,
+    baseCost: 500000,
     costGrowth: 1.9,
     tier: 2,
     requires: ['auto_fire'],
@@ -979,7 +983,7 @@ export const TREE: readonly TreeNode[] = [
     col: 2,
     row: -3,
     maxLevel: 2,
-    baseCost: 7500,
+    baseCost: 900000,
     costGrowth: 2.0,
     tier: 2,
     requires: ['warhead'],
@@ -993,14 +997,38 @@ export const TREE: readonly TreeNode[] = [
     col: -5,
     row: 0,
     maxLevel: 3,
-    baseCost: 6000,
+    baseCost: 600000,
     costGrowth: 1.8,
     tier: 2,
     requires: ['refinery'],
     effects: [{ stat: 'scrapMul', op: 'mul', value: 0.1 }],
   },
+  {
+    // The REPEATABLE sink: near-unbounded, exponentially pricier each level.
+    // It gives every scrap surplus somewhere to go (the campaign banks tens
+    // of millions once a world's tier is bought out) and — critically — makes
+    // retrying a walled gate productive: defeat-pity income converts to real
+    // power here, so no build can be permanently stuck on a gate boss.
+    id: 'war_effort',
+    name: 'War Effort',
+    description: '+2% ALL damage (turrets and blasts). No level cap',
+    branch: 'economy',
+    col: -5,
+    row: 1,
+    maxLevel: 200,
+    baseCost: 40000,
+    costGrowth: 1.09,
+    tier: 2,
+    requires: ['reserves'],
+    effects: [
+      { stat: 'turretDamageMul', op: 'mul', value: 0.02 },
+      { stat: 'explosionDamage', op: 'mul', value: 0.02 },
+    ],
+  },
 
-  // ── Tier 4 (world 4): the spectacle upgrades ───────────────────────────
+  // ── Tier 4 (world 4): the spectacle upgrades. Scrap-priced (not cores):
+  //    they are world 4's ONLY tier sink, and world-4 kill pay (~⬡280M/world)
+  //    needs somewhere to go — cores stay the cross-campaign premium axis. ──
   {
     id: 'orbital_lance',
     name: 'Orbital Lance',
@@ -1009,9 +1037,8 @@ export const TREE: readonly TreeNode[] = [
     col: -4,
     row: -5,
     maxLevel: 3,
-    baseCost: 6,
-    costGrowth: 1.6,
-    currency: 'cores',
+    baseCost: 18000000,
+    costGrowth: 1.7,
     tier: 4,
     requires: ['bld_jammer'],
     effects: [{ stat: 'lanceLevel', op: 'add', value: 1 }],
@@ -1024,16 +1051,16 @@ export const TREE: readonly TreeNode[] = [
     col: 5,
     row: 0,
     maxLevel: 3,
-    baseCost: 6,
-    costGrowth: 1.6,
-    currency: 'cores',
+    baseCost: 14000000,
+    costGrowth: 1.7,
     tier: 4,
     requires: ['districts'],
     effects: [{ stat: 'aegisCharges', op: 'add', value: 3 }],
   },
 
   // ── Twin deployments: outermost capstones — field a SECOND copy of the
-  //    turret on the other flank, sharing its deploy level and specs. ─────
+  //    turret on the other flank, sharing its deploy level and specs.
+  //    Tier 3: priced to world-3 kill pay (⬡55-60M/world), ~2/3 of it. ────
   {
     id: 'gatling_twin',
     name: 'Twin Gatling',
@@ -1042,7 +1069,7 @@ export const TREE: readonly TreeNode[] = [
     col: -2,
     row: 4,
     maxLevel: 1,
-    baseCost: 10000,
+    baseCost: 4500000,
     costGrowth: 1,
     tier: 3,
     requires: ['gatling_belt'],
@@ -1056,7 +1083,7 @@ export const TREE: readonly TreeNode[] = [
     col: 1,
     row: 5,
     maxLevel: 1,
-    baseCost: 16000,
+    baseCost: 7200000,
     costGrowth: 1,
     tier: 3,
     requires: ['tesla_voltage'],
@@ -1070,7 +1097,7 @@ export const TREE: readonly TreeNode[] = [
     col: -2,
     row: -5,
     maxLevel: 1,
-    baseCost: 14000,
+    baseCost: 6300000,
     costGrowth: 1,
     tier: 3,
     requires: ['laser_reach'],
@@ -1084,7 +1111,7 @@ export const TREE: readonly TreeNode[] = [
     col: -5,
     row: 2,
     maxLevel: 1,
-    baseCost: 12000,
+    baseCost: 5400000,
     costGrowth: 1,
     tier: 3,
     requires: ['flak_fuses'],
@@ -1098,7 +1125,7 @@ export const TREE: readonly TreeNode[] = [
     col: 5,
     row: -2,
     maxLevel: 1,
-    baseCost: 16000,
+    baseCost: 7200000,
     costGrowth: 1,
     tier: 3,
     requires: ['missile_warheads'],
@@ -1112,7 +1139,7 @@ export const TREE: readonly TreeNode[] = [
     col: -6,
     row: -2,
     maxLevel: 1,
-    baseCost: 18000,
+    baseCost: 8100000,
     costGrowth: 1,
     tier: 3,
     requires: ['railgun_caps'],

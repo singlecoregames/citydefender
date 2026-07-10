@@ -503,14 +503,23 @@ export class Sim {
   private spawnBoss(): void {
     const s = this.state;
     const hpScale = this.cfg.waves[0]?.hpScale ?? 1;
-    // World-end bosses are absolute gates; mid-world bosses ride the night's
-    // hp curve, floored at a slice of the previous gate (see BOSS in balance).
+    // World-end bosses are absolute gates; from world 2 on, mid-world bosses
+    // climb the geometric path between the surrounding gates (see BOSS in
+    // balance). World 1 mid bosses ride the night's hp curve.
     const n = this.cfg.night;
-    const gateIdx = n % WORLDS.nightsPerWorld === 0 ? n / WORLDS.nightsPerWorld - 1 : -1;
-    const gate = gateIdx >= 0 ? BOSS.gateHp[Math.min(gateIdx, BOSS.gateHp.length - 1)]! : null;
-    const prevGate = BOSS.gateHp[Math.min(Math.floor((n - 1) / WORLDS.nightsPerWorld) - 1, BOSS.gateHp.length - 1)];
-    const floor = prevGate !== undefined && n > WORLDS.nightsPerWorld ? prevGate * BOSS.gateFloorFrac : 0;
-    const hp = gate ?? Math.max(1, Math.round(Math.max(BOSS.hp * hpScale, floor)));
+    const per = WORLDS.nightsPerWorld;
+    let hp: number;
+    if (n % per === 0) {
+      hp = BOSS.gateHp[Math.min(n / per - 1, BOSS.gateHp.length - 1)]!;
+    } else if (n > per) {
+      const w = Math.min(Math.floor((n - 1) / per) + 1, BOSS.gateHp.length);
+      const prevGate = BOSS.gateHp[w - 2]!;
+      const nextGate = BOSS.gateHp[w - 1]!;
+      const t = (((n - 1) % per) + 1) / per;
+      hp = Math.round(prevGate * Math.pow(nextGate / prevGate, t));
+    } else {
+      hp = Math.max(1, Math.round(BOSS.hp * hpScale));
+    }
     s.enemies.push({
       id: s.nextId++,
       kind: 'boss',

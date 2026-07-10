@@ -18,6 +18,17 @@ export const LANGS: readonly { code: Lang; label: string }[] = [
 
 const LANG_KEY = 'citydefender-lang';
 
+/** Compact display for currency amounts: 9500 → "9500", 74600 → "74.6k",
+ *  7200000 → "7.2M". Exact below 10k so early-game prices stay precise;
+ *  world 2+ prices ride the ×5/×20/×70 kill-pay steps into the millions. */
+export function formatAmount(n: number): string {
+  const trim = (x: number) => (x >= 100 ? `${Math.round(x)}` : x.toFixed(1).replace(/\.0$/, ''));
+  if (n < 10000) return `${n}`;
+  if (n < 1e6) return `${trim(n / 1e3)}k`;
+  if (n < 1e9) return `${trim(n / 1e6)}M`;
+  return `${trim(n / 1e9)}B`;
+}
+
 interface Strings {
   tagline: string;
   versionNote: string;
@@ -38,9 +49,9 @@ interface Strings {
   ttCore: string;
   ttMaxed: (level: number, max: number) => string;
   ttLocked: string;
-  ttPrice: (icon: string, cost: number, level: number, max: number) => string;
+  ttPrice: (icon: string, cost: string, level: number, max: number) => string;
   ttBuyHint: string;
-  ttNeedMore: (icon: string, cost: number, currency: Currency, level: number, max: number) => string;
+  ttNeedMore: (icon: string, cost: string, currency: Currency, level: number, max: number) => string;
   costCore: string;
   costMax: (level: number) => string;
   ability: Record<AbilityKind, string>;
@@ -144,6 +155,7 @@ const TREE_KO: Record<string, { name: string; description: string }> = {
   drone_escort: { name: '드론 호위', description: '궤도 전투 드론 배치 (+1/레벨)' },
   mirv_warhead: { name: 'MIRV 탄두', description: '요격탄 폭발이 레벨당 자탄 +2개로 분열' },
   salvage_core: { name: '회수 코어', description: '스크랩 획득 +10%' },
+  war_effort: { name: '총력전', description: '모든 피해(터렛·폭발) +2%. 레벨 제한 없음' },
   orbital_lance: { name: '궤도 섬멸포', description: '주기적으로 하늘의 빔이 가장 밀집한 적 열을 강타 (레벨 = 주기 단축)' },
   aegis_dome: { name: '이지스 돔', description: '전장을 덮는 방어막이 레벨당 밤마다 적 3기를 증발시킴' },
   war_bonds: { name: '전쟁 채권', description: '밤 클리어 보너스 +20%' },

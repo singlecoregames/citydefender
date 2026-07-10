@@ -68,6 +68,44 @@ function cheapest(cands: Candidate[]): Candidate {
   );
 }
 
+/** The repeatable sink node: never competes with content. A player buys the
+ *  new toy before +2% filler; the sink gets the surplus. */
+const SINK_ID = 'war_effort';
+
+/** Cheapest NEXT scrap price among unlocked, unmaxed content nodes — the
+ *  amount worth saving toward — or null when the scrap tree is bought out. */
+function nextContentGoal(run: RunState): number | null {
+  let min: number | null = null;
+  for (const node of TREE) {
+    if (node.branch === 'core' || node.id === SINK_ID) continue;
+    if (nodeCurrency(node) !== 'scrap') continue;
+    if (!isUnlocked(node, run.upgrades, worldOf(run.night))) continue;
+    const cost = nextCost(node, run.upgrades[node.id] ?? 0);
+    if (cost !== null && (min === null || cost < min)) min = cost;
+  }
+  return min;
+}
+
+/** Greedy spend: content cheapest-first; the sink only eats what's left over
+ *  beyond the next content goal (so saving toward big nodes still happens —
+ *  and a player walled with a bought-out tree dumps everything into it). */
+function greedySpend(run: RunState, bought: string[], focus?: TreeBranch): void {
+  for (;;) {
+    const cands = affordable(run);
+    const content = cands.filter((c) => c.node.id !== SINK_ID);
+    if (content.length > 0) {
+      const inFocus = focus ? content.filter((c) => c.node.branch === focus) : [];
+      buy(run, cheapest(inFocus.length > 0 ? inFocus : content), bought);
+      continue;
+    }
+    const sink = cands.find((c) => c.node.id === SINK_ID);
+    if (!sink) break;
+    const goal = nextContentGoal(run);
+    if (goal !== null && bank(run, sink.node) - sink.cost < goal) break;
+    buy(run, sink, bought);
+  }
+}
+
 function buy(run: RunState, pick: Candidate, bought: string[]): void {
   pay(run, pick.node, pick.cost);
   run.upgrades[pick.node.id] = (run.upgrades[pick.node.id] ?? 0) + 1;
@@ -132,13 +170,7 @@ function shopSmart(run: RunState): string[] {
     buy(run, cheapest(cands), bought);
   }
   // Once the build order is finished, fall back to greedy spending.
-  if (nextGoal(run) === null) {
-    for (;;) {
-      const cands = affordable(run);
-      if (cands.length === 0) break;
-      buy(run, cheapest(cands), bought);
-    }
-  }
+  if (nextGoal(run) === null) greedySpend(run, bought);
   return bought;
 }
 
@@ -147,13 +179,6 @@ function shopSmart(run: RunState): string[] {
 export function shop(run: RunState, strategy: StrategyName): string[] {
   if (strategy === 'smart') return shopSmart(run);
   const bought: string[] = [];
-  for (;;) {
-    const cands = affordable(run);
-    if (cands.length === 0) break;
-    const focus = FOCUS[strategy];
-    const inFocus = focus ? cands.filter((c) => c.node.branch === focus) : [];
-    const pick = cheapest(inFocus.length > 0 ? inFocus : cands);
-    buy(run, pick, bought);
-  }
+  greedySpend(run, bought, FOCUS[strategy]);
   return bought;
 }

@@ -1,6 +1,6 @@
 import { COMBO, nightInWorld, worldOf } from '../core/balance';
 import type { GameState } from '../core/types';
-import { t } from './i18n';
+import { formatAmount, t } from './i18n';
 
 /** DOM HUD: scrap counter, night/wave indicator, ammo pips, combo meter.
  *  The night-end overlay is handled by the Day screen (see ui/dayscreen). */
@@ -22,7 +22,7 @@ export class Hud {
   }
 
   render(state: GameState, totalScrap: number, cores: number, data: number): void {
-    let bank = `⬡ ${totalScrap}`;
+    let bank = `⬡ ${formatAmount(totalScrap)}`;
     if (cores > 0) bank += `   ◆ ${cores}`;
     if (data > 0) bank += `   ▣ ${data}`;
     this.scrapEl.textContent = bank;

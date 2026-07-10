@@ -647,7 +647,13 @@ describe('enemy kinds', () => {
 
   it('enemy pool widens with the night number', () => {
     expect(enemyPool(1).map((p) => p.kind)).toEqual(['ballistic']);
-    expect(enemyPool(12).map((p) => p.kind)).toContain('carrier');
+    // Carriers ease in at N13 (half weight until N17) — their debut used to
+    // stack onto the N12 hp ramp and pile every world-1 fail on one night.
+    expect(enemyPool(12).map((p) => p.kind)).not.toContain('carrier');
+    expect(enemyPool(13).map((p) => p.kind)).toContain('carrier');
+    expect(enemyPool(13).find((p) => p.kind === 'carrier')!.weight).toBeLessThan(
+      enemyPool(17).find((p) => p.kind === 'carrier')!.weight,
+    );
     expect(enemyPool(12).map((p) => p.kind)).toContain('phase');
   });
 });
