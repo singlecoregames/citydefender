@@ -4,6 +4,7 @@ import {
   ABILITIES,
   autoFireThresholdFor,
   CANNON,
+  COMBO,
   DATA,
   DT,
   EXPLOSION,
@@ -1148,6 +1149,27 @@ describe('combo / overcharge / data (skilled-play layer)', () => {
     }
     expect(sim2.state.combo).toBe(2); // floor(10 × 0.25)
     expect(lost).toBe(8);
+  });
+
+  it('the combo decays while no manual shots come in (idle break)', () => {
+    // A parked enemy keeps the night alive while the player idles.
+    const sim = new Sim(1, bareConfig());
+    injectEnemy(sim, 9001, { x: 90, y: 90 });
+    sim.state.combo = 10;
+    // Idle past the break window: the streak breaks once (retention 0 → 0).
+    run(sim, Math.ceil(COMBO.idleBreakSeconds * TICK_RATE) + 2);
+    expect(sim.state.combo).toBe(0);
+
+    // A manual KILL inside the window resets the timer and keeps the streak
+    // (aimed at a parked enemy — a whiff would break it by the whiff rule).
+    const sim2 = new Sim(1, bareConfig());
+    injectEnemy(sim2, 9001, { x: 90, y: 90 });
+    injectEnemy(sim2, 9002, { x: -90, y: 90 }); // keeps the night alive after the kill
+    sim2.state.combo = 10;
+    run(sim2, Math.ceil(COMBO.idleBreakSeconds * TICK_RATE * 0.75));
+    sim2.step([{ type: 'fire', x: 90, y: 90 }]);
+    run(sim2, Math.ceil(COMBO.idleBreakSeconds * TICK_RATE * 0.75));
+    expect(sim2.state.combo).toBe(11); // streak intact, +1 from the manual kill
   });
 
   it('a city taking damage breaks the combo and voids the perfect bonus', () => {

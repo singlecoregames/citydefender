@@ -721,7 +721,7 @@ export class Renderer {
         );
         mesh.scale.set(segW - 1.4, CITY.groundTop, 1);
         mesh.position.set(city.x, CITY.groundTop / 2, 1);
-        this.addShadow(mesh);
+        this.addShadow(mesh, true); // flush on the ground — sideways offset only
         this.scene.add(mesh);
         this.cityViews.push(this.addGauge(mesh, darken(COLORS.city, 0.3), mesh.material));
       }

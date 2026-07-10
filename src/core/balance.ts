@@ -254,6 +254,12 @@ export const COMBO = {
   /** Scrap multiplier = 1 + scrapPerStack × min(combo, maxStacks). */
   scrapPerStack: 0.02,
   maxStacks: 50,
+  /** The multiplier is a MANUAL-skill reward, but it pays on every kill —
+   *  turrets and auto-fire included. Without a decay, a streak built once
+   *  kept paying while the player idled all night; now each idleBreakSeconds
+   *  without a manual shot breaks the streak once (Combo Memory retention
+   *  applies), so the boost fades stepwise unless you keep playing. */
+  idleBreakSeconds: 8,
 } as const;
 
 /** Data (▣) — the skilled-play currency. Earned only on victorious nights

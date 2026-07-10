@@ -151,8 +151,19 @@ export class Sim {
         // Only a deliberate shot disarms the auto-fire; aiming and abilities
         // leave the idle timer running.
         s.cannon.idleSeconds = 0;
+        this.comboIdle = 0;
         this.fire(cmd.x, cmd.y);
       } else if (cmd.type === 'ability') this.useAbility(cmd.ability);
+    }
+
+    // The combo multiplier pays on every kill (turrets included) but is a
+    // manual-skill reward: it decays stepwise while no manual shots come in.
+    if (s.combo > 0) {
+      this.comboIdle += DT;
+      if (this.comboIdle >= COMBO.idleBreakSeconds) {
+        this.breakCombo();
+        this.comboIdle = 0;
+      }
     }
 
     this.tickAbilities();
@@ -217,6 +228,8 @@ export class Sim {
 
   /** Seconds until the auto-fire may shoot again (see tickAutoFire). */
   private autoFireCooldown = 0;
+  /** Seconds since the last manual shot — drives the combo's idle decay. */
+  private comboIdle = 0;
 
   /** Idle auto-fire (locked until the auto_fire node is bought): the timer
    *  runs only while the magazine is FULL, and only a manual shot zeroes it

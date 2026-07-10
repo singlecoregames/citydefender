@@ -1,4 +1,3 @@
-import { ABILITIES } from '../core/balance';
 import type { AbilityKind, GameState } from '../core/types';
 import type { AbilityLevels } from '../core/tree';
 import { t } from './i18n';
@@ -9,11 +8,6 @@ const ORDER: { kind: AbilityKind; key: string }[] = [
   { kind: 'freefire', key: '3' },
   { kind: 'surge', key: '4' },
 ];
-
-function maxCooldown(kind: AbilityKind, level: number): number {
-  const s = ABILITIES[kind];
-  return Math.max(s.minCooldown, s.baseCooldown - s.cooldownPerLevel * (level - 1));
-}
 
 /** What to show on a running ability: remaining seconds for the timed effects,
  *  remaining shots for the Free Fire salvo, or null when it isn't active. */
@@ -103,5 +97,3 @@ export class AbilityBar {
     this.tint.classList.toggle('hidden', state.ability.freefire <= 0);
   }
 }
-
-export { maxCooldown };
