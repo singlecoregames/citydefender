@@ -279,9 +279,7 @@ export const ECONOMY = {
    *  grinding at 0.6 forever. Sim finding: without it, an unlucky seed
    *  loses the N10 boss 8 times straight and stalls at ~600⬡ banked. */
   defeatPityPerFail: 0.15,
-  nightCompleteBonusBase: 25,
-  /** Night-completion bonus grows with the night number. */
-  nightCompleteBonusGrowth: 1.15,
+  nightCompleteBonusBase: 70,
 } as const;
 
 /** Defeat payout multiplier after `failStreak` prior consecutive defeats on
@@ -335,14 +333,13 @@ export const NIGHT_SCALING = {
   /** Speed is unanswerable by upgrades, so it grows mildly and CAPS — an
    *  uncapped speed exponent was the old absolute-ceiling bug. */
   speedGrowth: 1.012,
+  /** Kill pay is stepped PER WORLD, with only mild growth inside a world
+   *  (~×4 across its 30 nights). A single per-night exponent compounded to
+   *  ~×600 by N120, drowning every price; the steps keep each world's
+   *  income in one order of magnitude so tier prices can be sized to it. */
+  worldRewardStep: [1, 5, 20, 70] as readonly number[],
+  rewardGrowthInWorld: 1.05,
   speedCap: 3.5,
-  /** Kill rewards must grow *slower* than node costs compound, or the tree
-   *  maxes out mid-run and income loses its sink (sim: maxed by N13 at 1.13;
-   *  at 1.07 cumulative income passed the whole tree's ~295k⬡ cost by ~N23
-   *  and nights paid 35k+⬡ with nothing left to buy). 1.05 walls one sim
-   *  seed at the N10 boss, so 1.06 is the floor that keeps every seed
-   *  clearing. */
-  rewardGrowth: 1.055,
   /** Spawn interval shrinks as nights progress (denser spawns). */
   spawnIntervalBase: [0.85, 1.3] as readonly [number, number],
   spawnIntervalFloor: 0.14,

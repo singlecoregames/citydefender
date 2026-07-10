@@ -1,4 +1,4 @@
-import { BOSS_NIGHT_INTERVAL, NIGHT_SCALING } from './balance';
+import { BOSS_NIGHT_INTERVAL, NIGHT_SCALING, nightInWorld, worldOf } from './balance';
 import type { EnemyKind } from './types';
 
 /** One wave of a night: how many enemies and how fast they spawn, plus the
@@ -38,7 +38,9 @@ export function generateNight(night: number): WaveSpec[] {
     Math.pow(s.hpGrowthEarly, earlySpan) *
     Math.pow(s.hpGrowthLate, Math.max(0, night - s.hpPivotNight));
   const speedScale = Math.min(s.speedCap, Math.pow(s.speedGrowth, night - 1));
-  const rewardScale = Math.pow(s.rewardGrowth, night - 1);
+  const rewardScale =
+    (s.worldRewardStep[worldOf(night) - 1] ?? 1) *
+    Math.pow(s.rewardGrowthInWorld, nightInWorld(night) - 1);
   const intervalScale = Math.pow(s.spawnIntervalDecayPerNight, night - 1);
   const [lo, hi] = s.spawnIntervalBase;
 

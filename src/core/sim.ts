@@ -1197,9 +1197,11 @@ export class Sim {
       s.projectiles.length === 0
     ) {
       const living = s.cities.filter((c) => c.hp > 0).length;
+      // The clear bonus rides the night's kill-pay scale (world-stepped), so
+      // it can't compound past it like the old per-night exponent did.
       const bonus =
         ECONOMY.nightCompleteBonusBase *
-        Math.pow(ECONOMY.nightCompleteBonusGrowth, s.night - 1) *
+        (this.cfg.waves[0]?.rewardScale ?? 1) *
         this.cfg.stats.nightBonusMul;
       s.scrap += Math.floor(this.scaledScrap(bonus) * (living / s.cities.length));
       this.endNight('victory');
