@@ -53,6 +53,8 @@ interface Strings {
   ttNeedMore: (icon: string, cost: string, currency: Currency, level: number, max: number) => string;
   costCore: string;
   costMax: (level: number) => string;
+  costTierLocked: (tier: number) => string;
+  tierUnlocked: (world: number) => string;
   ability: Record<AbilityKind, string>;
   ttTierLocked: (tier: number) => string;
 }
@@ -81,6 +83,8 @@ const EN: Strings = {
   ttNeedMore: (icon, cost, cur, l, m) => `${icon} ${cost} · need more ${cur} (Lvl ${l}/${m})`,
   costCore: 'CORE',
   costMax: (l) => `✓ MAX · ${l}`,
+  costTierLocked: (tier) => `🔒 WORLD ${tier}`,
+  tierUnlocked: (world) => `⭐ WORLD ${world} REACHED — a new tier of nodes just unlocked in the tree.`,
   ability: { emp: 'EMP', megabomb: 'BOMB', freefire: 'FREE', surge: 'SURGE' },
   ttTierLocked: (tier) => `🔒 Tier ${tier} — unlocks in world ${tier}`,
 };
@@ -110,6 +114,8 @@ const KO: Strings = {
     `${icon} ${cost} · ${CURRENCY_KO[cur]} 부족 (레벨 ${l}/${m})`,
   costCore: '코어',
   costMax: (l) => `✓ 최대 · ${l}`,
+  costTierLocked: (tier) => `🔒 월드 ${tier}`,
+  tierUnlocked: (world) => `⭐ 월드 ${world} 도달 — 트리에 새 티어 노드가 해금되었습니다.`,
   ability: { emp: 'EMP', megabomb: '폭탄', freefire: '연사', surge: '서지' },
   ttTierLocked: (tier) => `🔒 티어 ${tier} — 월드 ${tier}에서 해금`,
 };

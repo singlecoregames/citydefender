@@ -145,8 +145,13 @@ export class DayScreen {
     this.titleEl.textContent =
       outcome === 'victory' ? t().nightSurvived(clearedNight) : t().citiesLost;
     this.titleEl.className = outcome;
-    this.subtitleEl.textContent =
-      outcome === 'victory' ? t().daySubtitleVictory : t().daySubtitleDefeat;
+    let subtitle = outcome === 'victory' ? t().daySubtitleVictory : t().daySubtitleDefeat;
+    // Crossing into a new world unlocks its tier — say so, loudly: the new
+    // nodes sit at the tree's edges where a silent unlock goes unnoticed.
+    if (outcome === 'victory' && worldOf(run.night) > worldOf(clearedNight)) {
+      subtitle = t().tierUnlocked(worldOf(run.night));
+    }
+    this.subtitleEl.textContent = subtitle;
     // Unhide first so the container has a measurable size for centring.
     this.root.classList.remove('hidden');
     if (!this.built) this.buildTree();
@@ -484,7 +489,13 @@ export class DayScreen {
     for (const node of TREE) {
       const els = this.nodeEls.get(node.id)!;
       const level = run.upgrades[node.id] ?? 0;
-      const unlocked = isUnlocked(node, run.upgrades, worldOf(run.night));
+      // Two gates, shown differently: nodes whose PREREQS aren't bought stay
+      // entirely hidden (the tree reveals ring by ring), but a prereq-met
+      // node in a not-yet-reached TIER is teased as a locked silhouette —
+      // playtest finding: fully hiding tiers made the world-2 unlock
+      // invisible (new nodes popped in silently at the tree's edges).
+      const prereqMet = isUnlocked(node, run.upgrades);
+      const tierOpen = nodeTier(node) <= worldOf(run.night);
       const price = nextPrice(node, level);
       const color = BRANCH_COLOR[node.branch];
       const cost = price?.amount ?? null;
@@ -492,9 +503,7 @@ export class DayScreen {
       const bank = price ? bankOf(run, price.currency) : 0;
       const g = els.box.parentElement!;
 
-      // Nodes whose prerequisites aren't bought stay entirely hidden — the
-      // tree reveals itself one ring at a time as you buy into it.
-      if (node.branch !== 'core' && !unlocked) {
+      if (node.branch !== 'core' && !prereqMet) {
         g.setAttribute('display', 'none');
         if (this.selectedId === node.id) {
           this.selectedId = null;
@@ -514,6 +523,12 @@ export class DayScreen {
       if (node.branch === 'core') {
         stroke = color;
         costText = t().costCore;
+      } else if (!tierOpen) {
+        // Teased: visible so the player knows what the next world opens,
+        // but unmistakably locked until its world is reached.
+        stroke = '#333333';
+        opacity = '0.45';
+        costText = t().costTierLocked(nodeTier(node));
       } else if (cost === null) {
         // Maxed: the box fills with its branch colour so finished nodes read
         // at a glance.
