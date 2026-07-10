@@ -28,7 +28,7 @@ import {
 } from './balance';
 import { interceptDirection, interceptTime, rotate } from './aiming';
 import { explosionIsDone, explosionIsLethal, explosionRadius } from './explosion';
-import { DRONE, MIRV } from './prestige';
+import { aegisDomeY, DRONE, LANCE, MIRV } from './prestige';
 import { Rng } from './rng';
 import { baseStats, type DerivedStats } from './stats';
 import type { AbilityLevels, BuildingSpec, TurretSpec } from './tree';
@@ -66,10 +66,6 @@ export interface NightConfig {
   /** Consecutive defeats already suffered on this night — raises the defeat
    *  payout (pity) so retries recover instead of grinding in place. */
   failStreak: number;
-  /** Prestige escort drones orbiting the cannon (0 = none owned). */
-  drones: number;
-  /** MIRV warhead level: interceptor blasts split into extra submunitions. */
-  mirvLevel: number;
 }
 
 /** Default config = night 1 with base stats (used by tests and the prototype). */
@@ -83,8 +79,6 @@ export function defaultNightConfig(night = 1): NightConfig {
     abilities: { emp: 0, megabomb: 0, freefire: 0, surge: 0 },
     boss: night % BOSS_NIGHT_INTERVAL === 0,
     failStreak: 0,
-    drones: 0,
-    mirvLevel: 0,
   };
 }
 
@@ -163,6 +157,7 @@ export class Sim {
     this.regenAmmo();
     this.tickAutoFire();
     this.updateDrones();
+    this.updateLance();
     this.runDirector();
     this.updateEnemyBehavior();
     this.updateBuildings();
@@ -273,7 +268,7 @@ export class Sim {
    *  their punch comes from numbers, not upgrades. */
   private updateDrones(): void {
     const s = this.state;
-    const n = this.cfg.drones;
+    const n = this.cfg.stats.droneCount;
     if (n <= 0) return;
     if (this.droneCooldowns.length !== n) this.droneCooldowns = new Array<number>(n).fill(0);
     s.drones.length = 0;
@@ -589,8 +584,56 @@ export class Sim {
       vel: { x: dir.x * speed, y: dir.y * speed },
       hp,
       maxHp: hp,
-      scrapReward: Math.max(1, spec.scrapReward),
+      // Spawned offspring (splitter children, carrier/boss minions) pay no
+      // scrap — only director-spawned enemies and bosses are worth money, so
+      // farming spawners can't inflate the economy.
+      scrapReward: 0,
     });
+  }
+
+  /** Seconds until the next Orbital Lance strike. */
+  private lanceTimer: number = LANCE.interval;
+
+  /** Orbital Lance (tier 4): on a timer, slam a full-height beam onto the
+   *  densest enemy column. Damage rides the turret damage multiplier so the
+   *  strike stays lethal alongside Arsenal Core. */
+  private updateLance(): void {
+    const s = this.state;
+    const level = this.cfg.stats.lanceLevel;
+    if (level <= 0) return;
+    this.lanceTimer -= DT;
+    if (this.lanceTimer > 0) return;
+    // Densest column: the target enemy with the most neighbours within width.
+    let best: EnemyMissile | null = null;
+    let bestCount = -1;
+    for (const e of s.enemies) {
+      if (this.isUntouchable(e) || e.pos.y > WORLD.height) continue;
+      let count = 0;
+      for (const o of s.enemies) {
+        if (!this.isUntouchable(o) && Math.abs(o.pos.x - e.pos.x) <= LANCE.width) count++;
+      }
+      if (count > bestCount) {
+        bestCount = count;
+        best = e;
+      }
+    }
+    if (!best) return; // hold the strike until something is on screen
+    const x = best.pos.x;
+    const damage = LANCE.damage * this.cfg.stats.turretDamageMul;
+    for (let i = s.enemies.length - 1; i >= 0; i--) {
+      const e = s.enemies[i]!;
+      if (this.isUntouchable(e) || e.pos.y > WORLD.height) continue;
+      if (Math.abs(e.pos.x - x) <= LANCE.width) this.damageEnemy(e, damage);
+    }
+    s.events.push({
+      type: 'beam',
+      kind: 'lance',
+      points: [
+        { x, y: WORLD.height },
+        { x, y: CITY.groundTop },
+      ],
+    });
+    this.lanceTimer = LANCE.interval - LANCE.intervalPerLevel * (level - 1);
   }
 
   // --- support buildings (non-combat) ---
@@ -932,7 +975,8 @@ export class Sim {
       if (enemy.kind === 'splitter') {
         for (let i = 0; i < ENEMY.splitter.childCount; i++) this.spawnChild('swarmer', enemy, 1.6);
       }
-      const reward = this.scaledScrap(enemy.scrapReward * this.comboScrapMul());
+      const reward =
+        enemy.scrapReward > 0 ? this.scaledScrap(enemy.scrapReward * this.comboScrapMul()) : 0;
       s.scrap += reward;
       s.events.push({ type: 'enemyKilled', pos: { ...enemy.pos }, reward });
       if (enemy.kind === 'boss') {
@@ -970,7 +1014,7 @@ export class Sim {
         // MIRV warhead (prestige): the blast splits into smaller submunitions
         // fanned out to the sides. They ride the 'ability' source so they
         // neither feed nor break the combo — only the core blast is "yours".
-        const splits = this.cfg.mirvLevel * MIRV.splitsPerLevel;
+        const splits = this.cfg.stats.mirvLevel * MIRV.splitsPerLevel;
         for (let k = 0; k < splits; k++) {
           const side = k % 2 === 0 ? 1 : -1;
           const ring = 1 + Math.floor(k / 2);
@@ -1009,6 +1053,19 @@ export class Sim {
       const edt = jam && dist(jam, e.pos) <= jam.radius ? dt * jam.factor : dt;
       e.pos.x += e.vel.x * edt;
       e.pos.y += e.vel.y * edt;
+      // Aegis Dome (tier 4): while charges remain, anything but a boss that
+      // touches the shell is vaporised on contact — one charge each, no
+      // scrap, no ground impact.
+      if (
+        s.aegisCharges > 0 &&
+        e.kind !== 'boss' &&
+        e.pos.y <= aegisDomeY(e.pos.x, WORLD.halfWidth, CITY.groundTop)
+      ) {
+        s.aegisCharges--;
+        s.enemies.splice(i, 1);
+        s.events.push({ type: 'aegisAbsorbed', pos: { ...e.pos } });
+        continue;
+      }
       // Enemies detonate on reaching the raised ground band; the segment
       // under the impact takes the damage. A boss touching down ends the
       // night outright, whichever segment it lands on.
@@ -1193,6 +1250,7 @@ function createInitialState(cfg: NightConfig): GameState {
     buildings: cfg.buildings.map((b, i) => makeBuilding(i, b)),
     projectiles: [],
     drones: [],
+    aegisCharges: cfg.stats.aegisCharges,
     scrap: 0,
     combo: 0,
     maxCombo: 0,

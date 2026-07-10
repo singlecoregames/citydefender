@@ -8,6 +8,7 @@
  */
 import * as THREE from 'three';
 import { CANNON, CITY, WORLD } from '../core/balance';
+import { AEGIS } from '../core/prestige';
 import { explosionRadius } from '../core/explosion';
 import type { BuildingKind, EnemyKind, GameEvent, GameState, TurretKind, Vec2 } from '../core/types';
 import { Particles } from './particles';
@@ -71,7 +72,7 @@ const TURRET_COLORS: Record<TurretKind, number> = {
   tesla: SNKRX.blue,
 };
 
-const BEAM_COLORS = { laser: SNKRX.red, railgun: SNKRX.fg, tesla: SNKRX.blue } as const;
+const BEAM_COLORS = { laser: SNKRX.red, railgun: SNKRX.fg, tesla: SNKRX.blue, lance: SNKRX.yellow } as const;
 
 /** Support buildings read as rounded blocks (structures), distinct from the
  *  circular turret units. */
@@ -498,6 +499,10 @@ export class Renderer {
       if (ev.type === 'cityHit') this.shake = Math.max(this.shake, 1.6);
       if (ev.type === 'groundImpact') this.shake = Math.max(this.shake, 0.5);
       if (ev.type === 'beam') this.spawnBeam(ev.kind, ev.points);
+      if (ev.type === 'aegisAbsorbed') {
+        this.particles.burst(ev.pos.x, ev.pos.y, 0x8bd4ff, 14);
+        this.shake = Math.max(this.shake, 0.3);
+      }
       if (ev.type === 'abilityUsed') {
         if (ev.ability === 'emp') this.spawnEmpRing();
         if (ev.ability === 'megabomb') this.shake = Math.max(this.shake, 2.4);
@@ -533,8 +538,46 @@ export class Renderer {
     }
   }
 
+  /** Orbital Lance strikes: full-height pillars that flash and fade. */
+  private readonly lanceFx: { mesh: THREE.Mesh; ttl: number; maxTtl: number }[] = [];
+
+  private spawnLance(points: Vec2[]): void {
+    const top = points[0]!;
+    const bottom = points[1]!;
+    const h = top.y - bottom.y;
+    const mesh = new THREE.Mesh(
+      this.quadGeo,
+      new THREE.MeshBasicMaterial({ color: BEAM_COLORS.lance, transparent: true, opacity: 0.85 }),
+    );
+    mesh.scale.set(4.5, h, 1);
+    mesh.position.set(top.x, bottom.y + h / 2, 2.85);
+    this.scene.add(mesh);
+    this.lanceFx.push({ mesh, ttl: 0.45, maxTtl: 0.45 });
+    this.shake = Math.max(this.shake, 1.2);
+  }
+
+  private updateLanceFx(dt: number): void {
+    for (let i = this.lanceFx.length - 1; i >= 0; i--) {
+      const fx = this.lanceFx[i]!;
+      fx.ttl -= dt;
+      if (fx.ttl <= 0) {
+        this.scene.remove(fx.mesh);
+        (fx.mesh.material as THREE.Material).dispose();
+        this.lanceFx.splice(i, 1);
+      } else {
+        const k = fx.ttl / fx.maxTtl;
+        (fx.mesh.material as THREE.MeshBasicMaterial).opacity = 0.85 * k;
+        fx.mesh.scale.x = 4.5 * (0.4 + 0.6 * k); // pillar narrows as it fades
+      }
+    }
+  }
+
   /** Short-lived glowing polyline for laser/railgun/tesla shots. */
-  private spawnBeam(kind: 'laser' | 'railgun' | 'tesla', points: Vec2[]): void {
+  private spawnBeam(kind: 'laser' | 'railgun' | 'tesla' | 'lance', points: Vec2[]): void {
+    if (kind === 'lance') {
+      this.spawnLance(points);
+      return;
+    }
     const geo = new THREE.BufferGeometry();
     const arr = new Float32Array(points.length * 3);
     points.forEach((p, i) => {
@@ -584,6 +627,8 @@ export class Renderer {
     this.syncExplosions(state, dt);
     this.particles.update(dt);
     this.updateBeams(dt);
+    this.updateLanceFx(dt);
+    this.syncAegis(state);
     this.updateEmpRings(dt);
     this.applyShake();
     this.renderer.render(this.scene, this.camera);
@@ -781,6 +826,44 @@ export class Renderer {
       (m.material as THREE.Material).dispose();
     }
     state.drones.forEach((d, i) => this.droneMeshes[i]!.position.set(d.x, d.y, 1.8));
+  }
+
+  /** Aegis Dome (tier 4): a translucent shell over the whole field while
+   *  charges remain — pale fill plus a brighter arc line. */
+  private aegisFill: THREE.Mesh | null = null;
+  private aegisShell: THREE.Line | null = null;
+
+  private syncAegis(state: GameState): void {
+    const active = state.aegisCharges > 0;
+    if (active && !this.aegisFill) {
+      const fill = new THREE.Mesh(
+        new THREE.CircleGeometry(1, 48, 0, Math.PI),
+        new THREE.MeshBasicMaterial({
+          color: 0x8bd4ff,
+          transparent: true,
+          opacity: 0.06,
+          depthWrite: false,
+        }),
+      );
+      fill.scale.set(WORLD.halfWidth, AEGIS.height, 1);
+      fill.position.set(0, CITY.groundTop, 0.6);
+      this.scene.add(fill);
+      this.aegisFill = fill;
+
+      const pts: THREE.Vector3[] = [];
+      for (let i = 0; i <= 64; i++) {
+        const a = (i / 64) * Math.PI;
+        pts.push(new THREE.Vector3(Math.cos(a) * WORLD.halfWidth, CITY.groundTop + Math.sin(a) * AEGIS.height, 0.65));
+      }
+      const shell = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineBasicMaterial({ color: 0x8bd4ff, transparent: true, opacity: 0.4 }),
+      );
+      this.scene.add(shell);
+      this.aegisShell = shell;
+    }
+    if (this.aegisFill) this.aegisFill.visible = active;
+    if (this.aegisShell) this.aegisShell.visible = active;
   }
 
   private syncProjectiles(state: GameState): void {

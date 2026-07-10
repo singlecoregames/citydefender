@@ -27,6 +27,6 @@ describe('i18n', () => {
     const en = t().nextNight;
     setLang('ko');
     expect(t().nextNight).not.toBe(en);
-    expect(t().nightWave(3, 1, 4)).toContain('3');
+    expect(t().nightWave(1, 3, 1, 4)).toContain('3');
   });
 });

@@ -394,65 +394,6 @@ body {
   margin-bottom: 4px;
 }
 
-/* Prestige strip: ✦ bank, permanent upgrades, and the reset button. */
-#day-prestige {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 6px;
-  width: min(680px, 94vw);
-  margin-bottom: 6px;
-}
-
-#day-prestige.hidden {
-  display: none;
-}
-
-.pp-bank {
-  font-size: 16px;
-  color: #e8a5ff;
-  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
-  margin-right: 4px;
-}
-
-.pp-upg,
-.pp-go {
-  font-family: inherit;
-  font-size: 11px;
-  letter-spacing: 1px;
-  padding: 6px 10px;
-  color: #cfa5e0;
-  background: rgba(142, 85, 158, 0.12);
-  border: 1px solid #8e559e;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.pp-upg:disabled {
-  color: #6c5a74;
-  border-color: #453a4a;
-  background: transparent;
-  cursor: default;
-}
-
-.pp-go {
-  color: #e8a5ff;
-  border-color: #c77bd9;
-}
-
-.pp-go.armed {
-  color: #ffffff;
-  background: rgba(199, 123, 217, 0.3);
-}
-
-.pp-go:disabled {
-  color: #6c5a74;
-  border-color: #453a4a;
-  background: transparent;
-  cursor: default;
-}
-
 #day-shop {
   position: relative;
   width: min(680px, 94vw);

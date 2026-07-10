@@ -352,18 +352,20 @@ export const NIGHT_SCALING = {
 /** Seconds of breathing room between waves. */
 export const WAVE_BREAK_SECONDS = 2.5;
 
-/** Prestige: from minNight on, the Day screen offers a full reset back to
- *  night 1 for prestige points (✦) paid by depth reached. The 200-night
- *  curve outgrows the finite scrap tree, walling a run roughly every ~30
- *  nights — pushing past a wall takes the permanent ✦ upgrades (see
- *  core/prestige.ts). ✦ income is 1 per 10 nights reached, so the wall
- *  cadence (N30/60/90/120/150) banks 3+6+9+12+15 = 45✦ — exactly the cost
- *  of maxing every upgrade, which is why full completion lands near N150. */
-export const PRESTIGE = {
-  minNight: 20,
+/** The campaign: 4 worlds × 30 nights = 120 nights, one continuous run (no
+ *  reset loop). Reaching world k unlocks upgrade tier k in the skill tree;
+ *  higher tiers stay hidden until their world. */
+export const WORLDS = {
+  count: 4,
+  nightsPerWorld: 30,
 } as const;
 
-export function prestigePoints(bestNight: number): number {
-  if (bestNight < PRESTIGE.minNight) return 0;
-  return Math.floor(bestNight / 10);
+/** 1-based world a night belongs to (clamped to the last world). */
+export function worldOf(night: number): number {
+  return Math.min(WORLDS.count, Math.floor((night - 1) / WORLDS.nightsPerWorld) + 1);
+}
+
+/** Night number within its world, 1..nightsPerWorld. */
+export function nightInWorld(night: number): number {
+  return ((night - 1) % WORLDS.nightsPerWorld) + 1;
 }

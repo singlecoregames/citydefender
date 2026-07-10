@@ -49,11 +49,24 @@ function migrate(env: SaveEnvelope): RunState {
     upgrades['ability_freefire'] = upgrades['ability_slowmo'] ?? 0;
     delete upgrades['ability_slowmo'];
   }
-  return {
+  // The reset-prestige era: its permanent upgrades became tier-2 tree nodes
+  // with the same ids — carry bought levels over (head_start has no heir).
+  const legacy = (env.run as { prestigeUpgrades?: Record<string, number> }).prestigeUpgrades;
+  if (legacy) {
+    for (const id of ['arsenal_core', 'drone_escort', 'mirv_warhead', 'salvage_core']) {
+      if (legacy[id]) upgrades[id] = Math.max(upgrades[id] ?? 0, legacy[id]!);
+    }
+  }
+  const migrated = {
     ...base,
     ...env.run,
     upgrades,
   };
+  // Strip retired reset-prestige fields so old saves don't haunt the state.
+  delete (migrated as Record<string, unknown>)['prestigeUpgrades'];
+  delete (migrated as Record<string, unknown>)['prestige'];
+  delete (migrated as Record<string, unknown>)['pp'];
+  return migrated;
 }
 
 export function saveRun(store: KeyValueStore, run: RunState): void {

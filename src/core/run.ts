@@ -1,6 +1,4 @@
-import { FIRST_CLEAR, prestigePoints } from './balance';
-import type { PrestigeLevels } from './prestige';
-import { HEAD_START_SCRAP_PER_LEVEL } from './prestige';
+import { FIRST_CLEAR } from './balance';
 import type { TreeLevels } from './tree';
 
 /** Persistent meta-game state spanning many nights (the "run"). A single
@@ -24,12 +22,6 @@ export interface RunState {
   /** Consecutive defeats on the current night (drives the defeat-payout
    *  pity). Reset to 0 on victory. */
   failStreak: number;
-  /** Times this save has prestiged (drives enemy volume scaling). */
-  prestige: number;
-  /** Prestige point (✦) bank, spent on permanent upgrades. */
-  pp: number;
-  /** Permanent prestige upgrade levels by id — survive every reset. */
-  prestigeUpgrades: PrestigeLevels;
 }
 
 export function newRun(seed = (Date.now() & 0xffffffff) >>> 0): RunState {
@@ -43,31 +35,12 @@ export function newRun(seed = (Date.now() & 0xffffffff) >>> 0): RunState {
     seed,
     bestNight: 0,
     failStreak: 0,
-    prestige: 0,
-    pp: 0,
-    prestigeUpgrades: {},
   };
-}
-
-/** Perform a prestige: bank the points for the depth reached, then reset the
- *  run to night 1 with a fresh seed — keeping only the prestige state. */
-export function doPrestige(run: RunState): RunState {
-  const fresh = newRun();
-  fresh.prestige = run.prestige + 1;
-  fresh.pp = run.pp + prestigePoints(run.bestNight);
-  fresh.prestigeUpgrades = { ...run.prestigeUpgrades };
-  fresh.scrap = HEAD_START_SCRAP_PER_LEVEL * (fresh.prestigeUpgrades['head_start'] ?? 0);
-  return fresh;
 }
 
 /** Per-night RNG seed derived from the run seed and night number. */
 export function nightSeed(run: RunState): number {
   return (run.seed + run.night * 2654435761) >>> 0;
-}
-
-/** Compound Interest node: bonus scrap paid at dawn on the unspent bank. */
-export function dawnInterest(scrap: number, rate: number): number {
-  return rate > 0 ? Math.floor(scrap * rate) : 0;
 }
 
 /** Cores paid for clearing `night` for the first time (0 before fromNight). */

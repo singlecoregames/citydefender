@@ -1,6 +1,5 @@
 import { BOSS_NIGHT_INTERVAL, DT } from './core/balance';
-import { applyPrestigeStats } from './core/prestige';
-import { dawnInterest, doPrestige, firstClearCores, newRun, nightSeed, type RunState } from './core/run';
+import { firstClearCores, newRun, nightSeed, type RunState } from './core/run';
 import { loadRun, saveRun } from './core/save';
 import { Sim, type NightConfig } from './core/sim';
 import type { Command } from './core/types';
@@ -66,27 +65,18 @@ const dayScreen = new DayScreen(
     saveRun(store, newRun());
     location.reload();
   },
-  (r) => {
-    // on prestige (double-confirmed in the UI): bank ✦, reset, dive back in.
-    run = doPrestige(r);
-    saveRun(store, run);
-    sim = startNight(run);
-    nightResolved = false;
-  },
 );
 
 function nightConfigFor(r: RunState): NightConfig {
   return {
     night: r.night,
     waves: generateNight(r.night),
-    stats: applyPrestigeStats(resolveStats(r.upgrades), r.prestigeUpgrades),
+    stats: resolveStats(r.upgrades),
     turrets: turretsFromTree(r.upgrades),
     buildings: buildingsFromTree(r.upgrades),
     abilities: abilitiesFromTree(r.upgrades),
     boss: r.night % BOSS_NIGHT_INTERVAL === 0,
     failStreak: r.failStreak,
-    drones: r.prestigeUpgrades['drone_escort'] ?? 0,
-    mirvLevel: r.prestigeUpgrades['mirv_warhead'] ?? 0,
   };
 }
 
@@ -111,7 +101,6 @@ const bannerEl = document.getElementById('night-banner')!;
 function resolveNight(outcome: 'victory' | 'defeat', scrapEarned: number, dataEarned: number): void {
   const clearedNight = run.night;
   run.scrap += scrapEarned;
-  run.scrap += dawnInterest(run.scrap, resolveStats(run.upgrades).scrapInterestRate);
   run.data += dataEarned;
   if (outcome === 'victory') {
     if (clearedNight > run.bestNight) run.cores += firstClearCores(clearedNight);

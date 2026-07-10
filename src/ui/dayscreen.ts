@@ -1,9 +1,9 @@
-import { PRESTIGE, prestigePoints } from '../core/balance';
-import { PRESTIGE_UPGRADES, prestigeNextCost } from '../core/prestige';
+import { worldOf } from '../core/balance';
 import type { RunState } from '../core/run';
 import {
   BUILDING_NODES,
   isUnlocked,
+  nodeTier,
   nextCost,
   nodeCurrency,
   TREE,
@@ -55,7 +55,9 @@ function isKeyNode(node: TreeNode): boolean {
     node.id in TURRET_TWIN_NODES ||
     node.id in BUILDING_NODES ||
     node.id.startsWith('ability_') ||
-    node.id === 'auto_fire'
+    node.id === 'auto_fire' ||
+    node.id === 'orbital_lance' ||
+    node.id === 'aegis_dome'
   );
 }
 
@@ -106,7 +108,6 @@ export class DayScreen {
     private readonly onPurchase: (run: RunState) => void,
     private readonly onNext: (run: RunState) => void,
     onReset: () => void,
-    private readonly onPrestige: (run: RunState) => void,
   ) {
     document.getElementById('day-next')!.addEventListener('click', () => {
       if (!this.run) return;
@@ -154,73 +155,6 @@ export class DayScreen {
     this.selectedId = null;
     this.hideTooltip();
     this.refresh();
-    this.renderPrestige();
-  }
-
-  /** Prestige strip: the ✦ bank, permanent upgrades, and the reset button.
-   *  Hidden until prestige is within reach (deep enough run, or already
-   *  prestiged / holding points). The reset is two-tap like RESET RUN. */
-  private renderPrestige(): void {
-    const run = this.run!;
-    const strip = document.getElementById('day-prestige')!;
-    const earn = prestigePoints(run.bestNight);
-    const relevant = run.prestige > 0 || run.pp > 0 || run.bestNight >= PRESTIGE.minNight - 5;
-    strip.classList.toggle('hidden', !relevant);
-    if (!relevant) return;
-    strip.replaceChildren();
-
-    const bank = document.createElement('span');
-    bank.className = 'pp-bank';
-    bank.textContent = `✦ ${run.pp}`;
-    strip.appendChild(bank);
-
-    for (const u of PRESTIGE_UPGRADES) {
-      const level = run.prestigeUpgrades[u.id] ?? 0;
-      const cost = prestigeNextCost(u, level);
-      const txt = t().prestigeUpg[u.id]!;
-      const btn = document.createElement('button');
-      btn.className = 'pp-upg';
-      btn.title = txt.desc;
-      btn.textContent =
-        cost === null ? `${txt.name} ✓${level}` : `${txt.name} ${level}/${u.maxLevel} · ✦${cost}`;
-      const affordable = cost !== null && run.pp >= cost;
-      btn.disabled = !affordable;
-      if (affordable) {
-        btn.addEventListener('click', () => {
-          run.pp -= cost!;
-          run.prestigeUpgrades[u.id] = level + 1;
-          this.onPurchase(run);
-          this.renderPrestige();
-        });
-      }
-      strip.appendChild(btn);
-    }
-
-    const go = document.createElement('button');
-    go.className = 'pp-go';
-    if (earn <= 0) {
-      go.textContent = t().prestigeLockedHint(PRESTIGE.minNight);
-      go.disabled = true;
-    } else {
-      go.textContent = t().prestigeButton(earn);
-      let armed = false;
-      go.addEventListener('click', () => {
-        if (!armed) {
-          armed = true;
-          go.classList.add('armed');
-          go.textContent = t().prestigeConfirm;
-          setTimeout(() => {
-            armed = false;
-            go.classList.remove('armed');
-            go.textContent = t().prestigeButton(earn);
-          }, 3000);
-          return;
-        }
-        this.hide();
-        this.onPrestige(this.run!);
-      });
-    }
-    strip.appendChild(go);
   }
 
   private hide(): void {
@@ -498,6 +432,8 @@ export class DayScreen {
       status = `<span class="tt-core">${t().ttCore}</span>`;
     } else if (cost === null) {
       status = `<span class="tt-max">${t().ttMaxed(level, node.maxLevel)}</span>`;
+    } else if (nodeTier(node) > worldOf(run.night)) {
+      status = `<span class="tt-locked">${t().ttTierLocked(nodeTier(node))}</span>`;
     } else if (!isUnlocked(node, run.upgrades)) {
       status = `<span class="tt-locked">${t().ttLocked}</span>`;
     } else if (bank >= cost) {
@@ -543,7 +479,7 @@ export class DayScreen {
     for (const node of TREE) {
       const els = this.nodeEls.get(node.id)!;
       const level = run.upgrades[node.id] ?? 0;
-      const unlocked = isUnlocked(node, run.upgrades);
+      const unlocked = isUnlocked(node, run.upgrades, worldOf(run.night));
       const cost = nextCost(node, level);
       const color = BRANCH_COLOR[node.branch];
       const cur = nodeCurrency(node);
@@ -617,7 +553,7 @@ export class DayScreen {
     const run = this.run!;
     if (node.branch === 'core') return;
     const level = run.upgrades[node.id] ?? 0;
-    if (!isUnlocked(node, run.upgrades)) return;
+    if (!isUnlocked(node, run.upgrades, worldOf(run.night))) return;
     const cost = nextCost(node, level);
     if (cost === null) return;
     const cur = nodeCurrency(node);

@@ -25,6 +25,9 @@ export interface TreeNode {
   costGrowth: number;
   /** Which currency pays for this node. Defaults to scrap. */
   currency?: Currency;
+  /** Upgrade tier, gated by campaign world: tier k unlocks in world k.
+   *  Defaults to 1 (available from the start). */
+  tier?: 2 | 3 | 4;
   requires: string[];
   effects: StatMod[];
 }
@@ -548,19 +551,6 @@ export const TREE: readonly TreeNode[] = [
     effects: [{ stat: 'nightBonusMul', op: 'mul', value: 0.3 }],
   },
   {
-    id: 'compound_interest',
-    name: 'Compound Interest',
-    description: '+4% of unspent scrap each dawn',
-    branch: 'economy',
-    col: -4,
-    row: -1,
-    maxLevel: 3,
-    baseCost: 400,
-    costGrowth: 1.7,
-    requires: ['refinery'],
-    effects: [{ stat: 'scrapInterestRate', op: 'add', value: 0.04 }],
-  },
-  {
     id: 'flak_fuses',
     name: 'Twin Fuses',
     description: '+20% Flak fire rate',
@@ -584,7 +574,7 @@ export const TREE: readonly TreeNode[] = [
     baseCost: 3,
     costGrowth: 1.7,
     currency: 'cores',
-    requires: ['compound_interest'],
+    requires: ['refinery'],
     effects: [{ stat: 'scrapMul', op: 'mul', value: 0.15 }],
   },
 
@@ -947,6 +937,101 @@ export const TREE: readonly TreeNode[] = [
     requires: ['flux_capacitor'],
     effects: [{ stat: 'abilityCooldownMul', op: 'mul', value: -0.15 }],
   },
+
+  // ── Tier 2 (world 2): the former prestige upgrades, now tree nodes ─────
+  {
+    id: 'arsenal_core',
+    name: 'Arsenal Core',
+    description: '+50% ALL damage (turrets and blasts)',
+    branch: 'automation',
+    col: 3,
+    row: 2,
+    maxLevel: 5,
+    baseCost: 6,
+    costGrowth: 1.6,
+    currency: 'cores',
+    tier: 2,
+    requires: ['turret_power'],
+    effects: [
+      { stat: 'turretDamageMul', op: 'mul', value: 0.5 },
+      { stat: 'explosionDamage', op: 'mul', value: 0.5 },
+    ],
+  },
+  {
+    id: 'drone_escort',
+    name: 'Drone Escort',
+    description: 'Deploy an orbiting combat drone (+1 per level)',
+    branch: 'automation',
+    col: 3,
+    row: 3,
+    maxLevel: 3,
+    baseCost: 1500,
+    costGrowth: 1.9,
+    tier: 2,
+    requires: ['auto_fire'],
+    effects: [{ stat: 'droneCount', op: 'add', value: 1 }],
+  },
+  {
+    id: 'mirv_warhead',
+    name: 'MIRV Warhead',
+    description: 'Interceptor blasts split into +2 submunitions per level',
+    branch: 'cannon',
+    col: 2,
+    row: -3,
+    maxLevel: 2,
+    baseCost: 2500,
+    costGrowth: 2.0,
+    tier: 2,
+    requires: ['warhead'],
+    effects: [{ stat: 'mirvLevel', op: 'add', value: 1 }],
+  },
+  {
+    id: 'salvage_core',
+    name: 'Salvage Core',
+    description: '+10% scrap earned',
+    branch: 'economy',
+    col: -5,
+    row: 0,
+    maxLevel: 3,
+    baseCost: 2000,
+    costGrowth: 1.8,
+    tier: 2,
+    requires: ['refinery'],
+    effects: [{ stat: 'scrapMul', op: 'mul', value: 0.1 }],
+  },
+
+  // ── Tier 4 (world 4): the spectacle upgrades ───────────────────────────
+  {
+    id: 'orbital_lance',
+    name: 'Orbital Lance',
+    description: 'A sky-beam slams the densest enemy column on a timer (lvl = faster)',
+    branch: 'tech',
+    col: -4,
+    row: -5,
+    maxLevel: 3,
+    baseCost: 8,
+    costGrowth: 1.7,
+    currency: 'cores',
+    tier: 4,
+    requires: ['bld_jammer'],
+    effects: [{ stat: 'lanceLevel', op: 'add', value: 1 }],
+  },
+  {
+    id: 'aegis_dome',
+    name: 'Aegis Dome',
+    description: 'A shield dome over the field vaporises 3 enemies per night per level',
+    branch: 'city',
+    col: 5,
+    row: 0,
+    maxLevel: 3,
+    baseCost: 8,
+    costGrowth: 1.7,
+    currency: 'cores',
+    tier: 4,
+    requires: ['districts'],
+    effects: [{ stat: 'aegisCharges', op: 'add', value: 3 }],
+  },
+
   // ── Twin deployments: outermost capstones — field a SECOND copy of the
   //    turret on the other flank, sharing its deploy level and specs. ─────
   {
@@ -959,6 +1044,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 1,
     baseCost: 1000,
     costGrowth: 1,
+    tier: 3,
     requires: ['gatling_belt'],
     effects: [],
   },
@@ -972,6 +1058,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 1,
     baseCost: 1600,
     costGrowth: 1,
+    tier: 3,
     requires: ['tesla_voltage'],
     effects: [],
   },
@@ -985,6 +1072,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 1,
     baseCost: 1400,
     costGrowth: 1,
+    tier: 3,
     requires: ['laser_reach'],
     effects: [],
   },
@@ -998,6 +1086,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 1,
     baseCost: 1200,
     costGrowth: 1,
+    tier: 3,
     requires: ['flak_fuses'],
     effects: [],
   },
@@ -1011,6 +1100,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 1,
     baseCost: 1600,
     costGrowth: 1,
+    tier: 3,
     requires: ['missile_warheads'],
     effects: [],
   },
@@ -1024,6 +1114,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 1,
     baseCost: 1800,
     costGrowth: 1,
+    tier: 3,
     requires: ['railgun_caps'],
     effects: [],
   },
@@ -1126,8 +1217,16 @@ export function nextCost(node: TreeNode, currentLevel: number): number | null {
   return Math.round(node.baseCost * Math.pow(node.costGrowth, currentLevel));
 }
 
-/** A node is unlocked once every prerequisite has at least one level. */
-export function isUnlocked(node: TreeNode, levels: TreeLevels): boolean {
+/** A node's upgrade tier (1 unless declared higher). */
+export function nodeTier(node: TreeNode): number {
+  return node.tier ?? 1;
+}
+
+/** A node is unlocked once every prerequisite has at least one level AND its
+ *  tier's world has been reached. `unlockedTier` defaults to all tiers so
+ *  tier-agnostic callers (tests, tools) keep working. */
+export function isUnlocked(node: TreeNode, levels: TreeLevels, unlockedTier = 4): boolean {
+  if (nodeTier(node) > unlockedTier) return false;
   return node.requires.every((id) => (levels[id] ?? 0) >= 1);
 }
 

@@ -123,7 +123,7 @@ export type GameEvent =
   | { type: 'fireDenied'; reason: 'noAmmo' | 'tooClose' }
   | { type: 'detonation'; pos: Vec2 }
   /** Instant-hit visuals: laser/railgun lines, tesla chain polyline. */
-  | { type: 'beam'; kind: 'laser' | 'railgun' | 'tesla'; points: Vec2[] }
+  | { type: 'beam'; kind: 'laser' | 'railgun' | 'tesla' | 'lance'; points: Vec2[] }
   | { type: 'enemyKilled'; pos: Vec2; reward: number }
   | { type: 'groundImpact'; pos: Vec2 }
   | { type: 'cityHit'; cityId: number; destroyed: boolean }
@@ -131,6 +131,8 @@ export type GameEvent =
   | { type: 'shieldAbsorbed'; cityId: number }
   /** A Repair Bay restored a point of city HP. */
   | { type: 'cityRepaired'; cityId: number }
+  /** The Aegis Dome soaked an enemy that touched its shell. */
+  | { type: 'aegisAbsorbed'; pos: Vec2 }
   | { type: 'waveStarted'; waveIndex: number }
   | { type: 'bossSpawned' }
   | { type: 'bossKilled'; cores: number }
@@ -172,9 +174,11 @@ export interface GameState {
   turrets: Turret[];
   buildings: Building[];
   projectiles: TurretProjectile[];
-  /** Prestige escort drones orbiting the cannon (positions re-computed each
-   *  tick from the orbit; empty when the upgrade isn't owned). */
+  /** Escort drones orbiting the cannon (positions re-computed each tick
+   *  from the orbit; empty when the upgrade isn't owned). */
   drones: Vec2[];
+  /** Aegis Dome charges left this night (0 = no dome / spent). */
+  aegisCharges: number;
   scrap: number;
   /** Combo meter: current streak of manual-explosion kills (global scrap
    *  multiplier) and the night's peak (pays out Data at dawn). */

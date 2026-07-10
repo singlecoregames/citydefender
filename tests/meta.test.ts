@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { NIGHT_SCALING } from '../src/core/balance';
 import { baseStats } from '../src/core/stats';
-import { dawnInterest, newRun } from '../src/core/run';
+import { newRun } from '../src/core/run';
 import { deserialize, serialize, SAVE_VERSION } from '../src/core/save';
 import { getNode, isUnlocked, nextCost, resolveStats, TREE } from '../src/core/tree';
 import { generateNight, waveCountForNight } from '../src/core/waves';
@@ -113,7 +113,6 @@ describe('skill tree / stats', () => {
     expect(resolveStats({ war_insurance: 2 }).cityHitScrap).toBe(20);
     expect(resolveStats({ wave_dividend: 1 }).waveClearScrap).toBe(5);
     expect(resolveStats({ chain_bounty: 2 }).multiKillScrap).toBe(4);
-    expect(resolveStats({ compound_interest: 1 }).scrapInterestRate).toBeCloseTo(0.04, 5);
     expect(resolveStats({ flux_capacitor: 1 }).abilityCooldownMul).toBeCloseTo(0.92, 5);
     expect(
       resolveStats({ flux_capacitor: 1, singularity_core: 1 }).abilityCooldownMul,
@@ -138,12 +137,6 @@ describe('skill tree / stats', () => {
     }
   });
 
-  it('dawn interest pays floor(scrap * rate), nothing at rate 0', () => {
-    expect(dawnInterest(100, 0.04)).toBe(4);
-    expect(dawnInterest(117, 0.04)).toBe(4); // floor(4.68)
-    expect(dawnInterest(500, 0)).toBe(0);
-    expect(dawnInterest(0, 0.2)).toBe(0);
-  });
 });
 
 describe('save / load', () => {

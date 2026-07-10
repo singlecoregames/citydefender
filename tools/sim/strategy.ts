@@ -3,6 +3,7 @@
  * screen's buy rules (unlock prerequisites, per-currency banks, level caps)
  * and spends every dawn until nothing is affordable.
  */
+import { worldOf } from '../../src/core/balance';
 import type { RunState } from '../../src/core/run';
 import {
   getNode,
@@ -52,7 +53,7 @@ function affordable(run: RunState): Candidate[] {
   const out: Candidate[] = [];
   for (const node of TREE) {
     if (node.branch === 'core') continue;
-    if (!isUnlocked(node, run.upgrades)) continue;
+    if (!isUnlocked(node, run.upgrades, worldOf(run.night))) continue;
     const cost = nextCost(node, run.upgrades[node.id] ?? 0);
     if (cost === null || bank(run, node) < cost) continue;
     out.push({ node, cost });
@@ -104,7 +105,7 @@ function nextGoal(run: RunState): Candidate | null {
     if ((run.upgrades[step.id] ?? 0) >= step.level) continue;
     let node = getNode(step.id)!;
     // Walk down to the first unbought prerequisite if the goal is locked.
-    while (!isUnlocked(node, run.upgrades)) {
+    while (!isUnlocked(node, run.upgrades, worldOf(run.night))) {
       const missing = node.requires.find((req) => (run.upgrades[req] ?? 0) < 1);
       if (!missing) break;
       node = getNode(missing)!;

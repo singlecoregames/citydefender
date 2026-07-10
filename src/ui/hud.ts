@@ -1,4 +1,4 @@
-import { COMBO } from '../core/balance';
+import { COMBO, nightInWorld, worldOf } from '../core/balance';
 import type { GameState } from '../core/types';
 import { t } from './i18n';
 
@@ -28,7 +28,8 @@ export class Hud {
     this.scrapEl.textContent = bank;
     const wave = Math.min(state.director.waveIndex + 1, state.director.totalWaves);
     const boss = state.enemies.some((e) => e.kind === 'boss') ? t().bossTag : '';
-    this.waveEl.textContent = t().nightWave(state.night, wave, state.director.totalWaves) + boss;
+    this.waveEl.textContent =
+      t().nightWave(worldOf(state.night), nightInWorld(state.night), wave, state.director.totalWaves) + boss;
     this.renderCombo(state.combo);
     this.syncPips(state.cannon.maxAmmo);
     for (let i = 0; i < this.pipCount; i++) {

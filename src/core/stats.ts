@@ -47,8 +47,6 @@ export interface DerivedStats {
   waveClearScrap: number;
   /** Flat bonus scrap when one explosion kills 3+ enemies (Chain Bounty). */
   multiKillScrap: number;
-  /** Fraction of unspent scrap paid as a bonus each dawn (Compound Interest). */
-  scrapInterestRate: number;
   /** >0: turrets may target and damage phased enemies (Doppler Tracking). */
   dopplerTracking: number;
   /** Multiplier on the Jammer Tower's field radius (Wide Spectrum). */
@@ -64,6 +62,14 @@ export interface DerivedStats {
   /** Auto-Fire node level: 0 = the idle auto-fire is locked; higher levels
    *  arm it after a shorter idle wait (see autoFireThresholdFor). */
   autoFireLevel: number;
+  /** Escort drones orbiting the cannon (Drone Escort, tier 2). */
+  droneCount: number;
+  /** MIRV level: interceptor blasts split into extra submunitions (tier 2). */
+  mirvLevel: number;
+  /** Orbital Lance level: periodic sky-beam strikes (tier 4, 0 = none). */
+  lanceLevel: number;
+  /** Aegis Dome charges per night (tier 4, 0 = no dome). */
+  aegisCharges: number;
   /** Multiplier on every turret's aim spread, stacking with the Radar Array
    *  (Neural Lead). */
   turretSpreadMul: number;
@@ -110,13 +116,16 @@ export function baseStats(): DerivedStats {
     cityHitScrap: 0,
     waveClearScrap: 0,
     multiKillScrap: 0,
-    scrapInterestRate: 0,
     dopplerTracking: 0,
     jammerRadiusMul: 1,
     overchargeRate: 0,
     comboRetention: 0,
     threatTargeting: 0,
     autoFireLevel: 0,
+    droneCount: 0,
+    mirvLevel: 0,
+    lanceLevel: 0,
+    aegisCharges: 0,
     turretSpreadMul: 1,
   };
 }

@@ -25,7 +25,7 @@ interface Strings {
   continueNight: (night: number) => string;
   resetSave: string;
   wipeSaveConfirm: string;
-  nightWave: (night: number, wave: number, total: number) => string;
+  nightWave: (world: number, night: number, wave: number, total: number) => string;
   bossTag: string;
   nightSurvived: (night: number) => string;
   citiesLost: string;
@@ -44,10 +44,7 @@ interface Strings {
   costCore: string;
   costMax: (level: number) => string;
   ability: Record<AbilityKind, string>;
-  prestigeButton: (pts: number) => string;
-  prestigeConfirm: string;
-  prestigeLockedHint: (night: number) => string;
-  prestigeUpg: Record<string, { name: string; desc: string }>;
+  ttTierLocked: (tier: number) => string;
 }
 
 const EN: Strings = {
@@ -57,7 +54,7 @@ const EN: Strings = {
   continueNight: (n) => `CONTINUE ▸ NIGHT ${n}`,
   resetSave: 'RESET SAVE',
   wipeSaveConfirm: 'TAP AGAIN TO WIPE SAVE',
-  nightWave: (n, w, t) => `NIGHT ${n} — WAVE ${w}/${t}`,
+  nightWave: (wd, n, w, t) => `WORLD ${wd} · NIGHT ${n} — WAVE ${w}/${t}`,
   bossTag: '  ☠ BOSS',
   nightSurvived: (n) => `NIGHT ${n} SURVIVED`,
   citiesLost: 'CITIES LOST',
@@ -76,16 +73,7 @@ const EN: Strings = {
   costCore: 'CORE',
   costMax: (l) => `✓ MAX · ${l}`,
   ability: { emp: 'EMP', megabomb: 'BOMB', freefire: 'FREE', surge: 'SURGE' },
-  prestigeButton: (pts) => `✦ PRESTIGE +${pts}`,
-  prestigeConfirm: 'RESET THE RUN FOR ✦?',
-  prestigeLockedHint: (night) => `✦ prestige unlocks at night ${night}`,
-  prestigeUpg: {
-    arsenal_core: { name: 'Arsenal Core', desc: '×2 ALL damage, permanently' },
-    drone_escort: { name: 'Drone Escort', desc: '+1 orbiting combat drone' },
-    mirv_warhead: { name: 'MIRV Warhead', desc: 'Blasts split into +2 submunitions' },
-    head_start: { name: 'Head Start', desc: 'Start each run with +250⬡' },
-    salvage_core: { name: 'Salvage Core', desc: '+10% scrap, permanently' },
-  },
+  ttTierLocked: (tier) => `🔒 Tier ${tier} — unlocks in world ${tier}`,
 };
 
 const KO: Strings = {
@@ -95,7 +83,7 @@ const KO: Strings = {
   continueNight: (n) => `이어하기 ▸ ${n}번째 밤`,
   resetSave: '세이브 초기화',
   wipeSaveConfirm: '한 번 더 누르면 삭제됩니다',
-  nightWave: (n, w, t) => `${n}번째 밤 — 웨이브 ${w}/${t}`,
+  nightWave: (wd, n, w, t) => `월드 ${wd} · ${n}번째 밤 — 웨이브 ${w}/${t}`,
   bossTag: '  ☠ 보스',
   nightSurvived: (n) => `${n}번째 밤 생존`,
   citiesLost: '도시 함락',
@@ -115,16 +103,7 @@ const KO: Strings = {
   costCore: '코어',
   costMax: (l) => `✓ 최대 · ${l}`,
   ability: { emp: 'EMP', megabomb: '폭탄', freefire: '연사', surge: '서지' },
-  prestigeButton: (pts) => `✦ 프레스티지 +${pts}`,
-  prestigeConfirm: '런을 초기화하고 ✦를 받을까요?',
-  prestigeLockedHint: (night) => `✦ 프레스티지는 ${night}번째 밤부터`,
-  prestigeUpg: {
-    arsenal_core: { name: '무장 코어', desc: '모든 피해 ×2 (영구)' },
-    drone_escort: { name: '드론 호위', desc: '궤도 전투 드론 +1' },
-    mirv_warhead: { name: 'MIRV 탄두', desc: '폭발이 자탄 +2개로 분열' },
-    head_start: { name: '초기 물자', desc: '런 시작 시 +250⬡' },
-    salvage_core: { name: '회수 코어', desc: '스크랩 +10% (영구)' },
-  },
+  ttTierLocked: (tier) => `🔒 티어 ${tier} — 월드 ${tier}에서 해금`,
 };
 
 const CURRENCY_KO: Record<Currency, string> = { scrap: '스크랩', cores: '코어', data: '데이터' };
@@ -161,6 +140,12 @@ const TREE_KO: Record<string, { name: string; description: string }> = {
   turret_speed2: { name: '오버드라이브 II', description: '모든 터렛 발사 속도 +12%' },
   tesla_voltage: { name: '고전압', description: '테슬라 피해 +25%' },
   salvage: { name: '회수', description: '스크랩 획득 +8%' },
+  arsenal_core: { name: '무장 코어', description: '모든 피해(터렛·폭발) +50%' },
+  drone_escort: { name: '드론 호위', description: '궤도 전투 드론 배치 (+1/레벨)' },
+  mirv_warhead: { name: 'MIRV 탄두', description: '요격탄 폭발이 레벨당 자탄 +2개로 분열' },
+  salvage_core: { name: '회수 코어', description: '스크랩 획득 +10%' },
+  orbital_lance: { name: '궤도 섬멸포', description: '주기적으로 하늘의 빔이 가장 밀집한 적 열을 강타 (레벨 = 주기 단축)' },
+  aegis_dome: { name: '이지스 돔', description: '전장을 덮는 방어막이 레벨당 밤마다 적 3기를 증발시킴' },
   war_bonds: { name: '전쟁 채권', description: '밤 클리어 보너스 +20%' },
   turret_flak: { name: '대공포', description: '대공포 터렛 배치: 공중 폭발 범위 피해, 무리에 강함 (레벨 = 피해 증가)' },
   chain_bounty: { name: '연쇄 현상금', description: '한 번의 폭발로 3킬 이상 시 스크랩 +2' },
@@ -170,7 +155,6 @@ const TREE_KO: Record<string, { name: string; description: string }> = {
   refinery: { name: '정제소', description: '스크랩 획득 +6%' },
   wave_dividend: { name: '웨이브 배당', description: '웨이브 생존마다 스크랩 +5' },
   reserves: { name: '예비금', description: '밤 클리어 보너스 +30%' },
-  compound_interest: { name: '복리', description: '새벽마다 미사용 스크랩의 +4% 지급' },
   flak_fuses: { name: '이중 신관', description: '대공포 발사 속도 +20%' },
   midas_protocol: { name: '미다스 프로토콜', description: '스크랩 획득 +15%' },
   reinforced: { name: '보강', description: '지반 HP +1' },
