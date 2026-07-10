@@ -393,7 +393,14 @@ export class DayScreen {
   private handleTap(clientX: number, clientY: number): void {
     const hit = document.elementFromPoint(clientX, clientY);
     const g = hit?.closest('[data-node-id]') as SVGGElement | null;
-    if (!g) return;
+    if (!g) {
+      // Tapping the tree background (not a node) dismisses an open tooltip.
+      if (this.selectedId) {
+        this.selectedId = null;
+        this.hideTooltip();
+      }
+      return;
+    }
     const node = TREE.find((n) => n.id === g.dataset.nodeId);
     if (!node) return;
     if (this.selectedId !== node.id) {

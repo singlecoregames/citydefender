@@ -212,6 +212,14 @@ const GLYPHS: Record<TurretKind | BuildingKind, string[]> = {
   ], // shoot me!
 };
 
+/** Stable per-turret identity for the mesh cache: a turret is uniquely fixed
+ *  by its kind and deploy x (the two slots of a kind live at distinct x), so
+ *  this stays matched to the same turret even as the roster's ids shift
+ *  between nights. */
+function turretKey(kind: TurretKind, x: number): string {
+  return `${kind}@${x}`;
+}
+
 /** Darkened copy of a palette colour, for trails behind their entity. */
 function darken(hex: number, f: number): number {
   return new THREE.Color(hex).multiplyScalar(f).getHex();
@@ -288,10 +296,14 @@ export class Renderer {
   private readonly enemyViews = new Map<number, EnemyView>();
   private readonly interceptorViews = new Map<number, InterceptorView>();
   private readonly explosionViews = new Map<number, ExplosionView>();
-  private readonly turretMeshes = new Map<number, THREE.Mesh>();
-  private readonly buildingMeshes = new Map<number, THREE.Mesh>();
+  // Keyed by a stable identity (kind + deploy x), NOT the sim's positional id:
+  // the deployed roster is rebuilt each night, so a given id can map to a
+  // different kind/position between nights. Keying by identity keeps each
+  // structure's mesh matched to the right turret across roster changes.
+  private readonly turretMeshes = new Map<string, THREE.Mesh>();
+  private readonly buildingMeshes = new Map<string, THREE.Mesh>();
   /** Shield Generators get a charge gauge; max = charges seen at creation. */
-  private readonly shieldGauges = new Map<number, GaugeView & { maxCharges: number }>();
+  private readonly shieldGauges = new Map<string, GaugeView & { maxCharges: number }>();
   private readonly projectileViews = new Map<number, THREE.Mesh>();
   private readonly cityViews: GaugeView[] = [];
   private readonly beams: BeamFx[] = [];
@@ -738,8 +750,11 @@ export class Renderer {
     // Turrets are created once per night and don't move; just create on demand.
     // Every deployed structure shares one SNKRX-chip shape — a rounded block
     // in the kind's colour with its rune doing the telling-apart.
+    const seen = new Set<string>();
     for (const t of state.turrets) {
-      if (this.turretMeshes.has(t.id)) continue;
+      const key = turretKey(t.kind, t.x);
+      seen.add(key);
+      if (this.turretMeshes.has(key)) continue;
       const mesh = new THREE.Mesh(
         this.roundedGeo,
         new THREE.MeshBasicMaterial({ color: TURRET_COLORS[t.kind] }),
@@ -752,17 +767,15 @@ export class Renderer {
       this.addShadow(mesh, true);
       this.addGlyph(mesh, t.kind, 3.8);
       this.scene.add(mesh);
-      this.turretMeshes.set(t.id, mesh);
+      this.turretMeshes.set(key, mesh);
     }
-    // Remove any left over from a previous night with more turrets.
-    if (this.turretMeshes.size > state.turrets.length) {
-      const ids = new Set(state.turrets.map((t) => t.id));
-      for (const [id, mesh] of this.turretMeshes) {
-        if (!ids.has(id)) {
-          this.scene.remove(mesh);
-          (mesh.material as THREE.Material).dispose();
-          this.turretMeshes.delete(id);
-        }
+    // Remove any turret no longer in the deployed roster (the build changes
+    // between nights as the tree is bought into).
+    for (const [key, mesh] of this.turretMeshes) {
+      if (!seen.has(key)) {
+        this.scene.remove(mesh);
+        (mesh.material as THREE.Material).dispose();
+        this.turretMeshes.delete(key);
       }
     }
   }
@@ -770,8 +783,11 @@ export class Renderer {
   private syncBuildings(state: GameState): void {
     // Buildings are static for the night; the same chip shape as turrets, in
     // the kind's support colour with its rune.
+    const seen = new Set<string>();
     for (const b of state.buildings) {
-      if (this.buildingMeshes.has(b.id)) continue;
+      const key = b.kind; // each support kind deploys at most once
+      seen.add(key);
+      if (this.buildingMeshes.has(key)) continue;
       const body = new THREE.Mesh(
         this.roundedGeo,
         new THREE.MeshBasicMaterial({ color: BUILDING_COLORS[b.kind] }),
@@ -783,27 +799,25 @@ export class Renderer {
       // the rune, which sits at a higher local z).
       if (b.kind === 'shield') {
         const gauge = this.addGauge(body, darken(BUILDING_COLORS.shield, 0.3), body.material);
-        this.shieldGauges.set(b.id, { ...gauge, maxCharges: Math.max(1, b.charges) });
+        this.shieldGauges.set(key, { ...gauge, maxCharges: Math.max(1, b.charges) });
       }
       this.addGlyph(body, b.kind, 4.5);
       this.scene.add(body);
-      this.buildingMeshes.set(b.id, body);
+      this.buildingMeshes.set(key, body);
     }
     // Keep shield charge gauges current.
     for (const b of state.buildings) {
       if (b.kind !== 'shield') continue;
-      const g = this.shieldGauges.get(b.id);
+      const g = this.shieldGauges.get(b.kind);
       if (g) this.setGauge(g, b.charges / g.maxCharges);
     }
-    if (this.buildingMeshes.size > state.buildings.length) {
-      const ids = new Set(state.buildings.map((b) => b.id));
-      for (const [id, mesh] of this.buildingMeshes) {
-        if (!ids.has(id)) {
-          this.scene.remove(mesh);
-          (mesh.material as THREE.Material).dispose();
-          this.buildingMeshes.delete(id);
-          this.shieldGauges.delete(id);
-        }
+    // Remove any building no longer deployed (the build changes between nights).
+    for (const [key, mesh] of this.buildingMeshes) {
+      if (!seen.has(key)) {
+        this.scene.remove(mesh);
+        (mesh.material as THREE.Material).dispose();
+        this.buildingMeshes.delete(key);
+        this.shieldGauges.delete(key);
       }
     }
   }

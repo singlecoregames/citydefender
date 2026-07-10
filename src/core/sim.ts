@@ -174,7 +174,8 @@ export class Sim {
 
   private fire(x: number, y: number, auto = false): void {
     const s = this.state;
-    // Free Fire: while active, shots neither need nor drain the magazine.
+    // Free Fire salvo: while shots remain, a shot spends one from the salvo
+    // instead of the magazine (no drain, no reload wait).
     const free = s.ability.freefire > 0;
     if (!free && s.cannon.ammo <= 0) {
       s.events.push({ type: 'fireDenied', reason: 'noAmmo' });
@@ -189,7 +190,8 @@ export class Sim {
       s.events.push({ type: 'fireDenied', reason: 'tooClose' });
       return;
     }
-    if (!free) s.cannon.ammo--;
+    if (free) s.ability.freefire--;
+    else s.cannon.ammo--;
     s.interceptors.push({
       id: s.nextId++,
       pos: { ...origin },
@@ -226,14 +228,21 @@ export class Sim {
     this.autoFireCooldown = Math.max(0, this.autoFireCooldown - DT);
     const threshold = s.cannon.autoFireThreshold;
     if (threshold <= 0) return; // node not owned
-    if (s.cannon.ammo < this.cfg.stats.maxAmmo) return;
-    s.cannon.idleSeconds += DT;
-    if (s.cannon.idleSeconds < threshold) return;
+
+    // Spending a Free Fire salvo: the cannon dumps the free shots on the most
+    // urgent targets at a fast cadence, no magazine or idle wait needed — so an
+    // idle player gets the same salvo an active one would tap out by hand.
+    const salvo = s.ability.freefire > 0;
+    if (!salvo) {
+      if (s.cannon.ammo < this.cfg.stats.maxAmmo) return;
+      s.cannon.idleSeconds += DT;
+      if (s.cannon.idleSeconds < threshold) return;
+    }
     if (this.autoFireCooldown > 0) return;
     const aim = this.autoAimPoint();
     if (!aim) return;
     this.fire(aim.x, aim.y, true);
-    this.autoFireCooldown = this.cfg.stats.reloadSeconds;
+    this.autoFireCooldown = salvo ? CANNON.autoFireBurstInterval : this.cfg.stats.reloadSeconds;
   }
 
   /** Where the auto-fire shoots: the lead-aimed future position of the most
@@ -317,7 +326,7 @@ export class Sim {
     a.cooldown.freefire = Math.max(0, a.cooldown.freefire - DT);
     a.cooldown.surge = Math.max(0, a.cooldown.surge - DT);
     a.empFreeze = Math.max(0, a.empFreeze - DT);
-    a.freefire = Math.max(0, a.freefire - DT);
+    // freefire is a shot counter now (spent in fire()), not a timer.
     a.surge = Math.max(0, a.surge - DT);
   }
 
@@ -355,7 +364,7 @@ export class Sim {
       s.events.push({ type: 'abilityUsed', ability: 'megabomb', pos });
     } else if (kind === 'freefire') {
       const spec = ABILITIES.freefire;
-      s.ability.freefire = spec.duration + spec.durationPerLevel * (level - 1);
+      s.ability.freefire = spec.shots + spec.shotsPerLevel * (level - 1);
       s.ability.cooldown.freefire = cooldown(spec);
       s.events.push({ type: 'abilityUsed', ability: 'freefire' });
     } else {

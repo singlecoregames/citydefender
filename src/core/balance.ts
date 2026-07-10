@@ -33,9 +33,13 @@ export const CANNON = {
    *  and fires on its own — one shot per reload cycle (each shot drops the
    *  magazine off full; the next fires when it refills). A manual shot resets
    *  the timer. Extra node levels shave the wait, to a floor. */
-  autoFireIdleSeconds: 5,
+  autoFireIdleSeconds: 4,
   autoFireIdlePerLevel: 1,
-  autoFireIdleMin: 3,
+  autoFireIdleMin: 2,
+  /** While a Free Fire salvo is being spent, the auto-fire ignores the reload
+   *  cadence and dumps the free shots this fast — so leaving it to the
+   *  cannon is nearly as quick as tapping the salvo out by hand. */
+  autoFireBurstInterval: 0.28,
 } as const;
 
 /** Idle seconds before auto-fire arms at the given node level (0 = locked). */
@@ -192,8 +196,10 @@ export const ABILITIES = {
     baseCooldown: 22,
     cooldownPerLevel: 1.6,
     minCooldown: 10,
-    radius: 28,
-    radiusPerLevel: 3,
+    /** A field-covering blast: half the arena wide at level 1, growing to
+     *  blanket almost all of it. */
+    radius: 48,
+    radiusPerLevel: 5,
     damage: 6,
     damagePerLevel: 3,
     /** Detonation height (world y). */
@@ -203,10 +209,11 @@ export const ABILITIES = {
     baseCooldown: 24,
     cooldownPerLevel: 1.8,
     minCooldown: 12,
-    /** Seconds of unlimited manual ammo: shots neither drain the magazine
-     *  nor wait for the reload while active. */
-    duration: 4,
-    durationPerLevel: 0.75,
+    /** A salvo of free shots: each shot (manual OR auto) neither drains the
+     *  magazine nor waits for the reload, but the salvo is capped at this many
+     *  rounds — so hand-firing and auto-fire spend the same ammunition. */
+    shots: 6,
+    shotsPerLevel: 2,
   },
   surge: {
     baseCooldown: 30,

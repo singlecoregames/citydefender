@@ -781,7 +781,7 @@ export const TREE: readonly TreeNode[] = [
   {
     id: 'ability_freefire',
     name: 'Free Fire',
-    description: 'Manual: unlimited ammo for a few seconds — no drain, no reload. Levels extend duration / cut cooldown',
+    description: 'Manual: a salvo of free shots — no drain, no reload. Levels add shots / cut cooldown',
     branch: 'tech',
     col: -2,
     row: -2,
