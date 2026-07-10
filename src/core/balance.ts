@@ -253,20 +253,13 @@ export const BOSS_NIGHT_INTERVAL = 10;
 export const BOSS = {
   /** Base hp before the night's hpScale; very tanky. */
   hp: 55,
-  /** THE prestige walls. From wallFromNight on, boss hp switches to an
-   *  absolute gate: wallHp × wallGrowth^(night − wallFromNight). wallHp is
-   *  calibrated to the maxed scrap tree's kill capacity inside the descent
-   *  window, so a ✦-less run walls at the N30 boss; each Arsenal Core level
-   *  (×2 damage) buys log2/log(wallGrowth) ≈ 30 more nights — bosses every
-   *  30 nights ARE the walls, and the swarm curve stays playable between. */
-  wallFromNight: 30,
-  wallHp: 110000,
-  wallGrowth: 1.068,
-  /** Past taperNight the wall curve relaxes: the full-✦ build (which walls
-   *  around N140) outgrows it again at natural pace, opening the N140→200
-   *  victory stretch to the ending. */
-  wallTaperNight: 112,
-  wallGrowthLate: 1.0,
+  /** World-end gate bosses (N30/60/90/120): absolute hp per world, sized so
+   *  each falls to a build that has finished (or nearly finished) that
+   *  world's unlocked tier — the campaign's four climaxes. Mid-world bosses
+   *  (N10, 20, 40, ...) use the regular hpScale formula, floored at a
+   *  fraction of the previous gate so they stay relevant. */
+  gateHp: [55000, 500000, 2500000, 9000000] as readonly number[],
+  gateFloorFrac: 0.3,
   /** Slow, relentless descent — reaching the ground ends the night, so this
    *  sets the kill window (~105s from spawn to touchdown). */
   speed: 1.1,
@@ -335,10 +328,10 @@ export const NIGHT_SCALING = {
    *  each Arsenal Core level (×2 damage) buys roughly one wall interval
    *  (log2 / log hpGrowthLate ≈ 25-30 nights), giving the ~30-night wall
    *  cadence out to the N150 full-✦ finish and the N200 ending. */
-  hpGrowthEarly: 1.17,
+  hpGrowthEarly: 1.13,
   hpPivotNight: 30,
-  hpGrowthLate: 1.023,
-  hpRampStartNight: 5,
+  hpGrowthLate: 1.042,
+  hpRampStartNight: 7,
   /** Speed is unanswerable by upgrades, so it grows mildly and CAPS — an
    *  uncapped speed exponent was the old absolute-ceiling bug. */
   speedGrowth: 1.012,
@@ -349,7 +342,7 @@ export const NIGHT_SCALING = {
    *  and nights paid 35k+⬡ with nothing left to buy). 1.05 walls one sim
    *  seed at the N10 boss, so 1.06 is the floor that keeps every seed
    *  clearing. */
-  rewardGrowth: 1.06,
+  rewardGrowth: 1.055,
   /** Spawn interval shrinks as nights progress (denser spawns). */
   spawnIntervalBase: [0.85, 1.3] as readonly [number, number],
   spawnIntervalFloor: 0.14,
