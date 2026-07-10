@@ -340,7 +340,7 @@ export const NIGHT_SCALING = {
    *  a 200-night run's nights stay minutes, not tens of minutes. */
   baseWaves: 4,
   nightsPerExtraWave: 3,
-  maxWaves: 10,
+  maxWaves: 9,
   /** Enemies in wave w of night n = round((baseCount + w) * countGrowth^n),
    *  capped at maxWaveCount. The cap bounds night length: spawn intervals
    *  bottom out at spawnIntervalFloor, so unbounded counts made N30+ nights
@@ -351,7 +351,7 @@ export const NIGHT_SCALING = {
   /** Per-wave enemy cap = maxWaveCount + waveCapPerNight × night: volume is
    *  THE late-game pressure axis — by N200 waves are ~250-strong floods. */
   maxWaveCount: 28,
-  waveCapPerNight: 1.1,
+  waveCapPerNight: 0.95,
   /** Per-night enemy hp, in two phases (see generateNight).
    *  WORLD 1 (to hpPivotNight): a steep exponential — it deliberately runs
    *  ahead of the scrap income so the tree purchases are what carry the
@@ -381,8 +381,8 @@ export const NIGHT_SCALING = {
   speedCap: 3.5,
   /** Spawn interval shrinks as nights progress (denser spawns). */
   spawnIntervalBase: [0.85, 1.3] as readonly [number, number],
-  spawnIntervalFloor: 0.14,
-  spawnIntervalDecayPerNight: 0.965,
+  spawnIntervalFloor: 0.07,
+  spawnIntervalDecayPerNight: 0.963,
 } as const;
 
 /** Seconds of breathing room between waves. */
