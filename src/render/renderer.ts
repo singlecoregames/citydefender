@@ -7,7 +7,7 @@
  * like smooth vectors.
  */
 import * as THREE from 'three';
-import { CANNON, CITY, WORLD } from '../core/balance';
+import { CANNON, CITY, enemySize, WORLD } from '../core/balance';
 import { AEGIS } from '../core/prestige';
 import { explosionRadius } from '../core/explosion';
 import type { BuildingKind, EnemyKind, GameEvent, GameState, TurretKind, Vec2 } from '../core/types';
@@ -229,14 +229,8 @@ const ENEMY_TRAIL_COLORS: Record<EnemyKind, number> = Object.fromEntries(
   Object.entries(ENEMY_COLORS).map(([k, c]) => [k, darken(c, 0.55)]),
 ) as Record<EnemyKind, number>;
 
-/** Base render size per enemy kind, with a capped hp-based bonus so late-game
- *  high-hp enemies read as bigger without ballooning off-screen. */
-function enemySize(kind: EnemyKind, maxHp: number): number {
-  if (kind === 'boss') return 22;
-  const base =
-    kind === 'swarmer' ? 2.2 : kind === 'carrier' ? 9 : kind === 'regenerator' ? 4.4 : 3.8;
-  return base * (1 + Math.min(1.2, (maxHp - 1) * 0.03));
-}
+// enemySize moved to core/balance.ts: the sim's hit tests share it, so the
+// drawn body and the collider can never drift apart again.
 
 interface BeamFx {
   line: THREE.Line;

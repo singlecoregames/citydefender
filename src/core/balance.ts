@@ -2,7 +2,7 @@
  * Every tunable number in one place. The balance simulator (tools/sim)
  * sweeps these; gameplay code must not contain magic numbers.
  */
-import type { BuildingKind, TurretKind } from './types';
+import type { BuildingKind, EnemyKind, TurretKind } from './types';
 
 /** Simulation runs at a fixed 60Hz regardless of render framerate. */
 export const TICK_RATE = 60;
@@ -172,6 +172,24 @@ export const ENEMY = {
   carrier: { speed: 4, hp: 10, scrapReward: 22, spawnInterval: 1.6 },
 } as const;
 
+/** Render size (full extent, world units) per enemy kind, with a capped
+ *  hp-based bonus so late-game high-hp enemies read bigger without ballooning
+ *  off-screen. Lives here (not the renderer) because hit tests use it too:
+ *  what you see IS the collider — a boss drawn 22 wide must not require
+ *  threading a shot through its 3.5-unit centre point. */
+export function enemySize(kind: EnemyKind, maxHp: number): number {
+  if (kind === 'boss') return 22;
+  const base =
+    kind === 'swarmer' ? 2.2 : kind === 'carrier' ? 9 : kind === 'regenerator' ? 4.4 : 3.8;
+  return base * (1 + Math.min(1.2, (maxHp - 1) * 0.03));
+}
+
+/** Collision half-extent: hit tests add this to their contact radii so big
+ *  bodies are hit at their visual edge, not their centre. */
+export function enemyHalfSize(kind: EnemyKind, maxHp: number): number {
+  return enemySize(kind, maxHp) / 2;
+}
+
 /** How many swarmers spawn together when a swarm spawn is chosen. The pack
  *  grows with the night so their debut (N3, still manual-cannon-only) is a
  *  readable pair, not a full-size flood: 2 at N3–8, 3 at N9–13, 4 from N14.
@@ -261,7 +279,7 @@ export const BOSS = {
    *  world's unlocked tier — the campaign's four climaxes. Mid-world bosses
    *  (N10, 20, 40, ...) use the regular hpScale formula, floored at a
    *  fraction of the previous gate so they stay relevant. */
-  gateHp: [55000, 1100000, 10000000, 30000000] as readonly number[],
+  gateHp: [55000, 1400000, 13000000, 40000000] as readonly number[],
   /** Mid-world bosses (N40, 50, 70, …) climb the GEOMETRIC path between the
    *  surrounding gates (prev × (next/prev)^(nightInWorld/30)) — each boss
    *  night is a checkpoint that ramps to the world's gate. Swarm nights
@@ -340,7 +358,7 @@ export const NIGHT_SCALING = {
    *  smooth exponent can't do this: by the time world 2 feels it, world 4
    *  is unwinnable (sim: hpGrowthLate 1.09 → world 4 stuck, worlds 2-3
    *  still 0 fails). */
-  hpGrowthEarly: 1.13,
+  hpGrowthEarly: 1.155,
   hpPivotNight: 30,
   hpGrowthLate: 1.045,
   worldHpStep: [1, 4, 16, 40] as readonly number[],

@@ -21,6 +21,7 @@ import {
   DT,
   ECONOMY,
   ENEMY,
+  enemyHalfSize,
   swarmerGroupFor,
   TURRET,
   TURRETS,
@@ -799,7 +800,10 @@ export class Sim {
           const along = rx * dir.x + ry * dir.y;
           if (along < 0) return false;
           const off = Math.abs(rx * dir.y - ry * dir.x);
-          return off <= spec.pierceWidth! + this.cfg.stats.railgunPierceBonus;
+          return (
+            off <=
+            spec.pierceWidth! + this.cfg.stats.railgunPierceBonus + enemyHalfSize(e.kind, e.maxHp)
+          );
         });
         for (const e of hits) this.damageEnemy(e, damage);
         const reach = WORLD.height * 1.6;
@@ -956,16 +960,19 @@ export class Sim {
         continue;
       }
 
-      // Contact damage for non-flak projectiles.
+      // Contact damage for non-flak projectiles. Big bodies are hit at their
+      // visual edge: the contact radius grows by the enemy's half-extent
+      // (a boss reads 22 wide — shots must not need its centre point).
       if (p.fuse === undefined) {
         let hit: EnemyMissile | null = null;
-        let hitDist: number = TURRET.projectileHitRadius;
+        let hitMargin = 0;
         for (const e of s.enemies) {
           if (this.isUntouchable(e)) continue;
-          const d = dist(p.pos, e.pos);
-          if (d <= hitDist) {
+          const reach = TURRET.projectileHitRadius + enemyHalfSize(e.kind, e.maxHp);
+          const margin = reach - dist(p.pos, e.pos);
+          if (margin >= hitMargin) {
             hit = e;
-            hitDist = d;
+            hitMargin = margin;
           }
         }
         if (hit) {
@@ -1148,7 +1155,7 @@ export class Sim {
         for (let j = s.enemies.length - 1; j >= 0; j--) {
           const enemy = s.enemies[j]!;
           if (ex.hitEnemyIds.includes(enemy.id)) continue;
-          if (dist(ex.pos, enemy.pos) <= r) {
+          if (dist(ex.pos, enemy.pos) <= r + enemyHalfSize(enemy.kind, enemy.maxHp)) {
             ex.hitEnemyIds.push(enemy.id);
             if (this.damageEnemy(enemy, ex.damage)) {
               ex.kills = (ex.kills ?? 0) + 1;
