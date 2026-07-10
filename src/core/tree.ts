@@ -1004,6 +1004,42 @@ export const TREE: readonly TreeNode[] = [
     effects: [{ stat: 'scrapMul', op: 'mul', value: 0.1 }],
   },
   {
+    // The data counterpart of the repeatable sinks (see war_effort): perfect
+    // nights and combos over-earn ▣ by ~3× what the fixed nodes cost, so the
+    // skill currency converts into economy at the margin.
+    id: 'data_broker',
+    name: 'Data Broker',
+    description: '+1% scrap earned. No level cap',
+    branch: 'economy',
+    col: -6,
+    row: -3,
+    maxLevel: 99,
+    baseCost: 4,
+    costGrowth: 1.06,
+    currency: 'data',
+    tier: 2,
+    requires: ['neural_lead'],
+    effects: [{ stat: 'scrapMul', op: 'mul', value: 0.01 }],
+  },
+  {
+    // The cores counterpart of War Effort: a thin repeatable (+1%/level) so
+    // the boss-drop currency always has somewhere to go — without it the
+    // last ~30 nights bank 150-200◆ with nothing left to buy.
+    id: 'core_overclock',
+    name: 'Overclock Protocol',
+    description: '+1% all turret fire rate. No level cap',
+    branch: 'automation',
+    col: 2,
+    row: 3,
+    maxLevel: 99,
+    baseCost: 3,
+    costGrowth: 1.08,
+    currency: 'cores',
+    tier: 2,
+    requires: ['cooling_core'],
+    effects: [{ stat: 'turretFireRateMul', op: 'mul', value: 0.01 }],
+  },
+  {
     // The REPEATABLE sink: near-unbounded, exponentially pricier each level.
     // It gives every scrap surplus somewhere to go (the campaign banks tens
     // of millions once a world's tier is bought out) and — critically — makes

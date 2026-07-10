@@ -68,17 +68,17 @@ function cheapest(cands: Candidate[]): Candidate {
   );
 }
 
-/** The repeatable sink node: never competes with content. A player buys the
- *  new toy before +2% filler; the sink gets the surplus. */
-const SINK_ID = 'war_effort';
+/** The repeatable sink nodes: they never compete with content. A player buys
+ *  the new toy before +1-2% filler; sinks get the surplus of their currency. */
+const SINK_IDS = new Set(['war_effort', 'core_overclock', 'data_broker']);
 
-/** Cheapest NEXT scrap price among unlocked, unmaxed content nodes — the
- *  amount worth saving toward — or null when the scrap tree is bought out. */
-function nextContentGoal(run: RunState): number | null {
+/** Cheapest NEXT price among unlocked, unmaxed content nodes of a currency —
+ *  the amount worth saving toward — or null when that tree is bought out. */
+function nextContentGoal(run: RunState, currency: ReturnType<typeof nodeCurrency>): number | null {
   let min: number | null = null;
   for (const node of TREE) {
-    if (node.branch === 'core' || node.id === SINK_ID) continue;
-    if (nodeCurrency(node) !== 'scrap') continue;
+    if (node.branch === 'core' || SINK_IDS.has(node.id)) continue;
+    if (nodeCurrency(node) !== currency) continue;
     if (!isUnlocked(node, run.upgrades, worldOf(run.night))) continue;
     const cost = nextCost(node, run.upgrades[node.id] ?? 0);
     if (cost !== null && (min === null || cost < min)) min = cost;
@@ -86,23 +86,28 @@ function nextContentGoal(run: RunState): number | null {
   return min;
 }
 
-/** Greedy spend: content cheapest-first; the sink only eats what's left over
- *  beyond the next content goal (so saving toward big nodes still happens —
- *  and a player walled with a bought-out tree dumps everything into it). */
+/** Greedy spend: content cheapest-first; a sink only eats what's left over
+ *  beyond the next content goal in ITS currency (so saving toward big nodes
+ *  still happens — and a player walled with a bought-out tree dumps
+ *  everything into the sinks). */
 function greedySpend(run: RunState, bought: string[], focus?: TreeBranch): void {
   for (;;) {
     const cands = affordable(run);
-    const content = cands.filter((c) => c.node.id !== SINK_ID);
+    const content = cands.filter((c) => !SINK_IDS.has(c.node.id));
     if (content.length > 0) {
       const inFocus = focus ? content.filter((c) => c.node.branch === focus) : [];
       buy(run, cheapest(inFocus.length > 0 ? inFocus : content), bought);
       continue;
     }
-    const sink = cands.find((c) => c.node.id === SINK_ID);
-    if (!sink) break;
-    const goal = nextContentGoal(run);
-    if (goal !== null && bank(run, sink.node) - sink.cost < goal) break;
-    buy(run, sink, bought);
+    let spent = false;
+    for (const sink of cands) {
+      const goal = nextContentGoal(run, nodeCurrency(sink.node));
+      if (goal !== null && bank(run, sink.node) - sink.cost < goal) continue;
+      buy(run, sink, bought);
+      spent = true;
+      break;
+    }
+    if (!spent) break;
   }
 }
 
@@ -163,9 +168,12 @@ function shopSmart(run: RunState): string[] {
     if (!goal || bank(run, goal.node) < goal.cost) break;
     buy(run, goal, bought);
   }
-  // Cores/Data never compete with the scrap goal — spend them greedily.
+  // Cores/Data never compete with the scrap goal — spend them greedily
+  // (content only; sinks wait for the greedy phase's surplus rule).
   for (;;) {
-    const cands = affordable(run).filter((c) => nodeCurrency(c.node) !== 'scrap');
+    const cands = affordable(run).filter(
+      (c) => nodeCurrency(c.node) !== 'scrap' && !SINK_IDS.has(c.node.id),
+    );
     if (cands.length === 0) break;
     buy(run, cheapest(cands), bought);
   }

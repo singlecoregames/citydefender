@@ -156,6 +156,8 @@ const TREE_KO: Record<string, { name: string; description: string }> = {
   mirv_warhead: { name: 'MIRV 탄두', description: '요격탄 폭발이 레벨당 자탄 +2개로 분열' },
   salvage_core: { name: '회수 코어', description: '스크랩 획득 +10%' },
   war_effort: { name: '총력전', description: '모든 피해(터렛·폭발) +2%. 레벨 제한 없음' },
+  core_overclock: { name: '오버클럭 프로토콜', description: '모든 터렛 연사 속도 +1%. 레벨 제한 없음' },
+  data_broker: { name: '데이터 브로커', description: '스크랩 획득 +1%. 레벨 제한 없음' },
   orbital_lance: { name: '궤도 섬멸포', description: '주기적으로 하늘의 빔이 가장 밀집한 적 열을 강타 (레벨 = 주기 단축)' },
   aegis_dome: { name: '이지스 돔', description: '전장을 덮는 방어막이 레벨당 밤마다 적 3기를 증발시킴' },
   war_bonds: { name: '전쟁 채권', description: '밤 클리어 보너스 +20%' },
