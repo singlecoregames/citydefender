@@ -19,14 +19,22 @@ export function waveCountForNight(night: number): number {
   );
 }
 
+/** Volume pity: each consecutive defeat on a night thins its waves by this
+ *  much, capped — the twin of ECONOMY.defeatPityPerFail. Scrap pity alone
+ *  can't unstick a run whose next power step is token- or price-gated (the
+ *  sim found single nasty night-rolls walling otherwise-healthy builds 7-8
+ *  straight); volume pity guarantees convergence while leaving first-try
+ *  difficulty untouched. */
+export const VOLUME_PITY = { perFail: 0.05, cap: 0.25 } as const;
+
 /**
  * Procedurally build a night's wave list from the night number. The per-wave
  * enemy cap climbs with the night, so the 200-night curve ends in massed
  * space-war floods rather than longer nights. Deterministic: the same night
- * always produces the same spec, so saves and the balance sim stay
- * reproducible.
+ * and failStreak always produce the same spec, so saves and the balance sim
+ * stay reproducible.
  */
-export function generateNight(night: number): WaveSpec[] {
+export function generateNight(night: number, failStreak = 0): WaveSpec[] {
   const s = NIGHT_SCALING;
   const waveCap = s.maxWaveCount + s.waveCapPerNight * night;
   const spawnFloor = s.spawnIntervalFloor;
@@ -54,7 +62,11 @@ export function generateNight(night: number): WaveSpec[] {
   // Boss nights thin the regular waves — the boss and its minions carry the
   // pressure, and its descent deadline is the real clock.
   const bossNight = night % BOSS_NIGHT_INTERVAL === 0;
-  const countMul = bossNight ? 0.75 : 1;
+  // The first two boss nights thin their waves harder: they're fought with
+  // zero/one specials unlocked (tokens COME from these bosses), and the sim
+  // showed unlucky seeds stuck 8 straight on N10 at the regular 0.75.
+  const pity = 1 - Math.min(VOLUME_PITY.cap, VOLUME_PITY.perFail * failStreak);
+  const countMul = (bossNight ? (night <= 20 ? 0.55 : 0.75) : 1) * pity;
   for (let w = 0; w < count; w++) {
     waves.push({
       count: Math.min(
@@ -88,11 +100,13 @@ export function enemyPool(night: number): EnemyWeight[] {
   if (night >= 3) pool.push({ kind: 'swarmer', weight: 5 });
   if (night >= 5) pool.push({ kind: 'splitter', weight: 5 });
   if (night >= 7) pool.push({ kind: 'regenerator', weight: 4 });
-  if (night >= 9) pool.push({ kind: 'phase', weight: 4 });
+  // Phase walkers wait for the first boss token (N10): specials are the
+  // counter-tools now, and their N9 debut stacked on the swarm-3-pack spike.
+  if (night >= 11) pool.push({ kind: 'phase', weight: 4 });
   // Carriers ease in late and at half weight: their debut used to land on N12
   // together with the hp ramp, and the sim piled every world-1 fail onto that
   // single night (7-8 straight, a near-softlock at the 8-fail stuck limit).
-  if (night >= 13) pool.push({ kind: 'carrier', weight: night >= 17 ? 2 : 1 });
+  if (night >= 19) pool.push({ kind: 'carrier', weight: night >= 23 ? 2 : 1 });
   // Thin out plain ballistics once the roster fills in.
   if (night >= 10) pool[0]!.weight = 5;
   return pool;

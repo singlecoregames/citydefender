@@ -1,5 +1,5 @@
 import { BOSS_NIGHT_INTERVAL, DT } from './core/balance';
-import { firstClearCores, newRun, nightSeed, type RunState } from './core/run';
+import { newRun, nightSeed, type RunState } from './core/run';
 import { loadRun, saveRun } from './core/save';
 import { Sim, type NightConfig } from './core/sim';
 import type { Command } from './core/types';
@@ -70,7 +70,7 @@ const dayScreen = new DayScreen(
 function nightConfigFor(r: RunState): NightConfig {
   return {
     night: r.night,
-    waves: generateNight(r.night),
+    waves: generateNight(r.night, r.failStreak),
     stats: resolveStats(r.upgrades),
     turrets: turretsFromTree(r.upgrades),
     buildings: buildingsFromTree(r.upgrades),
@@ -98,12 +98,10 @@ container.addEventListener('pointerdown', (e) => {
  *  the frozen field for a beat, then open the Day screen. */
 const bannerEl = document.getElementById('night-banner')!;
 
-function resolveNight(outcome: 'victory' | 'defeat', scrapEarned: number, dataEarned: number): void {
+function resolveNight(outcome: 'victory' | 'defeat', scrapEarned: number): void {
   const clearedNight = run.night;
   run.scrap += scrapEarned;
-  run.data += dataEarned;
   if (outcome === 'victory') {
-    if (clearedNight > run.bestNight) run.cores += firstClearCores(clearedNight);
     run.bestNight = Math.max(run.bestNight, run.night);
     run.night += 1;
     run.failStreak = 0;
@@ -116,7 +114,7 @@ function resolveNight(outcome: 'victory' | 'defeat', scrapEarned: number, dataEa
   bannerEl.className = outcome;
   setTimeout(() => {
     bannerEl.className = 'hidden';
-    dayScreen.show(run, outcome, clearedNight, dataEarned);
+    dayScreen.show(run, outcome, clearedNight);
   }, 1800);
 }
 
@@ -142,7 +140,7 @@ function frame(now: number): void {
         }
         if (ev.type === 'nightEnded' && !nightResolved) {
           nightResolved = true;
-          resolveNight(ev.outcome, ev.scrapEarned, ev.dataEarned);
+          resolveNight(ev.outcome, ev.scrapEarned);
         }
       }
     }
@@ -150,7 +148,7 @@ function frame(now: number): void {
   }
 
   renderer.render(sim.state);
-  hud.render(sim.state, run.scrap + (nightResolved ? 0 : sim.state.scrap), run.cores, run.data);
+  hud.render(sim.state, run.scrap + (nightResolved ? 0 : sim.state.scrap), run.cores);
   abilityBar.render(sim.state);
   requestAnimationFrame(frame);
 }

@@ -6,6 +6,7 @@
  */
 import {
   ABILITIES,
+  bossSpawnInterval,
   autoFireThresholdFor,
   BOSS,
   WORLDS,
@@ -16,7 +17,6 @@ import {
   CANNON,
   CITY,
   COMBO,
-  DATA,
   defeatScrapFactorFor,
   DT,
   ECONOMY,
@@ -543,7 +543,7 @@ export class Sim {
       hp,
       maxHp: hp,
       scrapReward: BOSS.scrapReward,
-      spawnTimer: BOSS.spawnInterval,
+      spawnTimer: bossSpawnInterval(this.cfg.night),
     });
     s.events.push({ type: 'bossSpawned' });
   }
@@ -562,7 +562,7 @@ export class Sim {
           e.spawnTimer! -= dt;
           if (e.spawnTimer! <= 0) {
             this.spawnChild('swarmer', e, 1.3);
-            e.spawnTimer! += BOSS.spawnInterval;
+            e.spawnTimer! += bossSpawnInterval(this.cfg.night);
           }
           break;
         }
@@ -1015,7 +1015,7 @@ export class Sim {
       s.scrap += reward;
       s.events.push({ type: 'enemyKilled', pos: { ...enemy.pos }, reward });
       if (enemy.kind === 'boss') {
-        const cores = BOSS.coresBase + Math.floor(this.cfg.night / BOSS_NIGHT_INTERVAL);
+        const cores = BOSS.coresPerKill;
         s.events.push({ type: 'bossKilled', cores });
       }
       return true;
@@ -1088,6 +1088,7 @@ export class Sim {
       const edt = jam && dist(jam, e.pos) <= jam.radius ? dt * jam.factor : dt;
       e.pos.x += e.vel.x * edt;
       e.pos.y += e.vel.y * edt;
+      if (e.pos.y < s.minEnemyY) s.minEnemyY = e.pos.y;
       // Aegis Dome (tier 4): while charges remain, anything but a boss that
       // touches the shell is vaporised on contact — one charge each, no
       // scrap, no ground impact.
@@ -1241,19 +1242,7 @@ export class Sim {
     const s = this.state;
     s.phase = 'ended';
     s.outcome = outcome;
-    const dataEarned = outcome === 'victory' ? this.computeData() : 0;
-    s.events.push({ type: 'nightEnded', outcome, scrapEarned: s.scrap, dataEarned });
-  }
-
-  /** Data (▣) payout for skilled play: perfect defence + peak combo.
-   *  Only flows from DATA.unlockNight on — the late-game mastery currency. */
-  private computeData(): number {
-    const s = this.state;
-    if (s.night < DATA.unlockNight) return 0;
-    let data = 0;
-    if (s.cityDamageTaken === 0) data += DATA.perfectBase + Math.floor(s.night / 10);
-    data += Math.min(Math.floor(s.maxCombo / DATA.comboPerData), DATA.comboDataCap);
-    return data;
+    s.events.push({ type: 'nightEnded', outcome, scrapEarned: s.scrap });
   }
 }
 
@@ -1292,6 +1281,7 @@ function createInitialState(cfg: NightConfig): GameState {
     combo: 0,
     maxCombo: 0,
     cityDamageTaken: 0,
+    minEnemyY: WORLD.height + WORLD.spawnMargin,
     ability: {
       cooldown: { emp: 0, megabomb: 0, freefire: 0, surge: 0 },
       empFreeze: 0,

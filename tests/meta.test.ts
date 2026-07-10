@@ -3,7 +3,7 @@ import { NIGHT_SCALING } from '../src/core/balance';
 import { baseStats } from '../src/core/stats';
 import { newRun } from '../src/core/run';
 import { deserialize, serialize, SAVE_VERSION } from '../src/core/save';
-import { getNode, isUnlocked, nextCost, resolveStats, TREE } from '../src/core/tree';
+import { getNode, isUnlocked, nextPrice, resolveStats, TREE } from '../src/core/tree';
 import { generateNight, waveCountForNight } from '../src/core/waves';
 
 describe('waves', () => {
@@ -15,10 +15,21 @@ describe('waves', () => {
 
   it('enemy strength scales up with the night number', () => {
     const n1 = generateNight(1)[0]!;
-    const n10 = generateNight(10)[0]!;
-    expect(n10.hpScale).toBeGreaterThan(n1.hpScale);
-    expect(n10.count).toBeGreaterThan(n1.count);
-    expect(n10.rewardScale).toBeGreaterThan(n1.rewardScale);
+    // N11, not N10: boss nights deliberately thin their regular waves.
+    const n11 = generateNight(11)[0]!;
+    expect(n11.hpScale).toBeGreaterThan(n1.hpScale);
+    expect(n11.count).toBeGreaterThan(n1.count);
+    expect(n11.rewardScale).toBeGreaterThan(n1.rewardScale);
+  });
+
+  it('volume pity thins a retried night, bounded by its cap', () => {
+    const fresh = generateNight(15)[0]!;
+    const retried = generateNight(15, 2)[0]!;
+    const floored = generateNight(15, 99)[0]!;
+    expect(retried.count).toBeLessThan(fresh.count);
+    expect(floored.count).toBeGreaterThanOrEqual(Math.floor(fresh.count * 0.7));
+    // Strength is untouched — pity trims volume only.
+    expect(retried.hpScale).toBe(fresh.hpScale);
   });
 
   it('is deterministic for a given night', () => {
@@ -63,8 +74,8 @@ describe('skill tree / stats', () => {
 
   it('cost grows with level and maxes out', () => {
     const node = getNode('blast_radius')!;
-    expect(nextCost(node, 1)!).toBeGreaterThan(nextCost(node, 0)!);
-    expect(nextCost(node, node.maxLevel)).toBeNull();
+    expect(nextPrice(node, 1)!.amount).toBeGreaterThan(nextPrice(node, 0)!.amount);
+    expect(nextPrice(node, node.maxLevel)).toBeNull();
   });
 
   it('every node effect targets a real stat key', () => {
@@ -131,9 +142,14 @@ describe('skill tree / stats', () => {
     expect(resolveStats({ neural_lead: 2 }).turretSpreadMul).toBeCloseTo(0.85 * 0.85, 5);
   });
 
-  it('data-priced nodes are marked with the data currency', () => {
-    for (const id of ['combo_memory', 'threat_analysis', 'neural_lead']) {
-      expect(getNode(id)!.currency).toBe('data');
+  it('special nodes unlock with exactly one boss token, then upgrade in scrap', () => {
+    const specials = TREE.filter((n) => n.unlockCores !== undefined);
+    // 11 unlocks vs the campaign's 12 boss kills: every token is a choice.
+    expect(specials).toHaveLength(11);
+    for (const node of specials) {
+      expect(node.unlockCores).toBe(1);
+      expect(nextPrice(node, 0)).toEqual({ currency: 'cores', amount: 1 });
+      if (node.maxLevel > 1) expect(nextPrice(node, 1)!.currency).toBe('scrap');
     }
   });
 
@@ -162,8 +178,6 @@ describe('save / load', () => {
     // The command core is always kept so branch roots stay unlocked.
     expect(restored.upgrades).toEqual({ core: 1 });
     expect(restored.bestNight).toBe(0);
-    // Saves from before the Data currency default to an empty bank.
-    expect(restored.data).toBe(0);
   });
 
   it('migrates Time Dilation levels onto Free Fire', () => {

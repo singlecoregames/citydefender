@@ -8,9 +8,10 @@ import type { RunState } from '../../src/core/run';
 import {
   getNode,
   isUnlocked,
-  nextCost,
-  nodeCurrency,
+  nextPrice,
   TREE,
+  type Currency,
+  type NodePrice,
   type TreeBranch,
   type TreeNode,
 } from '../../src/core/tree';
@@ -34,19 +35,16 @@ const FOCUS: Partial<Record<StrategyName, TreeBranch>> = {
 
 interface Candidate {
   node: TreeNode;
-  cost: number;
+  price: NodePrice;
 }
 
-function bank(run: RunState, node: TreeNode): number {
-  const cur = nodeCurrency(node);
-  return cur === 'cores' ? run.cores : cur === 'data' ? run.data : run.scrap;
+function bank(run: RunState, currency: Currency): number {
+  return currency === 'cores' ? run.cores : run.scrap;
 }
 
-function pay(run: RunState, node: TreeNode, cost: number): void {
-  const cur = nodeCurrency(node);
-  if (cur === 'cores') run.cores -= cost;
-  else if (cur === 'data') run.data -= cost;
-  else run.scrap -= cost;
+function pay(run: RunState, price: NodePrice): void {
+  if (price.currency === 'cores') run.cores -= price.amount;
+  else run.scrap -= price.amount;
 }
 
 function affordable(run: RunState): Candidate[] {
@@ -54,9 +52,9 @@ function affordable(run: RunState): Candidate[] {
   for (const node of TREE) {
     if (node.branch === 'core') continue;
     if (!isUnlocked(node, run.upgrades, worldOf(run.night))) continue;
-    const cost = nextCost(node, run.upgrades[node.id] ?? 0);
-    if (cost === null || bank(run, node) < cost) continue;
-    out.push({ node, cost });
+    const price = nextPrice(node, run.upgrades[node.id] ?? 0);
+    if (price === null || bank(run, price.currency) < price.amount) continue;
+    out.push({ node, price });
   }
   return out;
 }
@@ -64,85 +62,119 @@ function affordable(run: RunState): Candidate[] {
 /** Cheapest first; ties broken by id so runs stay reproducible. */
 function cheapest(cands: Candidate[]): Candidate {
   return cands.reduce((a, b) =>
-    b.cost < a.cost || (b.cost === a.cost && b.node.id < a.node.id) ? b : a,
+    b.price.amount < a.price.amount ||
+    (b.price.amount === a.price.amount && b.node.id < a.node.id)
+      ? b
+      : a,
   );
 }
 
-/** The repeatable sink nodes: they never compete with content. A player buys
- *  the new toy before +1-2% filler; sinks get the surplus of their currency. */
-const SINK_IDS = new Set(['war_effort', 'core_overclock', 'data_broker']);
+function buy(run: RunState, pick: Candidate, bought: string[]): void {
+  pay(run, pick.price);
+  run.upgrades[pick.node.id] = (run.upgrades[pick.node.id] ?? 0) + 1;
+  bought.push(pick.node.id);
+}
 
-/** Cheapest NEXT price among unlocked, unmaxed content nodes of a currency —
- *  the amount worth saving toward — or null when that tree is bought out. */
-function nextContentGoal(run: RunState, currency: ReturnType<typeof nodeCurrency>): number | null {
+/** The order a player spends boss tokens (◆) on special unlocks — the early
+ *  wave-clearers first, spectacle last. Only unlockable (prereqs met, world
+ *  reached) entries are considered, so the list is a preference, not a plan. */
+const CORES_PRIORITY: readonly string[] = [
+  'ability_megabomb',
+  'turret_tesla', // the anti-swarm/carrier turret — before more buttons
+  'ability_emp',
+  'arsenal_core', // the damage multiplier: first pick the moment world 2 opens
+  'drone_escort',
+  'ability_freefire',
+  'turret_railgun',
+  'mirv_warhead',
+  'ability_surge',
+  'orbital_lance',
+  'aegis_dome',
+];
+
+/** Spend boss tokens on the highest-priority unlockable special. */
+function spendCores(run: RunState, bought: string[]): void {
+  for (;;) {
+    const pick = CORES_PRIORITY.map((id) => getNode(id)!)
+      .filter((node) => isUnlocked(node, run.upgrades, worldOf(run.night)))
+      .map((node) => ({ node, price: nextPrice(node, run.upgrades[node.id] ?? 0) }))
+      .find(
+        (c): c is Candidate =>
+          c.price !== null &&
+          c.price.currency === 'cores' &&
+          bank(run, 'cores') >= c.price.amount,
+      );
+    if (!pick) return;
+    buy(run, pick, bought);
+  }
+}
+
+/** The repeatable sink node: it never competes with content. A player buys
+ *  the new toy before +2% filler; the sink gets the scrap surplus. */
+const SINK_ID = 'war_effort';
+
+/** Cheapest NEXT scrap price among unlocked, unmaxed content nodes — the
+ *  amount worth saving toward — or null when the scrap tree is bought out. */
+function nextContentGoal(run: RunState): number | null {
   let min: number | null = null;
   for (const node of TREE) {
-    if (node.branch === 'core' || SINK_IDS.has(node.id)) continue;
-    if (nodeCurrency(node) !== currency) continue;
+    if (node.branch === 'core' || node.id === SINK_ID) continue;
     if (!isUnlocked(node, run.upgrades, worldOf(run.night))) continue;
-    const cost = nextCost(node, run.upgrades[node.id] ?? 0);
-    if (cost !== null && (min === null || cost < min)) min = cost;
+    const price = nextPrice(node, run.upgrades[node.id] ?? 0);
+    if (price === null || price.currency !== 'scrap') continue;
+    if (min === null || price.amount < min) min = price.amount;
   }
   return min;
 }
 
-/** Greedy spend: content cheapest-first; a sink only eats what's left over
- *  beyond the next content goal in ITS currency (so saving toward big nodes
- *  still happens — and a player walled with a bought-out tree dumps
- *  everything into the sinks). */
+/** Greedy SCRAP spend: content cheapest-first; the sink only eats what's
+ *  left over beyond the next content goal (so saving toward big nodes still
+ *  happens — and a player walled with a bought-out tree dumps everything
+ *  into it). Cores go through spendCores, never here. */
 function greedySpend(run: RunState, bought: string[], focus?: TreeBranch): void {
   for (;;) {
-    const cands = affordable(run);
-    const content = cands.filter((c) => !SINK_IDS.has(c.node.id));
+    const cands = affordable(run).filter((c) => c.price.currency === 'scrap');
+    const content = cands.filter((c) => c.node.id !== SINK_ID);
     if (content.length > 0) {
       const inFocus = focus ? content.filter((c) => c.node.branch === focus) : [];
       buy(run, cheapest(inFocus.length > 0 ? inFocus : content), bought);
       continue;
     }
-    let spent = false;
-    for (const sink of cands) {
-      const goal = nextContentGoal(run, nodeCurrency(sink.node));
-      if (goal !== null && bank(run, sink.node) - sink.cost < goal) continue;
-      buy(run, sink, bought);
-      spent = true;
-      break;
-    }
-    if (!spent) break;
+    const sink = cands.find((c) => c.node.id === SINK_ID);
+    if (!sink) break;
+    const goal = nextContentGoal(run);
+    if (goal !== null && bank(run, 'scrap') - sink.price.amount < goal) break;
+    buy(run, sink, bought);
   }
-}
-
-function buy(run: RunState, pick: Candidate, bought: string[]): void {
-  pay(run, pick.node, pick.cost);
-  run.upgrades[pick.node.id] = (run.upgrades[pick.node.id] ?? 0) + 1;
-  bought.push(pick.node.id);
 }
 
 /** The 'smart' strategy beelines these milestones in order, *saving* scrap
  *  for the next one instead of nickel-and-diming the cheap nodes — the way a
- *  player rushes damage and the first turrets. After the list it goes greedy. */
+ *  player rushes damage and the first turrets. After the list it goes greedy.
+ *  Milestones whose next level is a cores unlock can't be saved toward
+ *  (tokens come from boss kills, not thrift) — they're skipped until a token
+ *  is in hand (see spendCores). */
 const BUILD_ORDER: { id: string; level: number }[] = [
   { id: 'blast_radius', level: 1 },
   { id: 'turret_gatling', level: 1 },
   { id: 'salvage', level: 2 },
   { id: 'autoloader', level: 2 },
   { id: 'turret_flak', level: 1 }, // via salvage (quartermaster path)
-  { id: 'ability_megabomb', level: 1 }, // the early wave-clearer, right after flak
   { id: 'turret_speed', level: 2 }, // cheap turret dps before manual luxuries
   { id: 'turret_power', level: 2 },
   { id: 'turret_laser', level: 1 }, // via blast_radius (gunner path)
   { id: 'magazine', level: 1 },
-  { id: 'turret_tesla', level: 1 }, // walks gatling_spin on the way
-  { id: 'ability_emp', level: 1 },
   { id: 'wide_blast', level: 1 },
   { id: 'fast_intercept', level: 1 },
   { id: 'warhead', level: 1 },
   { id: 'turret_missile', level: 1 }, // walks reinforced (warden path)
-  { id: 'turret_railgun', level: 1 }, // walks turret_range (operator path)
-  { id: 'warhead', level: 3 },
-  { id: 'heavy_warhead', level: 1 },
+  // The list ends deliberately early: post-repricing, the deep milestones
+  // (warhead 3, heavy_warhead) cost several nights of income — saving toward
+  // them mid-world starves the build. Greedy cheapest-first handles the rest.
 ];
 
-/** Next unmet milestone, redirected to a missing prerequisite when locked. */
+/** Next unmet, scrap-payable milestone (walking down to the first unbought
+ *  prerequisite when locked). Skips milestones parked on a cores unlock. */
 function nextGoal(run: RunState): Candidate | null {
   for (const step of BUILD_ORDER) {
     if ((run.upgrades[step.id] ?? 0) >= step.level) continue;
@@ -153,29 +185,23 @@ function nextGoal(run: RunState): Candidate | null {
       if (!missing) break;
       node = getNode(missing)!;
     }
-    const cost = nextCost(node, run.upgrades[node.id] ?? 0);
-    if (cost === null) continue;
-    return { node, cost };
+    const price = nextPrice(node, run.upgrades[node.id] ?? 0);
+    if (price === null) continue;
+    if (price.currency !== 'scrap') continue; // token-gated: not saveable
+    return { node, price };
   }
   return null;
 }
 
 function shopSmart(run: RunState): string[] {
   const bought: string[] = [];
+  // Boss tokens first: they never compete with scrap plans.
+  spendCores(run, bought);
   // Chase the build order, stopping (= saving) at the first unaffordable goal.
   for (;;) {
     const goal = nextGoal(run);
-    if (!goal || bank(run, goal.node) < goal.cost) break;
+    if (!goal || bank(run, goal.price.currency) < goal.price.amount) break;
     buy(run, goal, bought);
-  }
-  // Cores/Data never compete with the scrap goal — spend them greedily
-  // (content only; sinks wait for the greedy phase's surplus rule).
-  for (;;) {
-    const cands = affordable(run).filter(
-      (c) => nodeCurrency(c.node) !== 'scrap' && !SINK_IDS.has(c.node.id),
-    );
-    if (cands.length === 0) break;
-    buy(run, cheapest(cands), bought);
   }
   // Once the build order is finished, fall back to greedy spending.
   if (nextGoal(run) === null) greedySpend(run, bought);
@@ -187,6 +213,7 @@ function shopSmart(run: RunState): string[] {
 export function shop(run: RunState, strategy: StrategyName): string[] {
   if (strategy === 'smart') return shopSmart(run);
   const bought: string[] = [];
+  spendCores(run, bought);
   greedySpend(run, bought, FOCUS[strategy]);
   return bought;
 }

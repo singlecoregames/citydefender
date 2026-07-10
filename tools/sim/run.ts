@@ -62,7 +62,7 @@ function printNightTable(report: RunReport): void {
       `${pad(r.night, 4)} ${pad(r.attempt, 3)}  ${r.outcome.padEnd(7)}` +
         `${pad(Math.round(r.durationSec), 5)} ${pad(r.scrapEarned, 7)}` +
         `${pad(r.maxCombo, 6)} ${pad(`${r.citiesLeft}/3`, 6)}` +
-        `${pad(r.bank.scrap, 7)} ${pad(r.bank.cores, 4)} ${pad(r.bank.data, 3)}` +
+        `${pad(r.bank.scrap, 7)} ${pad(r.bank.cores, 4)}` +
         `  ${buys > 0 ? `${buys}${note ? ` (${note})` : ''}` : '-'}`,
     );
   }
@@ -110,8 +110,7 @@ function printSummary(report: RunReport): void {
     .join(', ');
   console.log(`tree levels: ${branches}`);
   console.log(
-    `final bank: ⬡${report.run.scrap} ◆${report.run.cores} ▣${report.run.data}` +
-      ` — data earned total: ${recs.reduce((a, r) => a + r.dataEarned, 0)}`,
+    `final bank: ⬡${report.run.scrap} ◆${report.run.cores}`,
   );
 
   // First-unlock timeline for the run-defining nodes.
@@ -171,7 +170,7 @@ if (runs === 1) {
     console.log(
       `seed ${seed + i}: ${report.cleared ? 'cleared' : report.stuck ? `stuck N${report.run.night}` : `stopped N${report.run.night}`}` +
         ` in ${fmtTime(totalSec)} (${recs.length} nights, ${defeats} fails)` +
-        ` bank ⬡${report.run.scrap} ◆${report.run.cores} ▣${report.run.data}`,
+        ` bank ⬡${report.run.scrap} ◆${report.run.cores}`,
     );
   }
   if (clearedCount > 0) {

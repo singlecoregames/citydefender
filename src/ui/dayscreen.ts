@@ -4,8 +4,7 @@ import {
   BUILDING_NODES,
   isUnlocked,
   nodeTier,
-  nextCost,
-  nodeCurrency,
+  nextPrice,
   TREE,
   TURRET_NODES,
   TURRET_TWIN_NODES,
@@ -15,10 +14,10 @@ import {
 } from '../core/tree';
 import { formatAmount, nodeDescription, nodeName, t } from './i18n';
 
-const CURRENCY_ICON: Record<Currency, string> = { scrap: '⬡', cores: '◆', data: '▣' };
+const CURRENCY_ICON: Record<Currency, string> = { scrap: '⬡', cores: '◆' };
 
 function bankOf(run: RunState, cur: Currency): number {
-  return cur === 'cores' ? run.cores : cur === 'data' ? run.data : run.scrap;
+  return cur === 'cores' ? run.cores : run.scrap;
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -141,14 +140,13 @@ export class DayScreen {
     return !this.root.classList.contains('hidden');
   }
 
-  show(run: RunState, outcome: 'victory' | 'defeat', clearedNight: number, dataEarned = 0): void {
+  show(run: RunState, outcome: 'victory' | 'defeat', clearedNight: number): void {
     this.run = run;
     this.titleEl.textContent =
       outcome === 'victory' ? t().nightSurvived(clearedNight) : t().citiesLost;
     this.titleEl.className = outcome;
-    let subtitle = outcome === 'victory' ? t().daySubtitleVictory : t().daySubtitleDefeat;
-    if (dataEarned > 0) subtitle += t().dataForSkill(dataEarned);
-    this.subtitleEl.textContent = subtitle;
+    this.subtitleEl.textContent =
+      outcome === 'victory' ? t().daySubtitleVictory : t().daySubtitleDefeat;
     // Unhide first so the container has a measurable size for centring.
     this.root.classList.remove('hidden');
     if (!this.built) this.buildTree();
@@ -428,9 +426,9 @@ export class DayScreen {
     const node = TREE.find((n) => n.id === this.selectedId);
     if (!node) return;
     const level = run.upgrades[node.id] ?? 0;
-    const cost = nextCost(node, level);
-
-    const cur = nodeCurrency(node);
+    const price = nextPrice(node, level);
+    const cur = price?.currency ?? 'scrap';
+    const cost = price?.amount ?? null;
     const icon = CURRENCY_ICON[cur];
     const bank = bankOf(run, cur);
 
@@ -481,17 +479,17 @@ export class DayScreen {
 
   private refresh(): void {
     const run = this.run!;
-    this.bankEl.textContent = `⬡ ${formatAmount(run.scrap)}    ◆ ${run.cores}    ▣ ${run.data}`;
+    this.bankEl.textContent = `⬡ ${formatAmount(run.scrap)}    ◆ ${run.cores}`;
 
     for (const node of TREE) {
       const els = this.nodeEls.get(node.id)!;
       const level = run.upgrades[node.id] ?? 0;
       const unlocked = isUnlocked(node, run.upgrades, worldOf(run.night));
-      const cost = nextCost(node, level);
+      const price = nextPrice(node, level);
       const color = BRANCH_COLOR[node.branch];
-      const cur = nodeCurrency(node);
-      const icon = CURRENCY_ICON[cur];
-      const bank = bankOf(run, cur);
+      const cost = price?.amount ?? null;
+      const icon = CURRENCY_ICON[price?.currency ?? 'scrap'];
+      const bank = price ? bankOf(run, price.currency) : 0;
       const g = els.box.parentElement!;
 
       // Nodes whose prerequisites aren't bought stay entirely hidden — the
@@ -561,13 +559,11 @@ export class DayScreen {
     if (node.branch === 'core') return;
     const level = run.upgrades[node.id] ?? 0;
     if (!isUnlocked(node, run.upgrades, worldOf(run.night))) return;
-    const cost = nextCost(node, level);
-    if (cost === null) return;
-    const cur = nodeCurrency(node);
-    if (bankOf(run, cur) < cost) return;
-    if (cur === 'cores') run.cores -= cost;
-    else if (cur === 'data') run.data -= cost;
-    else run.scrap -= cost;
+    const price = nextPrice(node, level);
+    if (price === null) return;
+    if (bankOf(run, price.currency) < price.amount) return;
+    if (price.currency === 'cores') run.cores -= price.amount;
+    else run.scrap -= price.amount;
     run.upgrades[node.id] = level + 1;
     this.onPurchase(run);
     this.refresh();

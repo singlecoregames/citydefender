@@ -57,15 +57,22 @@ function migrate(env: SaveEnvelope): RunState {
       if (legacy[id]) upgrades[id] = Math.max(upgrades[id] ?? 0, legacy[id]!);
     }
   }
+  // Three-currencies era: the data (▣) currency and the repeatable
+  // cores/data sinks are gone — cores are boss tokens now (1 per kill,
+  // ~12 per campaign), so clamp hoards earned under the old trickle.
+  delete upgrades['data_broker'];
+  delete upgrades['core_overclock'];
   const migrated = {
     ...base,
     ...env.run,
+    cores: Math.min(env.run.cores ?? 0, 12),
     upgrades,
   };
-  // Strip retired reset-prestige fields so old saves don't haunt the state.
+  // Strip retired fields so old saves don't haunt the state.
   delete (migrated as Record<string, unknown>)['prestigeUpgrades'];
   delete (migrated as Record<string, unknown>)['prestige'];
   delete (migrated as Record<string, unknown>)['pp'];
+  delete (migrated as Record<string, unknown>)['data'];
   return migrated;
 }
 

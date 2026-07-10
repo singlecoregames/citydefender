@@ -4,8 +4,8 @@ import {
   ABILITIES,
   autoFireThresholdFor,
   CANNON,
+  BOSS,
   COMBO,
-  DATA,
   DT,
   EXPLOSION,
   TICK_RATE,
@@ -354,8 +354,8 @@ describe('cities and night flow', () => {
       return sim.state.scrap;
     };
     expect(payoutAfterFails(0)).toBe(60); // base 0.6
-    expect(payoutAfterFails(1)).toBe(75); // +0.15 per prior defeat
-    expect(payoutAfterFails(3)).toBe(100); // 0.6 + 0.45, capped...
+    expect(payoutAfterFails(1)).toBe(80); // +0.2 per prior defeat
+    expect(payoutAfterFails(3)).toBe(100); // 0.6 + 0.6, capped...
     expect(payoutAfterFails(9)).toBe(100); // ...and stays capped
   });
 
@@ -648,14 +648,16 @@ describe('enemy kinds', () => {
 
   it('enemy pool widens with the night number', () => {
     expect(enemyPool(1).map((p) => p.kind)).toEqual(['ballistic']);
-    // Carriers ease in at N13 (half weight until N17) — their debut used to
-    // stack onto the N12 hp ramp and pile every world-1 fail on one night.
-    expect(enemyPool(12).map((p) => p.kind)).not.toContain('carrier');
-    expect(enemyPool(13).map((p) => p.kind)).toContain('carrier');
-    expect(enemyPool(13).find((p) => p.kind === 'carrier')!.weight).toBeLessThan(
-      enemyPool(17).find((p) => p.kind === 'carrier')!.weight,
+    // Debuts are paced around the boss-token cadence: phase after the first
+    // token (N11), carriers at N19 (half weight until N23) once the third
+    // special is in hand — their earlier debuts each walled the sim.
+    expect(enemyPool(10).map((p) => p.kind)).not.toContain('phase');
+    expect(enemyPool(11).map((p) => p.kind)).toContain('phase');
+    expect(enemyPool(18).map((p) => p.kind)).not.toContain('carrier');
+    expect(enemyPool(19).map((p) => p.kind)).toContain('carrier');
+    expect(enemyPool(19).find((p) => p.kind === 'carrier')!.weight).toBeLessThan(
+      enemyPool(23).find((p) => p.kind === 'carrier')!.weight,
     );
-    expect(enemyPool(12).map((p) => p.kind)).toContain('phase');
   });
 });
 
@@ -701,7 +703,7 @@ describe('boss nights', () => {
     for (let i = 0; i < 10; i++) {
       for (const ev of sim.step([])) if (ev.type === 'bossKilled') coresAwarded = ev.cores;
     }
-    expect(coresAwarded).toBe(2 + 1); // coresBase + floor(10/10)
+    expect(coresAwarded).toBe(BOSS.coresPerKill); // one boss, one token
   });
 
   it('the boss sheds minions while alive', () => {
@@ -1203,38 +1205,21 @@ describe('combo / overcharge / data (skilled-play layer)', () => {
     expect(manual!.damage).toBeCloseTo(1 + TURRETS.gatling.damage * TURRETS.gatling.fireRate, 5);
   });
 
-  it('a perfect victory from the unlock night pays Data; early nights pay none', () => {
-    const sim = new Sim(1, bareConfig(DATA.unlockNight));
-    let data = -1;
-    for (let i = 0; i < TICK_RATE * 5 && data < 0; i++) {
-      for (const ev of sim.step([])) if (ev.type === 'nightEnded') data = ev.dataEarned;
+  it('a boss kill drops exactly one core token', () => {
+    const cfg = bareConfig(10);
+    cfg.boss = true;
+    const sim = new Sim(1, cfg);
+    run(sim, 5); // let the boss spawn
+    const boss = sim.state.enemies.find((e) => e.kind === 'boss');
+    expect(boss).toBeDefined();
+    boss!.hp = 1;
+    injectExplosion(sim, boss!.pos, 'manual');
+    let cores = 0;
+    for (let i = 0; i < TICK_RATE; i++) {
+      for (const ev of sim.step([])) if (ev.type === 'bossKilled') cores += ev.cores;
     }
-    expect(data).toBe(DATA.perfectBase + Math.floor(DATA.unlockNight / 10));
-
-    const early = new Sim(1, bareConfig(DATA.unlockNight - 1));
-    let earlyData = -1;
-    for (let i = 0; i < TICK_RATE * 5 && earlyData < 0; i++) {
-      for (const ev of early.step([])) if (ev.type === 'nightEnded') earlyData = ev.dataEarned;
-    }
-    expect(earlyData).toBe(0);
-  });
-
-  it('peak combo pays Data even without a perfect night; defeat pays nothing', () => {
-    const sim = new Sim(1, bareConfig(DATA.unlockNight));
-    sim.state.maxCombo = 30;
-    sim.state.cityDamageTaken = 1;
-    let data = -1;
-    for (let i = 0; i < TICK_RATE * 5 && data < 0; i++) {
-      for (const ev of sim.step([])) if (ev.type === 'nightEnded') data = ev.dataEarned;
-    }
-    expect(data).toBe(Math.floor(30 / DATA.comboPerData));
-
-    const lost = new Sim(1, bareConfig(DATA.unlockNight));
-    lost.state.maxCombo = 60;
-    for (const c of lost.state.cities) c.hp = 0;
-    const events = lost.step([]);
-    const ended = events.find((e) => e.type === 'nightEnded');
-    expect(ended && ended.type === 'nightEnded' && ended.dataEarned).toBe(0);
+    expect(cores).toBe(BOSS.coresPerKill);
+    expect(BOSS.coresPerKill).toBe(1);
   });
 
   it('Threat Analysis retargets turrets onto ground-threatening missiles', () => {

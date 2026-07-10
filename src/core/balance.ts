@@ -262,30 +262,21 @@ export const COMBO = {
   idleBreakSeconds: 8,
 } as const;
 
-/** Data (▣) — the skilled-play currency. Earned only on victorious nights
- *  from night `unlockNight` on: a perfect-defence bonus plus a peak-combo
- *  bonus. Spent on the automation-intelligence nodes. */
-export const DATA = {
-  unlockNight: 20,
-  /** Perfect night (cities took zero damage): perfectBase + floor(night/10). */
-  perfectBase: 2,
-  /** 1 data per this much peak combo, capped at comboDataCap. */
-  comboPerData: 20,
-  comboDataCap: 3,
-} as const;
-
 /** Boss appears every BOSS_NIGHT_INTERVAL nights (N10, 20, 30…). */
 export const BOSS_NIGHT_INTERVAL = 10;
 
 export const BOSS = {
-  /** Base hp before the night's hpScale; very tanky. */
-  hp: 55,
+  /** Base hp before the night's hpScale (N10/20 only — worlds 2-4 use the
+   *  gate interpolation). Sized for MANUAL kills: turrets always prefer the
+   *  lowest enemy, so the boss is fought with the cannon while minions flood
+   *  below — 55 was a knife-edge for unlucky no-special N10 builds. */
+  hp: 40,
   /** World-end gate bosses (N30/60/90/120): absolute hp per world, sized so
    *  each falls to a build that has finished (or nearly finished) that
    *  world's unlocked tier — the campaign's four climaxes. Mid-world bosses
    *  (N10, 20, 40, ...) use the regular hpScale formula, floored at a
    *  fraction of the previous gate so they stay relevant. */
-  gateHp: [55000, 1400000, 13000000, 40000000] as readonly number[],
+  gateHp: [17000, 900000, 8500000, 40000000] as readonly number[],
   /** Mid-world bosses (N40, 50, 70, …) climb the GEOMETRIC path between the
    *  surrounding gates (prev × (next/prev)^(nightInWorld/30)) — each boss
    *  night is a checkpoint that ramps to the world's gate. Swarm nights
@@ -297,10 +288,19 @@ export const BOSS = {
    *  sets the kill window (~105s from spawn to touchdown). */
   speed: 1.1,
   scrapReward: 120,
-  /** Seconds between shedding a minion. */
+  /** Seconds between shedding a minion, at full tempo (see bossSpawnInterval:
+   *  the first bosses shed slower — the N10 fight is played with no specials
+   *  unlocked yet, and the full 1.1s stream walled the sim there 8 straight). */
   spawnInterval: 1.1,
-  /** Cores awarded = coresBase + floor(night / BOSS_NIGHT_INTERVAL). */
-  coresBase: 2,
+  spawnIntervalEarly: 3.0,
+  /** Nights over which the early interval tapers down to full tempo. */
+  spawnIntervalTaperNights: 20,
+  /** Cores (◆) per boss kill — the ONLY ◆ source. One boss, one token;
+   *  12 across the campaign vs 11 special-node unlocks (see tree.ts
+   *  unlockCores), so each kill reads as "pick your next special".
+   *  Playtest feedback drove the simplification: three currencies with
+   *  formula-based trickles were unreadable. */
+  coresPerKill: 1,
 } as const;
 
 export const ECONOMY = {
@@ -311,7 +311,7 @@ export const ECONOMY = {
    *  walled player's economy recovers faster with every retry instead of
    *  grinding at 0.6 forever. Sim finding: without it, an unlucky seed
    *  loses the N10 boss 8 times straight and stalls at ~600⬡ banked. */
-  defeatPityPerFail: 0.15,
+  defeatPityPerFail: 0.2,
   nightCompleteBonusBase: 70,
 } as const;
 
@@ -321,15 +321,13 @@ export function defeatScrapFactorFor(failStreak: number): number {
   return Math.min(1, ECONOMY.defeatScrapFactor + ECONOMY.defeatPityPerFail * failStreak);
 }
 
-/** Cores trickle from clearing a night for the first time (on top of boss
- *  drops) — the sim showed boss-only supply (~25◆ to N50) starves the ◆ tree. */
-export const FIRST_CLEAR = {
-  /** First clears from this night on pay cores. */
-  fromNight: 10,
-  /** Cores = base + floor(night / scaleNights). */
-  base: 1,
-  scaleNights: 25,
-} as const;
+/** Seconds between a boss shedding minions on `night` — slow for the first
+ *  bosses, full tempo from N(10+taper) on. */
+export function bossSpawnInterval(night: number): number {
+  const t = Math.min(1, Math.max(0, (night - 10) / BOSS.spawnIntervalTaperNights));
+  return BOSS.spawnIntervalEarly + (BOSS.spawnInterval - BOSS.spawnIntervalEarly) * t;
+}
+
 
 /** How a night's wave layout and enemy strength scale with the night number.
  *  Tuned so nights 1–3 stay gentle (exponentials start near 1) but the curve
@@ -364,11 +362,11 @@ export const NIGHT_SCALING = {
    *  smooth exponent can't do this: by the time world 2 feels it, world 4
    *  is unwinnable (sim: hpGrowthLate 1.09 → world 4 stuck, worlds 2-3
    *  still 0 fails). */
-  hpGrowthEarly: 1.155,
+  hpGrowthEarly: 1.12,
   hpPivotNight: 30,
   hpGrowthLate: 1.045,
   worldHpStep: [1, 4, 16, 40] as readonly number[],
-  hpRampStartNight: 7,
+  hpRampStartNight: 9,
   /** Speed is unanswerable by upgrades, so it grows mildly and CAPS — an
    *  uncapped speed exponent was the old absolute-ceiling bug. */
   speedGrowth: 1.012,

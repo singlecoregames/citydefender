@@ -4,7 +4,7 @@
  * night; defeats retry the same night). Produces one record per night played.
  */
 import { BOSS_NIGHT_INTERVAL, defeatScrapFactorFor, TICK_RATE } from '../../src/core/balance';
-import { firstClearCores, newRun, nightSeed, type RunState } from '../../src/core/run';
+import { newRun, nightSeed, type RunState } from '../../src/core/run';
 import { Sim, type NightConfig } from '../../src/core/sim';
 import {
   abilitiesFromTree,
@@ -48,13 +48,16 @@ export interface NightRecord {
   durationSec: number;
   scrapEarned: number;
   coresEarned: number;
-  dataEarned: number;
   maxCombo: number;
   citiesLeft: number;
+  /** Ground HP lost this night — the margin gauge (0 = untouched). */
+  cityDamage: number;
+  /** Lowest altitude any enemy reached (near 0 = it was close). */
+  minEnemyY: number;
   /** Node ids bought at the following dawn (repeats = multiple levels). */
   purchases: string[];
   /** Banks after shopping. */
-  bank: { scrap: number; cores: number; data: number };
+  bank: { scrap: number; cores: number };
 }
 
 export interface RunReport {
@@ -71,7 +74,7 @@ export interface RunReport {
 export function nightConfigFor(run: RunState): NightConfig {
   return {
     night: run.night,
-    waves: generateNight(run.night),
+    waves: generateNight(run.night, run.failStreak),
     stats: resolveStats(run.upgrades),
     turrets: turretsFromTree(run.upgrades),
     buildings: buildingsFromTree(run.upgrades),
@@ -97,7 +100,6 @@ export function playNight(
   let outcome: NightOutcome = 'timeout';
   let scrapEarned = 0;
   let coresEarned = 0;
-  let dataEarned = 0;
   let ticks = 0;
   while (sim.state.phase === 'playing' && ticks < maxTicks) {
     const events = sim.step(ai.commands(sim.state));
@@ -107,7 +109,6 @@ export function playNight(
       else if (ev.type === 'nightEnded') {
         outcome = ev.outcome;
         scrapEarned = ev.scrapEarned;
-        dataEarned = ev.dataEarned;
       }
     }
   }
@@ -120,9 +121,10 @@ export function playNight(
     durationSec: ticks / TICK_RATE,
     scrapEarned,
     coresEarned,
-    dataEarned,
     maxCombo: sim.state.maxCombo,
     citiesLeft: sim.state.cities.filter((c) => c.hp > 0).length,
+    cityDamage: sim.state.cityDamageTaken,
+    minEnemyY: sim.state.minEnemyY,
   };
 }
 
@@ -144,9 +146,7 @@ export function simulateRun(options: Partial<SimulateOptions> = {}): RunReport {
     // Dawn payout — mirrors resolveNight() in src/main.ts.
     run.cores += result.coresEarned;
     run.scrap += result.scrapEarned;
-    run.data += result.dataEarned;
     if (result.outcome === 'victory') {
-      if (thisNight > run.bestNight) run.cores += firstClearCores(thisNight);
       run.bestNight = Math.max(run.bestNight, run.night);
       run.night += 1;
       attempt = 1;
@@ -162,7 +162,7 @@ export function simulateRun(options: Partial<SimulateOptions> = {}): RunReport {
       attempt: thisAttempt,
       ...result,
       purchases,
-      bank: { scrap: run.scrap, cores: run.cores, data: run.data },
+      bank: { scrap: run.scrap, cores: run.cores },
     });
 
     if (run.failStreak >= opts.stuckLimit) {

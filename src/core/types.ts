@@ -139,7 +139,7 @@ export type GameEvent =
   | { type: 'abilityUsed'; ability: AbilityKind; pos?: Vec2 }
   /** The combo streak broke (whiffed manual blast or a city took damage). */
   | { type: 'comboBroken'; lost: number }
-  | { type: 'nightEnded'; outcome: 'victory' | 'defeat'; scrapEarned: number; dataEarned: number };
+  | { type: 'nightEnded'; outcome: 'victory' | 'defeat'; scrapEarned: number };
 
 export type Command =
   | { type: 'fire'; x: number; y: number }
@@ -184,8 +184,12 @@ export interface GameState {
    *  multiplier) and the night's peak (pays out Data at dawn). */
   combo: number;
   maxCombo: number;
-  /** Total city HP lost this night (0 = perfect defence → Data bonus). */
+  /** Total city HP lost this night (0 = perfect defence). */
   cityDamageTaken: number;
+  /** Lowest altitude any enemy reached this night — with cityDamageTaken it
+   *  measures how CLOSE a cleared night was (the balance sim's pressure
+   *  gauge; fails alone can't see a night that was won with no margin). */
+  minEnemyY: number;
   /** Manual ability state (Tech branch). Cooldowns count down to 0 (ready);
    *  the two timers are how long the active effects last. */
   ability: {

@@ -10,7 +10,7 @@ export type TreeBranch = 'core' | 'cannon' | 'economy' | 'city' | 'automation' |
  * place the node in the layout (the UI converts them to pixels); the tree fans
  * out from the centre: cannon up, economy left, city right.
  */
-export type Currency = 'scrap' | 'cores' | 'data';
+export type Currency = 'scrap' | 'cores';
 
 export interface TreeNode {
   id: string;
@@ -25,6 +25,11 @@ export interface TreeNode {
   costGrowth: number;
   /** Which currency pays for this node. Defaults to scrap. */
   currency?: Currency;
+  /** SPECIAL node: its first level (the unlock) costs this many cores —
+   *  the 1-per-boss-kill token — instead of scrap. Later levels follow the
+   *  normal scrap curve. The campaign drops 12 cores (bosses N10..120) vs
+   *  11 special unlocks, so every boss kill reads as "pick a special". */
+  unlockCores?: number;
   /** Upgrade tier, gated by campaign world: tier k unlocks in world k.
    *  Defaults to 1 (available from the start). */
   tier?: 2 | 3 | 4;
@@ -69,10 +74,12 @@ export const TREE: readonly TreeNode[] = [
     effects: [],
   },
 
-  // Cost/value discipline: each step away from the core is stronger AND more
-  // expensive — ring 1 ≈ 20–180⬡ fundamentals, ring 2 ≈ 45–600⬡, ring 3 ≈
-  // 150–750⬡, ring 4+ ≈ 350–1400⬡ big-ticket nodes. Turrets and abilities are
-  // sprinkled through the rings so no stretch of a path is stat-only.
+  // Cost/value discipline: price follows GRAPH DEPTH from the core, strictly —
+  // the tree must read inside-out. Tier-1 bases by ring: d1 ≈ 20–200⬡,
+  // d2 ≈ 130–700⬡, d3 ≈ 550–1400⬡, d4 ≈ 1800–3500⬡, d5 ≈ 4500–6000⬡
+  // (turret deploys sit at the top of their ring). Playtest finding: when a
+  // d4 node undercuts a d2 node the shop stops reading as a progression.
+  // SPECIAL nodes (unlockCores) charge their first level in boss tokens.
 
   // ── UP · gunner path: manual cannon, with the Laser turret grafted in ──
   {
@@ -96,7 +103,7 @@ export const TREE: readonly TreeNode[] = [
     col: -1,
     row: -2,
     maxLevel: 3,
-    baseCost: 45,
+    baseCost: 140,
     costGrowth: 1.5,
     requires: ['blast_radius'],
     effects: [{ stat: 'maxAmmo', op: 'add', value: 1 }],
@@ -109,7 +116,7 @@ export const TREE: readonly TreeNode[] = [
     col: 1,
     row: -2,
     maxLevel: 5,
-    baseCost: 45,
+    baseCost: 130,
     costGrowth: 1.45,
     requires: ['blast_radius'],
     effects: [{ stat: 'reloadSeconds', op: 'mul', value: -0.07 }],
@@ -122,7 +129,7 @@ export const TREE: readonly TreeNode[] = [
     col: 0,
     row: -2,
     maxLevel: 5,
-    baseCost: 340,
+    baseCost: 500,
     costGrowth: 1.9,
     requires: ['blast_radius'],
     effects: [],
@@ -135,7 +142,7 @@ export const TREE: readonly TreeNode[] = [
     col: -1,
     row: -3,
     maxLevel: 5,
-    baseCost: 160,
+    baseCost: 510,
     costGrowth: 1.55,
     requires: ['magazine'],
     effects: [{ stat: 'explosionMaxRadius', op: 'mul', value: 0.14 }],
@@ -148,7 +155,7 @@ export const TREE: readonly TreeNode[] = [
     col: 0,
     row: -3,
     maxLevel: 5,
-    baseCost: 260,
+    baseCost: 640,
     costGrowth: 1.8,
     requires: ['turret_laser'],
     effects: [{ stat: 'laserDamageMul', op: 'mul', value: 0.25 }],
@@ -161,7 +168,7 @@ export const TREE: readonly TreeNode[] = [
     col: 1,
     row: -3,
     maxLevel: 5,
-    baseCost: 100,
+    baseCost: 470,
     costGrowth: 1.5,
     requires: ['autoloader'],
     effects: [{ stat: 'interceptorSpeed', op: 'mul', value: 0.1 }],
@@ -174,7 +181,7 @@ export const TREE: readonly TreeNode[] = [
     col: 0,
     row: -4,
     maxLevel: 3,
-    baseCost: 260,
+    baseCost: 1600,
     costGrowth: 2.0,
     requires: ['wide_blast', 'fast_intercept'],
     effects: [{ stat: 'explosionDamage', op: 'add', value: 1 }],
@@ -187,9 +194,8 @@ export const TREE: readonly TreeNode[] = [
     col: -1,
     row: -4,
     maxLevel: 3,
-    baseCost: 12,
+    baseCost: 1750,
     costGrowth: 1.7,
-    currency: 'data',
     requires: ['wide_blast'],
     effects: [{ stat: 'comboRetention', op: 'add', value: 0.25 }],
   },
@@ -201,7 +207,7 @@ export const TREE: readonly TreeNode[] = [
     col: 1,
     row: -4,
     maxLevel: 5,
-    baseCost: 450,
+    baseCost: 3600,
     costGrowth: 1.7,
     requires: ['warhead'],
     effects: [{ stat: 'overchargeRate', op: 'add', value: 0.04 }],
@@ -214,7 +220,7 @@ export const TREE: readonly TreeNode[] = [
     col: 0,
     row: -5,
     maxLevel: 3,
-    baseCost: 900,
+    baseCost: 4800,
     costGrowth: 2.2,
     requires: ['warhead'],
     effects: [{ stat: 'explosionDamage', op: 'add', value: 1 }],
@@ -227,7 +233,7 @@ export const TREE: readonly TreeNode[] = [
     col: -1,
     row: -5,
     maxLevel: 3,
-    baseCost: 550,
+    baseCost: 1900,
     costGrowth: 1.8,
     requires: ['laser_focus'],
     effects: [{ stat: 'laserRangeMul', op: 'mul', value: 0.15 }],
@@ -242,7 +248,7 @@ export const TREE: readonly TreeNode[] = [
     col: 0,
     row: 1,
     maxLevel: 5,
-    baseCost: 180,
+    baseCost: 200,
     costGrowth: 1.9,
     requires: ['core'],
     effects: [],
@@ -255,7 +261,7 @@ export const TREE: readonly TreeNode[] = [
     col: 2,
     row: 2,
     maxLevel: 3,
-    baseCost: 160,
+    baseCost: 260,
     costGrowth: 1.6,
     requires: ['turret_gatling'],
     effects: [{ stat: 'autoFireLevel', op: 'add', value: 1 }],
@@ -268,7 +274,7 @@ export const TREE: readonly TreeNode[] = [
     col: -1,
     row: 2,
     maxLevel: 5,
-    baseCost: 130,
+    baseCost: 240,
     costGrowth: 1.75,
     requires: ['turret_gatling'],
     effects: [{ stat: 'turretDamageMul', op: 'mul', value: 0.15 }],
@@ -281,7 +287,7 @@ export const TREE: readonly TreeNode[] = [
     col: 0,
     row: 2,
     maxLevel: 5,
-    baseCost: 160,
+    baseCost: 260,
     costGrowth: 1.8,
     requires: ['turret_gatling'],
     effects: [{ stat: 'gatlingFireRateMul', op: 'mul', value: 0.18 }],
@@ -294,7 +300,7 @@ export const TREE: readonly TreeNode[] = [
     col: 1,
     row: 2,
     maxLevel: 5,
-    baseCost: 110,
+    baseCost: 220,
     costGrowth: 1.75,
     requires: ['turret_gatling'],
     effects: [{ stat: 'turretFireRateMul', op: 'mul', value: 0.12 }],
@@ -307,9 +313,8 @@ export const TREE: readonly TreeNode[] = [
     col: -2,
     row: 2,
     maxLevel: 5,
-    baseCost: 3,
-    costGrowth: 1.6,
-    currency: 'cores',
+    baseCost: 1000,
+    costGrowth: 1.75,
     requires: ['turret_power'],
     effects: [{ stat: 'turretDamageMul', op: 'mul', value: 0.4 }],
   },
@@ -321,8 +326,9 @@ export const TREE: readonly TreeNode[] = [
     col: -1,
     row: 3,
     maxLevel: 5,
-    baseCost: 260,
+    baseCost: 640,
     costGrowth: 1.7,
+    unlockCores: 1,
     requires: ['turret_power'],
     effects: [],
   },
@@ -334,8 +340,9 @@ export const TREE: readonly TreeNode[] = [
     col: 0,
     row: 3,
     maxLevel: 5,
-    baseCost: 450,
+    baseCost: 850,
     costGrowth: 1.9,
+    unlockCores: 1,
     requires: ['gatling_spin'],
     effects: [],
   },
@@ -347,9 +354,8 @@ export const TREE: readonly TreeNode[] = [
     col: 1,
     row: 3,
     maxLevel: 5,
-    baseCost: 4,
-    costGrowth: 1.6,
-    currency: 'cores',
+    baseCost: 1100,
+    costGrowth: 1.75,
     requires: ['turret_speed'],
     effects: [{ stat: 'turretFireRateMul', op: 'mul', value: 0.25 }],
   },
@@ -361,7 +367,7 @@ export const TREE: readonly TreeNode[] = [
     col: -2,
     row: 3,
     maxLevel: 5,
-    baseCost: 480,
+    baseCost: 850,
     costGrowth: 1.8,
     requires: ['gatling_spin'],
     effects: [{ stat: 'gatlingDamageMul', op: 'mul', value: 0.25 }],
@@ -374,7 +380,7 @@ export const TREE: readonly TreeNode[] = [
     col: -1,
     row: 4,
     maxLevel: 5,
-    baseCost: 1400,
+    baseCost: 2400,
     costGrowth: 1.75,
     requires: ['ability_surge'],
     effects: [{ stat: 'turretDamageMul', op: 'mul', value: 0.15 }],
@@ -387,7 +393,7 @@ export const TREE: readonly TreeNode[] = [
     col: 0,
     row: 4,
     maxLevel: 3,
-    baseCost: 500,
+    baseCost: 1750,
     costGrowth: 1.85,
     requires: ['turret_tesla'],
     effects: [{ stat: 'teslaChainBonus', op: 'add', value: 1 }],
@@ -400,7 +406,7 @@ export const TREE: readonly TreeNode[] = [
     col: 1,
     row: 4,
     maxLevel: 5,
-    baseCost: 1200,
+    baseCost: 1000,
     costGrowth: 1.75,
     requires: ['turret_speed'],
     effects: [{ stat: 'turretFireRateMul', op: 'mul', value: 0.12 }],
@@ -413,7 +419,7 @@ export const TREE: readonly TreeNode[] = [
     col: 0,
     row: 5,
     maxLevel: 5,
-    baseCost: 750,
+    baseCost: 4400,
     costGrowth: 1.8,
     requires: ['tesla_arc'],
     effects: [{ stat: 'teslaDamageMul', op: 'mul', value: 0.25 }],
@@ -441,7 +447,7 @@ export const TREE: readonly TreeNode[] = [
     col: -2,
     row: 0,
     maxLevel: 3,
-    baseCost: 90,
+    baseCost: 160,
     costGrowth: 1.5,
     requires: ['salvage'],
     effects: [{ stat: 'nightBonusMul', op: 'mul', value: 0.2 }],
@@ -454,7 +460,7 @@ export const TREE: readonly TreeNode[] = [
     col: -2,
     row: 1,
     maxLevel: 5,
-    baseCost: 320,
+    baseCost: 450,
     costGrowth: 1.9,
     requires: ['salvage'],
     effects: [],
@@ -467,7 +473,7 @@ export const TREE: readonly TreeNode[] = [
     col: -1,
     row: 1,
     maxLevel: 3,
-    baseCost: 90,
+    baseCost: 160,
     costGrowth: 1.5,
     requires: ['salvage'],
     effects: [{ stat: 'multiKillScrap', op: 'add', value: 2 }],
@@ -480,7 +486,7 @@ export const TREE: readonly TreeNode[] = [
     col: -3,
     row: 1,
     maxLevel: 5,
-    baseCost: 240,
+    baseCost: 600,
     costGrowth: 1.8,
     requires: ['turret_flak'],
     effects: [{ stat: 'flakRadiusMul', op: 'mul', value: 0.15 }],
@@ -493,8 +499,9 @@ export const TREE: readonly TreeNode[] = [
     col: -3,
     row: 2,
     maxLevel: 5,
-    baseCost: 240,
+    baseCost: 600,
     costGrowth: 1.7,
+    unlockCores: 1,
     requires: ['turret_flak'],
     effects: [],
   },
@@ -506,7 +513,7 @@ export const TREE: readonly TreeNode[] = [
     col: -3,
     row: 0,
     maxLevel: 3,
-    baseCost: 250,
+    baseCost: 600,
     costGrowth: 1.9,
     requires: ['war_bonds'],
     effects: [],
@@ -519,7 +526,7 @@ export const TREE: readonly TreeNode[] = [
     col: -3,
     row: -1,
     maxLevel: 5,
-    baseCost: 260,
+    baseCost: 640,
     costGrowth: 1.7,
     requires: ['war_bonds'],
     effects: [{ stat: 'scrapMul', op: 'mul', value: 0.06 }],
@@ -532,7 +539,7 @@ export const TREE: readonly TreeNode[] = [
     col: -4,
     row: 0,
     maxLevel: 3,
-    baseCost: 220,
+    baseCost: 1450,
     costGrowth: 1.5,
     requires: ['bld_harvester'],
     effects: [{ stat: 'waveClearScrap', op: 'add', value: 5 }],
@@ -545,7 +552,7 @@ export const TREE: readonly TreeNode[] = [
     col: -4,
     row: 1,
     maxLevel: 3,
-    baseCost: 350,
+    baseCost: 1600,
     costGrowth: 1.7,
     requires: ['bld_harvester'],
     effects: [{ stat: 'nightBonusMul', op: 'mul', value: 0.3 }],
@@ -558,7 +565,7 @@ export const TREE: readonly TreeNode[] = [
     col: -4,
     row: 2,
     maxLevel: 5,
-    baseCost: 520,
+    baseCost: 1900,
     costGrowth: 1.8,
     requires: ['flak_payload'],
     effects: [{ stat: 'flakFireRateMul', op: 'mul', value: 0.2 }],
@@ -571,9 +578,8 @@ export const TREE: readonly TreeNode[] = [
     col: -5,
     row: -1,
     maxLevel: 3,
-    baseCost: 3,
+    baseCost: 2100,
     costGrowth: 1.7,
-    currency: 'cores',
     requires: ['refinery'],
     effects: [{ stat: 'scrapMul', op: 'mul', value: 0.15 }],
   },
@@ -587,7 +593,7 @@ export const TREE: readonly TreeNode[] = [
     col: 1,
     row: 0,
     maxLevel: 3,
-    baseCost: 80,
+    baseCost: 90,
     costGrowth: 1.8,
     requires: ['core'],
     effects: [{ stat: 'cityMaxHp', op: 'add', value: 1 }],
@@ -600,7 +606,7 @@ export const TREE: readonly TreeNode[] = [
     col: 2,
     row: -1,
     maxLevel: 3,
-    baseCost: 300,
+    baseCost: 380,
     costGrowth: 1.9,
     requires: ['reinforced'],
     effects: [],
@@ -626,7 +632,7 @@ export const TREE: readonly TreeNode[] = [
     col: 2,
     row: 1,
     maxLevel: 3,
-    baseCost: 150,
+    baseCost: 200,
     costGrowth: 1.6,
     requires: ['reinforced'],
     effects: [{ stat: 'cityMaxHp', op: 'add', value: 1 }],
@@ -639,7 +645,7 @@ export const TREE: readonly TreeNode[] = [
     col: 2,
     row: -2,
     maxLevel: 3,
-    baseCost: 200,
+    baseCost: 550,
     costGrowth: 1.6,
     requires: ['bld_shield'],
     effects: [{ stat: 'maxAmmo', op: 'add', value: 1 }],
@@ -652,7 +658,7 @@ export const TREE: readonly TreeNode[] = [
     col: 3,
     row: 0,
     maxLevel: 3,
-    baseCost: 420,
+    baseCost: 810,
     costGrowth: 2.0,
     requires: ['turret_missile'],
     effects: [{ stat: 'missileSalvoBonus', op: 'add', value: 1 }],
@@ -665,7 +671,7 @@ export const TREE: readonly TreeNode[] = [
     col: 3,
     row: -1,
     maxLevel: 3,
-    baseCost: 320,
+    baseCost: 680,
     costGrowth: 1.9,
     requires: ['bld_shield'],
     effects: [{ stat: 'cityMaxHp', op: 'add', value: 1 }],
@@ -678,7 +684,7 @@ export const TREE: readonly TreeNode[] = [
     col: 3,
     row: 1,
     maxLevel: 3,
-    baseCost: 180,
+    baseCost: 510,
     costGrowth: 1.6,
     requires: ['compact'],
     effects: [{ stat: 'cityHitScrap', op: 'add', value: 10 }],
@@ -691,7 +697,7 @@ export const TREE: readonly TreeNode[] = [
     col: 4,
     row: 1,
     maxLevel: 3,
-    baseCost: 450,
+    baseCost: 810,
     costGrowth: 1.8,
     requires: ['compact'],
     effects: [],
@@ -704,7 +710,7 @@ export const TREE: readonly TreeNode[] = [
     col: 4,
     row: -1,
     maxLevel: 3,
-    baseCost: 550,
+    baseCost: 2000,
     costGrowth: 1.9,
     requires: ['bunker'],
     effects: [],
@@ -717,9 +723,8 @@ export const TREE: readonly TreeNode[] = [
     col: 3,
     row: -2,
     maxLevel: 3,
-    baseCost: 3,
+    baseCost: 2100,
     costGrowth: 1.7,
-    currency: 'cores',
     requires: ['bunker'],
     effects: [{ stat: 'cityMaxHp', op: 'add', value: 2 }],
   },
@@ -731,9 +736,8 @@ export const TREE: readonly TreeNode[] = [
     col: 4,
     row: 0,
     maxLevel: 3,
-    baseCost: 3,
+    baseCost: 2250,
     costGrowth: 1.7,
-    currency: 'cores',
     requires: ['war_insurance'],
     effects: [{ stat: 'cityCount', op: 'add', value: 1 }],
   },
@@ -745,7 +749,7 @@ export const TREE: readonly TreeNode[] = [
     col: 4,
     row: -2,
     maxLevel: 3,
-    baseCost: 700,
+    baseCost: 2250,
     costGrowth: 1.9,
     requires: ['missile_salvo'],
     effects: [{ stat: 'missileDamageMul', op: 'mul', value: 0.3 }],
@@ -760,8 +764,9 @@ export const TREE: readonly TreeNode[] = [
     col: -1,
     row: -1,
     maxLevel: 5,
-    baseCost: 120,
+    baseCost: 150,
     costGrowth: 1.7,
+    unlockCores: 1,
     requires: ['core'],
     effects: [],
   },
@@ -773,7 +778,7 @@ export const TREE: readonly TreeNode[] = [
     col: -2,
     row: -1,
     maxLevel: 5,
-    baseCost: 140,
+    baseCost: 220,
     costGrowth: 1.6,
     requires: ['ability_emp'],
     effects: [{ stat: 'turretRangeMul', op: 'mul', value: 0.12 }],
@@ -786,8 +791,9 @@ export const TREE: readonly TreeNode[] = [
     col: -2,
     row: -2,
     maxLevel: 5,
-    baseCost: 220,
+    baseCost: 320,
     costGrowth: 1.7,
+    unlockCores: 1,
     requires: ['ability_emp'],
     effects: [],
   },
@@ -799,8 +805,9 @@ export const TREE: readonly TreeNode[] = [
     col: -3,
     row: -2,
     maxLevel: 5,
-    baseCost: 750,
+    baseCost: 1100,
     costGrowth: 1.9,
+    unlockCores: 1,
     requires: ['turret_range'],
     effects: [],
   },
@@ -812,7 +819,7 @@ export const TREE: readonly TreeNode[] = [
     col: -4,
     row: -2,
     maxLevel: 3,
-    baseCost: 600,
+    baseCost: 2100,
     costGrowth: 1.9,
     requires: ['turret_railgun'],
     effects: [{ stat: 'railgunPierceBonus', op: 'add', value: 2 }],
@@ -825,7 +832,7 @@ export const TREE: readonly TreeNode[] = [
     col: -3,
     row: -3,
     maxLevel: 3,
-    baseCost: 350,
+    baseCost: 720,
     costGrowth: 1.9,
     requires: ['ability_freefire'],
     effects: [],
@@ -838,7 +845,7 @@ export const TREE: readonly TreeNode[] = [
     col: -2,
     row: -3,
     maxLevel: 5,
-    baseCost: 380,
+    baseCost: 770,
     costGrowth: 1.6,
     requires: ['ability_freefire'],
     effects: [{ stat: 'abilityCooldownMul', op: 'mul', value: -0.08 }],
@@ -851,7 +858,7 @@ export const TREE: readonly TreeNode[] = [
     col: -3,
     row: -4,
     maxLevel: 1,
-    baseCost: 800,
+    baseCost: 2800,
     costGrowth: 1,
     requires: ['bld_radar'],
     effects: [{ stat: 'dopplerTracking', op: 'add', value: 1 }],
@@ -864,9 +871,8 @@ export const TREE: readonly TreeNode[] = [
     col: -4,
     row: -3,
     maxLevel: 1,
-    baseCost: 45,
+    baseCost: 2800,
     costGrowth: 1,
-    currency: 'data',
     requires: ['bld_radar'],
     effects: [{ stat: 'threatTargeting', op: 'add', value: 1 }],
   },
@@ -878,9 +884,8 @@ export const TREE: readonly TreeNode[] = [
     col: -5,
     row: -3,
     maxLevel: 3,
-    baseCost: 20,
+    baseCost: 4000,
     costGrowth: 1.7,
-    currency: 'data',
     requires: ['threat_analysis'],
     effects: [{ stat: 'turretSpreadMul', op: 'mul', value: -0.15 }],
   },
@@ -892,7 +897,7 @@ export const TREE: readonly TreeNode[] = [
     col: -4,
     row: -4,
     maxLevel: 3,
-    baseCost: 520,
+    baseCost: 1900,
     costGrowth: 1.9,
     requires: ['bld_radar'],
     effects: [],
@@ -905,7 +910,7 @@ export const TREE: readonly TreeNode[] = [
     col: -5,
     row: -4,
     maxLevel: 3,
-    baseCost: 450,
+    baseCost: 3600,
     costGrowth: 1.7,
     requires: ['bld_jammer'],
     effects: [{ stat: 'jammerRadiusMul', op: 'mul', value: 0.2 }],
@@ -918,7 +923,7 @@ export const TREE: readonly TreeNode[] = [
     col: -5,
     row: -2,
     maxLevel: 3,
-    baseCost: 850,
+    baseCost: 4400,
     costGrowth: 1.8,
     requires: ['railgun_pierce'],
     effects: [{ stat: 'railgunFireRateMul', op: 'mul', value: 0.15 }],
@@ -931,18 +936,17 @@ export const TREE: readonly TreeNode[] = [
     col: -2,
     row: -4,
     maxLevel: 3,
-    baseCost: 4,
+    baseCost: 2400,
     costGrowth: 1.7,
-    currency: 'cores',
     requires: ['flux_capacitor'],
     effects: [{ stat: 'abilityCooldownMul', op: 'mul', value: -0.15 }],
   },
 
   // ── Tier 2 (world 2): the former prestige upgrades, now tree nodes ─────
   // Scrap prices from here up are sized to the world that unlocks the tier
-  // (kill pay steps ×5/×20/×70 per world — see NIGHT_SCALING.worldRewardStep):
-  // each tier's scrap total ≈ 2/3 of its world's income, so the spend paces
-  // the world instead of being swallowed by the first night's payout.
+  // (kill pay steps ×5/×20/×70 per world — see NIGHT_SCALING.worldRewardStep)
+  // so the spend paces the world instead of being swallowed by the first
+  // night's payout. SPECIALS charge their unlock in boss tokens on top.
   {
     id: 'arsenal_core',
     name: 'Arsenal Core',
@@ -951,9 +955,9 @@ export const TREE: readonly TreeNode[] = [
     col: 3,
     row: 2,
     maxLevel: 5,
-    baseCost: 4,
-    costGrowth: 1.5,
-    currency: 'cores',
+    baseCost: 200000,
+    costGrowth: 1.7,
+    unlockCores: 1,
     tier: 2,
     requires: ['turret_power'],
     effects: [
@@ -969,8 +973,9 @@ export const TREE: readonly TreeNode[] = [
     col: 3,
     row: 3,
     maxLevel: 3,
-    baseCost: 500000,
+    baseCost: 350000,
     costGrowth: 1.9,
+    unlockCores: 1,
     tier: 2,
     requires: ['auto_fire'],
     effects: [{ stat: 'droneCount', op: 'add', value: 1 }],
@@ -983,8 +988,9 @@ export const TREE: readonly TreeNode[] = [
     col: 2,
     row: -3,
     maxLevel: 2,
-    baseCost: 900000,
+    baseCost: 700000,
     costGrowth: 2.0,
+    unlockCores: 1,
     tier: 2,
     requires: ['warhead'],
     effects: [{ stat: 'mirvLevel', op: 'add', value: 1 }],
@@ -997,47 +1003,11 @@ export const TREE: readonly TreeNode[] = [
     col: -5,
     row: 0,
     maxLevel: 3,
-    baseCost: 600000,
+    baseCost: 400000,
     costGrowth: 1.8,
     tier: 2,
     requires: ['refinery'],
     effects: [{ stat: 'scrapMul', op: 'mul', value: 0.1 }],
-  },
-  {
-    // The data counterpart of the repeatable sinks (see war_effort): perfect
-    // nights and combos over-earn ▣ by ~3× what the fixed nodes cost, so the
-    // skill currency converts into economy at the margin.
-    id: 'data_broker',
-    name: 'Data Broker',
-    description: '+1% scrap earned. No level cap',
-    branch: 'economy',
-    col: -6,
-    row: -3,
-    maxLevel: 99,
-    baseCost: 4,
-    costGrowth: 1.06,
-    currency: 'data',
-    tier: 2,
-    requires: ['neural_lead'],
-    effects: [{ stat: 'scrapMul', op: 'mul', value: 0.01 }],
-  },
-  {
-    // The cores counterpart of War Effort: a thin repeatable (+1%/level) so
-    // the boss-drop currency always has somewhere to go — without it the
-    // last ~30 nights bank 150-200◆ with nothing left to buy.
-    id: 'core_overclock',
-    name: 'Overclock Protocol',
-    description: '+1% all turret fire rate. No level cap',
-    branch: 'automation',
-    col: 2,
-    row: 3,
-    maxLevel: 99,
-    baseCost: 3,
-    costGrowth: 1.08,
-    currency: 'cores',
-    tier: 2,
-    requires: ['cooling_core'],
-    effects: [{ stat: 'turretFireRateMul', op: 'mul', value: 0.01 }],
   },
   {
     // The REPEATABLE sink: near-unbounded, exponentially pricier each level.
@@ -1062,9 +1032,8 @@ export const TREE: readonly TreeNode[] = [
     ],
   },
 
-  // ── Tier 4 (world 4): the spectacle upgrades. Scrap-priced (not cores):
-  //    they are world 4's ONLY tier sink, and world-4 kill pay (~⬡280M/world)
-  //    needs somewhere to go — cores stay the cross-campaign premium axis. ──
+  // ── Tier 4 (world 4): the spectacle upgrades — token unlocks with
+  //    world-4-scale scrap levels (they are world 4's only tier sink). ──────
   {
     id: 'orbital_lance',
     name: 'Orbital Lance',
@@ -1075,6 +1044,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 18000000,
     costGrowth: 1.7,
+    unlockCores: 1,
     tier: 4,
     requires: ['bld_jammer'],
     effects: [{ stat: 'lanceLevel', op: 'add', value: 1 }],
@@ -1089,6 +1059,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 14000000,
     costGrowth: 1.7,
+    unlockCores: 1,
     tier: 4,
     requires: ['districts'],
     effects: [{ stat: 'aegisCharges', op: 'add', value: 3 }],
@@ -1274,10 +1245,22 @@ export function getNode(id: string): TreeNode | undefined {
   return TREE.find((n) => n.id === id);
 }
 
-/** Cost of the next level, or null if already maxed. */
-export function nextCost(node: TreeNode, currentLevel: number): number | null {
+/** Price of the next level, or null if already maxed. Special nodes charge
+ *  their FIRST level in cores (the boss token); everything else — including
+ *  a special's later levels — follows the scrap curve. */
+export interface NodePrice {
+  currency: Currency;
+  amount: number;
+}
+export function nextPrice(node: TreeNode, currentLevel: number): NodePrice | null {
   if (currentLevel >= node.maxLevel) return null;
-  return Math.round(node.baseCost * Math.pow(node.costGrowth, currentLevel));
+  if (currentLevel === 0 && node.unlockCores) {
+    return { currency: 'cores', amount: node.unlockCores };
+  }
+  return {
+    currency: nodeCurrency(node),
+    amount: Math.round(node.baseCost * Math.pow(node.costGrowth, currentLevel)),
+  };
 }
 
 /** A node's upgrade tier (1 unless declared higher). */

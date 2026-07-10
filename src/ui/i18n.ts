@@ -42,7 +42,6 @@ interface Strings {
   citiesLost: string;
   daySubtitleVictory: string;
   daySubtitleDefeat: string;
-  dataForSkill: (n: number) => string;
   nextNight: string;
   resetRun: string;
   eraseConfirm: string;
@@ -71,7 +70,6 @@ const EN: Strings = {
   citiesLost: 'CITIES LOST',
   daySubtitleVictory: 'Spend scrap on your skill tree, then push on.',
   daySubtitleDefeat: 'You held what you could. Spend, then try again.',
-  dataForSkill: (n) => `  ▣ +${n} data for skilled play.`,
   nextNight: 'NEXT NIGHT ▸',
   resetRun: 'RESET RUN',
   eraseConfirm: 'ERASE EVERYTHING?',
@@ -100,7 +98,6 @@ const KO: Strings = {
   citiesLost: '도시 함락',
   daySubtitleVictory: '스크랩으로 스킬 트리를 강화하고 계속 나아가세요.',
   daySubtitleDefeat: '버틸 만큼 버텼습니다. 강화하고 다시 도전하세요.',
-  dataForSkill: (n) => `  ▣ 숙련 플레이 데이터 +${n}`,
   nextNight: '다음 밤 ▸',
   resetRun: '런 초기화',
   eraseConfirm: '전부 삭제할까요?',
@@ -117,7 +114,7 @@ const KO: Strings = {
   ttTierLocked: (tier) => `🔒 티어 ${tier} — 월드 ${tier}에서 해금`,
 };
 
-const CURRENCY_KO: Record<Currency, string> = { scrap: '스크랩', cores: '코어', data: '데이터' };
+const CURRENCY_KO: Record<Currency, string> = { scrap: '스크랩', cores: '코어' };
 
 /** Korean names/descriptions for skill-tree nodes, keyed by node id. The
  *  descriptions bake in the same numbers as core/tree.ts — keep them in sync
@@ -156,8 +153,6 @@ const TREE_KO: Record<string, { name: string; description: string }> = {
   mirv_warhead: { name: 'MIRV 탄두', description: '요격탄 폭발이 레벨당 자탄 +2개로 분열' },
   salvage_core: { name: '회수 코어', description: '스크랩 획득 +10%' },
   war_effort: { name: '총력전', description: '모든 피해(터렛·폭발) +2%. 레벨 제한 없음' },
-  core_overclock: { name: '오버클럭 프로토콜', description: '모든 터렛 연사 속도 +1%. 레벨 제한 없음' },
-  data_broker: { name: '데이터 브로커', description: '스크랩 획득 +1%. 레벨 제한 없음' },
   orbital_lance: { name: '궤도 섬멸포', description: '주기적으로 하늘의 빔이 가장 밀집한 적 열을 강타 (레벨 = 주기 단축)' },
   aegis_dome: { name: '이지스 돔', description: '전장을 덮는 방어막이 레벨당 밤마다 적 3기를 증발시킴' },
   war_bonds: { name: '전쟁 채권', description: '밤 클리어 보너스 +20%' },
