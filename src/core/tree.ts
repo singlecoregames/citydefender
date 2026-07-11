@@ -1307,6 +1307,14 @@ export interface NodePrice {
   currency: Currency;
   amount: number;
 }
+/** Snap a scrap price to a friendly step: two-digit prices land on 5s,
+ *  everything above lands on a trailing zero — raw growth-curve numbers
+ *  (⬡289, ⬡4864) read as noise in the shop. */
+function prettyPrice(amount: number): number {
+  if (amount < 100) return Math.max(5, Math.round(amount / 5) * 5);
+  return Math.round(amount / 10) * 10;
+}
+
 export function nextPrice(node: TreeNode, currentLevel: number): NodePrice | null {
   if (currentLevel >= node.maxLevel) return null;
   if (currentLevel === 0 && node.unlockCores) {
@@ -1314,7 +1322,7 @@ export function nextPrice(node: TreeNode, currentLevel: number): NodePrice | nul
   }
   return {
     currency: nodeCurrency(node),
-    amount: Math.round(node.baseCost * Math.pow(node.costGrowth, currentLevel)),
+    amount: prettyPrice(node.baseCost * Math.pow(node.costGrowth, currentLevel)),
   };
 }
 
