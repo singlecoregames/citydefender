@@ -115,33 +115,23 @@ export interface EnemyMissile {
   regenTimer?: number;
   /** Carrier: seconds until it sheds another swarmer. */
   spawnTimer?: number;
-  /** Static Sweep: seconds until this enemy can be zapped again. */
-  sweepCooldown?: number;
-  /** Static Sweep: seconds of lingering slow left from the last zap. */
+  /** Static Field: seconds of lingering slow left from the last pulse. */
   staticSlow?: number;
 }
 
-/** One stroke of the static sweep trail. Stays lethal (and visible) until
- *  its ttl runs out, so enemies flying into a fresh trail still get zapped. */
-export interface SweepSegment {
-  id: number;
-  a: Vec2;
-  b: Vec2;
-  /** Seconds left; drawn at maxTtl, fades to nothing. */
-  ttl: number;
-  maxTtl: number;
-}
-
-/** Static Sweep runtime state (see SWEEP in balance.ts). */
-export interface SweepState {
-  /** Pointer world position while the trigger is held (null = pointer up). */
+/** Static Field runtime state (see FIELD in balance.ts): the cursor-following
+ *  damage aura and its pulse cooldown. */
+export interface FieldState {
+  /** Where the aura sits — the last known pointer position (null until the
+   *  pointer has been seen at least once this night). */
   pos: Vec2 | null;
-  /** Heat left to sweep with; drains per unit swept, refills over time. */
-  heat: number;
-  maxHeat: number;
-  /** True after heat hits 0 — sweeping is dead until heat recovers. */
-  overheated: boolean;
-  segments: SweepSegment[];
+  /** Seconds until the next pulse; 0 = charged and waiting for a target.
+   *  The HUD ring's fill fraction is 1 - cooldown / pulseSeconds. */
+  cooldown: number;
+  /** The night's resolved pulse interval (so views need no stats access). */
+  pulseSeconds: number;
+  /** The night's resolved aura radius. */
+  radius: number;
 }
 
 /** One-shot occurrences emitted during a tick, consumed by render/audio. */
@@ -154,8 +144,10 @@ export type GameEvent =
   | { type: 'enemyKilled'; pos: Vec2; reward: number }
   | { type: 'groundImpact'; pos: Vec2 }
   | { type: 'cityHit'; cityId: number; destroyed: boolean }
-  /** The static sweep zapped an enemy (spark feedback). */
-  | { type: 'sweepHit'; pos: Vec2 }
+  /** The static field pulsed (ring flash at the aura). */
+  | { type: 'fieldPulse'; pos: Vec2 }
+  /** The pulse zapped this enemy (spark feedback). */
+  | { type: 'fieldHit'; pos: Vec2 }
   /** A Shield Generator soaked a ground impact that would have hit a city. */
   | { type: 'shieldAbsorbed'; cityId: number }
   /** A Repair Bay restored a point of city HP. */
@@ -172,9 +164,11 @@ export type GameEvent =
 
 export type Command =
   | { type: 'fire'; x: number; y: number }
-  /** Pointer state stream: held=true on press and on every drag move (x/y =
-   *  world position), held=false on release. Drives hold-to-fire and the
-   *  static sweep; a bare press fires immediately like the classic click. */
+  /** Pointer position update (hover or drag): moves the static field's aura,
+   *  and re-aims the held trigger's fire. */
+  | { type: 'aim'; x: number; y: number }
+  /** Trigger state: held=true on press (fires immediately, like the classic
+   *  click, and keeps firing while held), held=false on release. */
   | { type: 'pointer'; x: number; y: number; held: boolean }
   | { type: 'ability'; ability: AbilityKind };
 
@@ -200,8 +194,8 @@ export interface GameState {
      *  (no auto-fire, and the HUD hides the gauge). */
     autoFireThreshold: number;
   };
-  /** Static Sweep: drag the held pointer to zap enemies along the trail. */
-  sweep: SweepState;
+  /** Static Field: the cursor-following damage aura. */
+  field: FieldState;
   cities: City[];
   interceptors: Interceptor[];
   explosions: Explosion[];

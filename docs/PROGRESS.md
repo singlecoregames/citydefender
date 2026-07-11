@@ -63,17 +63,18 @@
     `holdFireInterval`(0.34s)마다 포인터 위치로 발사. 탭 = 기존 클릭과 동일(press 즉발).
     홀드 중 탄창 재생 ×0.85(`holdReloadFactor`) — 단발 정밀 사격의 이점 유지.
     빈 탄창 홀드는 조용히 대기(fireDenied 스팸 없음).
-  - **스태틱 스위프**: 드래그 궤적이 0.35s 유지되는 감전 트레일(`SweepSegment`) —
-    닿은 적에게 감전 데미지(기본 0.5, 적당 0.25s 쿨다운) + 0.8s 35% 슬로우(보스 면역).
-    히트 게이지(100, 거리당 0.55 소모/초당 30 회복, 과열 후 40%에서 재가동).
-    **위상 실드 관통**(damageEnemy piercePhase) = 위상 적의 수동 카운터.
-    스위프 킬은 콤보에 중립. HUD: 탄창 칩 상단 히트 바(가득=숨김, 과열=적색).
-  - **신규 노드 4종**(cannon): Static Charge(링1 45⬡, 감전 +0.35) /
-    Heat Sink(+30 히트·재생 +15%) / Rapid Trigger(홀드 간격 −10%) /
-    Static Link(감전에 포탑 총DPS +4% — Overcharge의 스위프 대응).
-    신규 스탯 5종: holdFireInterval, sweepDamage, sweepDpsRate, sweepHeatMax/Regen.
-  - 밸런스 시뮬 회귀 없음(N50 2h14m→2h17m, AI는 미사용 — 신규 노드가 잉여 스크랩만
-    흡수). 테스트 122→135개.
+  - **스태틱 필드** (플레이테스트 피드백으로 드래그 스위프에서 재설계 — 클릭&드래그도
+    부담이라 "커서를 얹어두는 것"까지 낮춤): 커서/터치를 따라다니는 원형 오라(반경 9)가
+    `pulseSeconds`(0.9s)마다 펄스해 반경 안 전원에게 감전(기본 1) + 0.8s 35% 슬로우
+    (보스 면역). 히트 시스템 폐지 — 펄스 쿨다운이 유일한 스로틀이고, **오라 테두리의
+    24분할 링 프로그레스바**로 표시(가득=점등). 빈 사정권에선 펄스를 아껴 첫 진입 적을
+    즉시 감전. 입력은 `aim`(호버 포함 모든 move) + `pointer`(press/release) 2계층.
+    **위상 실드 관통**(damageEnemy piercePhase) = 위상 적의 수동 카운터. 킬은 콤보 중립.
+  - **신규 노드 4종**(cannon): Static Charge(링1 45⬡, 펄스 +0.5) /
+    Field Coils(반경 +12%·펄스 쿨다운 −6%; 구 Heat Sink — 세이브 마이그레이션 있음) /
+    Rapid Trigger(홀드 간격 −10%) / Static Link(펄스에 포탑 총DPS +4% — Overcharge의
+    필드 대응). 신규 스탯 5종: holdFireInterval, fieldDamage/DpsRate/Radius/PulseSeconds.
+  - 밸런스 시뮬 회귀 없음(AI는 미사용 — 신규 노드가 잉여 스크랩만 흡수). 테스트 138개.
 - **트리 확장 3차** (레이더/재머/디코이/서지, 6노드):
   Radar Array(건물, 포탑 조준오차 ×0.85^lvl) + Doppler Tracking(phase 무적 관통,
   isUntouchable()) / Jammer Tower(건물, 반경 45 슬로우 필드 12%+6%/lvl) +

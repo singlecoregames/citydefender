@@ -49,6 +49,12 @@ function migrate(env: SaveEnvelope): RunState {
     upgrades['ability_freefire'] = upgrades['ability_slowmo'] ?? 0;
     delete upgrades['ability_slowmo'];
   }
+  // The drag-sweep era's Heat Sink became Field Coils (same slot and price)
+  // when the sweep was remade into the cursor aura — carry levels over.
+  if (upgrades['heat_sink'] !== undefined) {
+    upgrades['field_coils'] = upgrades['heat_sink'] ?? 0;
+    delete upgrades['heat_sink'];
+  }
   // The reset-prestige era: its permanent upgrades became tier-2 tree nodes
   // with the same ids — carry bought levels over (head_start has no heir).
   const legacy = (env.run as { prestigeUpgrades?: Record<string, number> }).prestigeUpgrades;

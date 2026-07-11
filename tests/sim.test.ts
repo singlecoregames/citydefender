@@ -8,7 +8,7 @@ import {
   COMBO,
   DT,
   EXPLOSION,
-  SWEEP,
+  FIELD,
   TICK_RATE,
   TURRETS,
 } from '../src/core/balance';
@@ -1321,7 +1321,7 @@ describe('hold-to-fire', () => {
   });
 });
 
-describe('static sweep', () => {
+describe('static field', () => {
   function bare(stats: Partial<ReturnType<typeof baseStats>> = {}) {
     const cfg = defaultNightConfig(1);
     cfg.waves = []; // no natural spawns in these controlled tests
@@ -1350,30 +1350,52 @@ describe('static sweep', () => {
     });
   }
 
-  /** Press away from the enemy, then drag across it. */
-  function sweepAcross(sim: Sim, y = 60): readonly GameEvent[] {
-    sim.step([{ type: 'pointer', x: 10, y, held: true }]);
-    return sim.step([{ type: 'pointer', x: 50, y, held: true }]);
-  }
-
-  it('dragging across an enemy zaps it for the sweep damage', () => {
+  it('hovering the aura over an enemy pulses it for the field damage', () => {
     const sim = new Sim(1, bare());
     spawnEnemy(sim, 9001, { x: 30, y: 60 }, 'ballistic', 5);
-    const events = sweepAcross(sim);
-    expect(events.some((ev) => ev.type === 'sweepHit')).toBe(true);
-    expect(sim.state.enemies[0]!.hp).toBeCloseTo(5 - SWEEP.damage, 5);
+    const events = sim.step([{ type: 'aim', x: 30, y: 60 }]);
+    expect(events.some((ev) => ev.type === 'fieldPulse')).toBe(true);
+    expect(events.some((ev) => ev.type === 'fieldHit')).toBe(true);
+    expect(sim.state.enemies[0]!.hp).toBeCloseTo(5 - FIELD.damage, 5);
   });
 
-  it('the zap cooldown bounds per-enemy sweep dps', () => {
+  it('an aimed pulse needs no click — the aura works on hover alone', () => {
     const sim = new Sim(1, bare());
     spawnEnemy(sim, 9001, { x: 30, y: 60 }, 'ballistic', 5);
-    sim.step([{ type: 'pointer', x: 10, y: 60, held: true }]);
-    // Scrub back and forth over the enemy for several ticks within one
-    // hit interval: only the first crossing may zap.
-    sim.step([{ type: 'pointer', x: 50, y: 60, held: true }]);
-    sim.step([{ type: 'pointer', x: 10, y: 60, held: true }]);
-    sim.step([{ type: 'pointer', x: 50, y: 60, held: true }]);
-    expect(sim.state.enemies[0]!.hp).toBeCloseTo(5 - SWEEP.damage, 5);
+    sim.step([{ type: 'aim', x: 30, y: 60 }]);
+    expect(sim.state.cannon.ammo).toBe(CANNON.maxAmmo); // no shot was fired
+    expect(sim.state.interceptors).toHaveLength(0);
+  });
+
+  it('the pulse cooldown bounds the aura dps', () => {
+    const sim = new Sim(1, bare());
+    spawnEnemy(sim, 9001, { x: 30, y: 60 }, 'ballistic', 9);
+    sim.step([{ type: 'aim', x: 30, y: 60 }]);
+    expect(sim.state.enemies[0]!.hp).toBeCloseTo(9 - FIELD.damage, 5);
+    // Parked inside the aura for less than a pulse interval: no extra damage.
+    run(sim, Math.floor(FIELD.pulseSeconds * TICK_RATE) - 2);
+    expect(sim.state.enemies[0]!.hp).toBeCloseTo(9 - FIELD.damage, 5);
+    // ...and the second pulse lands once the cooldown has run out.
+    run(sim, 4);
+    expect(sim.state.enemies[0]!.hp).toBeCloseTo(9 - 2 * FIELD.damage, 5);
+  });
+
+  it('a charged aura with nothing in range holds its pulse for the first arrival', () => {
+    const sim = new Sim(1, bare());
+    spawnEnemy(sim, 424242, { x: 90, y: 98 }, 'ballistic', 1e9); // keeps the night alive
+    sim.step([{ type: 'aim', x: -30, y: 60 }]); // empty aura: no pulse spent
+    run(sim, TICK_RATE);
+    expect(sim.state.field.cooldown).toBe(0);
+    spawnEnemy(sim, 9001, { x: -30, y: 60 }, 'ballistic', 5);
+    sim.step([]); // zapped immediately — no cooldown was wasted on empty air
+    expect(sim.state.enemies.find((e) => e.id === 9001)!.hp).toBeCloseTo(5 - FIELD.damage, 5);
+  });
+
+  it('enemies outside the aura radius are untouched', () => {
+    const sim = new Sim(1, bare());
+    spawnEnemy(sim, 9001, { x: 30, y: 60 }, 'ballistic', 5);
+    sim.step([{ type: 'aim', x: 30 + FIELD.radius + 10, y: 60 }]);
+    expect(sim.state.enemies[0]!.hp).toBe(5);
   });
 
   it('the static arcs through phase shields (unlike explosions)', () => {
@@ -1381,67 +1403,44 @@ describe('static sweep', () => {
     spawnEnemy(sim, 9001, { x: 30, y: 60 }, 'phase', 5);
     sim.state.enemies[0]!.phased = true;
     sim.state.enemies[0]!.phaseTimer = 999;
-    sweepAcross(sim);
-    expect(sim.state.enemies[0]!.hp).toBeCloseTo(5 - SWEEP.damage, 5);
+    sim.step([{ type: 'aim', x: 30, y: 60 }]);
+    expect(sim.state.enemies[0]!.hp).toBeCloseTo(5 - FIELD.damage, 5);
   });
 
-  it('zapped enemies are slowed while the static lingers, bosses are not', () => {
+  it('pulsed enemies are slowed while the static lingers, bosses are not', () => {
     const sim = new Sim(1, bare());
     spawnEnemy(sim, 9001, { x: 30, y: 60 }, 'ballistic', 5);
     spawnEnemy(sim, 9002, { x: 30, y: 60 }, 'boss', 5000);
     sim.state.enemies.forEach((e) => (e.vel = { x: 0, y: -10 }));
-    sweepAcross(sim);
+    sim.step([{ type: 'aim', x: 30, y: 60 }]);
     const [zapped, boss] = sim.state.enemies;
     expect(zapped!.staticSlow).toBeGreaterThan(0);
     expect(boss!.staticSlow).toBeUndefined();
     const before = { a: zapped!.pos.y, b: boss!.pos.y };
     sim.step([]);
-    expect(before.a - zapped!.pos.y).toBeCloseTo(10 * DT * SWEEP.slowFactor, 5);
+    expect(before.a - zapped!.pos.y).toBeCloseTo(10 * DT * FIELD.slowFactor, 5);
     expect(before.b - boss!.pos.y).toBeCloseTo(10 * DT, 5);
   });
 
-  it('sweep kills pay scrap but never touch the combo meter', () => {
+  it('field kills pay scrap but never touch the combo meter', () => {
     const sim = new Sim(1, bare());
-    spawnEnemy(sim, 9001, { x: 30, y: 60 }, 'ballistic', SWEEP.damage / 2);
+    spawnEnemy(sim, 9001, { x: 30, y: 60 }, 'ballistic', FIELD.damage / 2);
     const scrapBefore = sim.state.scrap;
-    sweepAcross(sim);
+    sim.step([{ type: 'aim', x: 30, y: 60 }]);
     expect(sim.state.enemies).toHaveLength(0);
     expect(sim.state.scrap).toBeGreaterThan(scrapBefore);
     expect(sim.state.combo).toBe(0);
   });
 
-  it('sweeping drains heat to an overheat, which recovers over time', () => {
-    const sim = new Sim(1, bare());
-    // Far-corner sentinel so the empty-wave night can't end mid-test.
-    spawnEnemy(sim, 424242, { x: 90, y: 98 }, 'ballistic', 1e9);
-    sim.step([{ type: 'pointer', x: -95, y: 60, held: true }]);
-    // Full-width scrubbing empties the budget within a couple of strokes.
-    for (let i = 0; i < 12 && !sim.state.sweep.overheated; i++) {
-      sim.step([{ type: 'pointer', x: i % 2 === 0 ? 95 : -95, y: 60, held: true }]);
-    }
-    expect(sim.state.sweep.overheated).toBe(true);
-    const segments = sim.state.sweep.segments.length;
-    // Overheated: further strokes leave no trail.
-    sim.step([{ type: 'pointer', x: 0, y: 80, held: true }]);
-    expect(sim.state.sweep.segments.length).toBeLessThanOrEqual(segments);
-    // Heat refills past the recovery threshold and sweeping resumes.
-    const recoverTicks = Math.ceil(
-      ((sim.state.sweep.maxHeat * SWEEP.recoverFrac) / SWEEP.heatRegen) * TICK_RATE,
-    );
-    run(sim, recoverTicks + 2);
-    expect(sim.state.sweep.overheated).toBe(false);
-  });
-
-  it('Static Link scales the zap with total turret dps', () => {
-    const cfg = bare({ sweepDpsRate: 0.2 });
+  it('Static Link scales the pulse with total turret dps', () => {
+    const cfg = bare({ fieldDpsRate: 0.2 });
     cfg.turrets = [{ kind: 'laser', level: 1 }]; // 0.8/s × 1 dmg = 0.8 dps
     const sim = new Sim(1, cfg);
     // Park the enemy far from the laser turret (x=-80, range 45) so only the
-    // sweep touches it.
+    // aura touches it.
     spawnEnemy(sim, 9001, { x: 60, y: 90 }, 'ballistic', 5);
-    sim.step([{ type: 'pointer', x: 40, y: 90, held: true }]);
-    sim.step([{ type: 'pointer', x: 80, y: 90, held: true }]);
-    const expected = SWEEP.damage + 0.2 * 0.8 * SWEEP.hitInterval;
+    sim.step([{ type: 'aim', x: 60, y: 90 }]);
+    const expected = FIELD.damage + 0.2 * 0.8 * FIELD.pulseSeconds;
     expect(sim.state.enemies[0]!.hp).toBeCloseTo(5 - expected, 5);
   });
 });

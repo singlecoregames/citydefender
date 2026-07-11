@@ -88,9 +88,10 @@ function startNight(r: RunState): Sim {
 /** Commands queued between fixed-timestep ticks. */
 let pending: Command[] = [];
 
-// Pointer stream: press fires immediately (a tap = the classic click), and
-// while held the sim keeps firing at the pointer (hold-to-fire) and turns
-// drag strokes into the static sweep trail. See Sim.handlePointer.
+// Pointer stream. Every move (hover included) is an 'aim' — the static
+// field's aura simply follows the pointer. A press fires immediately (a tap
+// = the classic click) and keeps firing while held (hold-to-fire). See
+// Sim.handleAim / Sim.handlePointer.
 let pointerHeld = false;
 
 container.addEventListener('pointerdown', (e) => {
@@ -107,9 +108,9 @@ container.addEventListener('pointerdown', (e) => {
 });
 
 container.addEventListener('pointermove', (e) => {
-  if (!pointerHeld) return;
+  if (dayScreen.visible || titleScreen.visible) return;
   const world = renderer.screenToWorld(e.clientX, e.clientY);
-  pending.push({ type: 'pointer', x: world.x, y: world.y, held: true });
+  pending.push({ type: 'aim', x: world.x, y: world.y });
 });
 
 function releasePointer(): void {

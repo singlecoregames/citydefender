@@ -96,12 +96,12 @@ export const TREE: readonly TreeNode[] = [
     effects: [{ stat: 'explosionMaxRadius', op: 'mul', value: 0.08 }],
   },
   {
-    // The static sweep's stat ladder starts at ring 1: the sweep is the
+    // The static field's stat ladder starts at ring 1: the aura is the
     // early game's low-precision pressure valve, so its first upgrade must
     // be one of the first things a player can afford.
     id: 'static_charge',
     name: 'Static Charge',
-    description: '+0.35 sweep zap damage',
+    description: '+0.5 field pulse damage',
     branch: 'cannon',
     col: 1,
     row: -1,
@@ -109,7 +109,7 @@ export const TREE: readonly TreeNode[] = [
     baseCost: 45,
     costGrowth: 1.5,
     requires: ['core'],
-    effects: [{ stat: 'sweepDamage', op: 'add', value: 0.35 }],
+    effects: [{ stat: 'fieldDamage', op: 'add', value: 0.5 }],
   },
   {
     id: 'magazine',
@@ -244,7 +244,7 @@ export const TREE: readonly TreeNode[] = [
   {
     id: 'static_link',
     name: 'Static Link',
-    description: 'Sweep zaps gain +4% of total turret DPS as damage',
+    description: 'Field pulses gain +4% of total turret DPS as damage',
     branch: 'cannon',
     col: 1,
     row: -5,
@@ -252,7 +252,7 @@ export const TREE: readonly TreeNode[] = [
     baseCost: 6000,
     costGrowth: 1.7,
     requires: ['overcharge_shot'],
-    effects: [{ stat: 'sweepDpsRate', op: 'add', value: 0.04 }],
+    effects: [{ stat: 'fieldDpsRate', op: 'add', value: 0.04 }],
   },
   {
     id: 'laser_reach',
@@ -680,10 +680,10 @@ export const TREE: readonly TreeNode[] = [
     effects: [{ stat: 'maxAmmo', op: 'add', value: 1 }],
   },
   {
-    // Warden flavour: heat/ammo management lives next to the Drum Magazine.
-    id: 'heat_sink',
-    name: 'Heat Sink',
-    description: '+30 sweep heat, +15% heat regen',
+    // Warden flavour: field hardware lives next to the Drum Magazine.
+    id: 'field_coils',
+    name: 'Field Coils',
+    description: '+12% field radius, -6% pulse cooldown',
     branch: 'cannon',
     col: 3,
     row: -3,
@@ -692,8 +692,8 @@ export const TREE: readonly TreeNode[] = [
     costGrowth: 1.6,
     requires: ['drum_magazine'],
     effects: [
-      { stat: 'sweepHeatMax', op: 'add', value: 30 },
-      { stat: 'sweepHeatRegen', op: 'mul', value: 0.15 },
+      { stat: 'fieldRadius', op: 'mul', value: 0.12 },
+      { stat: 'fieldPulseSeconds', op: 'mul', value: -0.06 },
     ],
   },
   {
@@ -706,7 +706,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 4500,
     costGrowth: 1.6,
-    requires: ['heat_sink'],
+    requires: ['field_coils'],
     effects: [{ stat: 'holdFireInterval', op: 'mul', value: -0.1 }],
   },
   {

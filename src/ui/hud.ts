@@ -14,18 +14,11 @@ export class Hud {
    *  the full magazine sits untouched, and stays lit during auto-fire. */
   private readonly autoGauge = document.createElement('div');
   private readonly autoFill = document.createElement('div');
-  /** Static sweep heat: a thin bar above the ammo pips that drains as you
-   *  drag and flares red while overheated. */
-  private readonly sweepGauge = document.createElement('div');
-  private readonly sweepFill = document.createElement('div');
 
   constructor() {
     this.autoGauge.className = 'autofire-gauge';
     this.autoFill.className = 'autofire-fill';
     this.autoGauge.appendChild(this.autoFill);
-    this.sweepGauge.className = 'sweep-gauge';
-    this.sweepFill.className = 'sweep-fill';
-    this.sweepGauge.appendChild(this.sweepFill);
   }
 
   render(state: GameState, totalScrap: number, cores: number): void {
@@ -41,11 +34,6 @@ export class Hud {
     for (let i = 0; i < this.pipCount; i++) {
       this.ammoEl.children[i]!.classList.toggle('full', i < state.cannon.ammo);
     }
-    // Sweep heat: hidden while full (nothing to manage), shown while draining.
-    const sweep = state.sweep;
-    this.sweepGauge.classList.toggle('hidden', sweep.heat >= sweep.maxHeat);
-    this.sweepGauge.classList.toggle('overheated', sweep.overheated);
-    this.sweepFill.style.width = `${(sweep.heat / sweep.maxHeat) * 100}%`;
     // The auto-fire gauge only exists once the node is owned (threshold > 0).
     const threshold = state.cannon.autoFireThreshold;
     this.autoGauge.classList.toggle('hidden', threshold <= 0);
@@ -79,7 +67,6 @@ export class Hud {
       this.ammoEl.appendChild(pip);
     }
     this.ammoEl.appendChild(this.autoGauge);
-    this.ammoEl.appendChild(this.sweepGauge);
     this.pipCount = maxAmmo;
   }
 }
