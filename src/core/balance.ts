@@ -21,9 +21,12 @@ export const CANNON = {
   x: 0,
   /** Muzzle height: on top of the raised ground band. */
   y: 7.5,
-  maxAmmo: 4,
+  /** The cannon is the BURST tool, not a parallel general attack (that is
+   *  the static field's job): few rounds, long reload, huge blasts — every
+   *  shot is a decision, closer to an ability than a machine gun. */
+  maxAmmo: 2,
   /** Seconds to regenerate one round. */
-  reloadSeconds: 1.5,
+  reloadSeconds: 4.0,
   /** Interceptor flight speed, world units per second. */
   interceptorSpeed: 70,
   /** Minimum target distance so you can't detonate inside the cannon. */
@@ -40,32 +43,28 @@ export const CANNON = {
    *  cadence and dumps the free shots this fast — so leaving it to the
    *  cannon is nearly as quick as tapping the salvo out by hand. */
   autoFireBurstInterval: 0.28,
-  /** Hold-to-fire: while the pointer is held down the cannon keeps firing at
-   *  the pointer at this cadence (magazine rules unchanged — the reload rate
-   *  is still the sustained-fire limiter). The press itself always fires
-   *  immediately, so a tap behaves exactly like the classic click. */
-  holdFireInterval: 0.34,
-  /** While the trigger is held the magazine regenerates at this fraction of
-   *  the normal rate — deliberate tap-firing keeps a small reload edge over
-   *  holding the button down. */
-  holdReloadFactor: 0.85,
 } as const;
 
 /** Static Field: a circular aura that simply follows the pointer (no click
- *  needed) and periodically pulses, zapping and slowing every enemy inside —
- *  low-precision "park the cursor on the threat" damage that softens waves
- *  without spending ammo. The pulse cooldown (drawn as a ring-shaped
- *  progress bar around the circle) is the throughput limiter. The static
- *  also arcs through phase shields: the field is the manual counter to
- *  phased enemies (turrets still need Doppler Tracking). */
+ *  needed) and periodically pulses, zapping and slowing every enemy inside.
+ *  This is the PRIMARY attack — the cannon is the ammo-limited burst tool on
+ *  top of it — so its baseline starts deliberately weak (small, slow) and
+ *  the field ladder in the tree is what grows it into a weapon (playtest:
+ *  the 9 / 0.9s launch values carried whole nights by themselves). The
+ *  pulse cooldown (drawn as a ring-shaped progress bar around the circle)
+ *  is the throughput limiter. The static also arcs through phase shields:
+ *  the field is the manual counter to phased enemies (turrets still need
+ *  Doppler Tracking). */
 export const FIELD = {
-  /** Aura radius (enemy half-extents are added on top, like every hit test). */
-  radius: 9,
+  /** Aura radius (enemy half-extents are added on top, like every hit test).
+   *  Maxed tree (Wide Field ×5, Field Coils ×3) reaches ≈ 12.4. */
+  radius: 5.5,
   /** Base damage per pulse (see also the static_charge / static_link nodes). */
   damage: 1,
   /** Seconds between pulses. A ready field with nothing in range HOLDS its
-   *  charge — the first enemy to wander in is zapped immediately. */
-  pulseSeconds: 0.9,
+   *  charge — the first enemy to wander in is zapped immediately. Maxed
+   *  tree (Pulse Cycle ×5, Field Coils ×3) reaches ≈ 1.15s. */
+  pulseSeconds: 2.0,
   /** Zapped enemies move at this speed factor while the static lingers... */
   slowFactor: 0.6,
   /** ...for this long after the pulse. Bosses are immune to the slow
@@ -82,13 +81,15 @@ export function autoFireThresholdFor(level: number): number {
   );
 }
 
+/** Cannon blast: sized for the burst role — one shot clears a cluster
+ *  (the field handles the sustained trickle). */
 export const EXPLOSION = {
-  maxRadius: 8,
+  maxRadius: 13,
   /** At full blast radius from the instant of detonation... */
   holdSeconds: 0.45,
   /** ...then the radius shrinks to nothing over this long. */
   fadeSeconds: 0.3,
-  damage: 1,
+  damage: 3,
 } as const;
 
 /** Shared turret constants. */
@@ -263,9 +264,11 @@ export const ABILITIES = {
     minCooldown: 12,
     /** A salvo of free shots: each shot (manual OR auto) neither drains the
      *  magazine nor waits for the reload, but the salvo is capped at this many
-     *  rounds — so hand-firing and auto-fire spend the same ammunition. */
-    shots: 6,
-    shotsPerLevel: 2,
+     *  rounds — so hand-firing and auto-fire spend the same ammunition.
+     *  (Halved when the cannon became the big-blast burst tool — six of the
+     *  new shells was a rolling Mega Bomb.) */
+    shots: 3,
+    shotsPerLevel: 1,
   },
   surge: {
     baseCooldown: 30,

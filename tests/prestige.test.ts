@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nightInWorld, TICK_RATE, WORLDS, worldOf } from '../src/core/balance';
+import { EXPLOSION, nightInWorld, TICK_RATE, WORLDS, worldOf } from '../src/core/balance';
 import { deserialize, SAVE_VERSION } from '../src/core/save';
 import { defaultNightConfig, Sim } from '../src/core/sim';
 import { getNode, isUnlocked, nodeTier, resolveStats, TREE } from '../src/core/tree';
@@ -44,7 +44,7 @@ describe('tier-2 upgrades (former prestige) resolve through the tree', () => {
   it('arsenal core multiplies both damage stats', () => {
     const s = resolveStats({ arsenal_core: 2 });
     expect(s.turretDamageMul).toBeCloseTo(2.25, 5);
-    expect(s.explosionDamage).toBeCloseTo(2.25, 5);
+    expect(s.explosionDamage).toBeCloseTo(EXPLOSION.damage * 2.25, 5);
   });
 
   it('drone escort / MIRV levels land in derived stats', () => {

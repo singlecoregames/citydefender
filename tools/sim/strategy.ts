@@ -155,21 +155,21 @@ function greedySpend(run: RunState, bought: string[], focus?: TreeBranch): void 
  *  (tokens come from boss kills, not thrift) — they're skipped until a token
  *  is in hand (see spendCores). */
 const BUILD_ORDER: { id: string; level: number }[] = [
-  { id: 'blast_radius', level: 1 },
+  { id: 'static_charge', level: 1 }, // the field IS the primary attack
   { id: 'turret_gatling', level: 1 },
+  { id: 'wide_field', level: 1 },
   { id: 'salvage', level: 2 },
-  { id: 'autoloader', level: 2 },
+  { id: 'pulse_cycle', level: 1 },
   { id: 'turret_flak', level: 1 }, // via salvage (quartermaster path)
   { id: 'turret_speed', level: 2 }, // cheap turret dps before manual luxuries
   { id: 'turret_power', level: 2 },
-  { id: 'turret_laser', level: 1 }, // via blast_radius (gunner path)
-  { id: 'magazine', level: 1 },
-  { id: 'wide_blast', level: 1 },
-  { id: 'fast_intercept', level: 1 },
-  { id: 'warhead', level: 1 },
+  { id: 'turret_laser', level: 1 }, // via static_charge (gunner path)
+  { id: 'static_charge', level: 3 },
+  { id: 'blast_radius', level: 1 }, // the burst tool's side ladder
+  { id: 'field_coils', level: 1 },
   { id: 'turret_missile', level: 1 }, // walks reinforced (warden path)
   // The list ends deliberately early: post-repricing, the deep milestones
-  // (warhead 3, heavy_warhead) cost several nights of income — saving toward
+  // (static_link, warhead) cost several nights of income — saving toward
   // them mid-world starves the build. Greedy cheapest-first handles the rest.
 ];
 
