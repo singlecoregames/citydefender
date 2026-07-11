@@ -94,6 +94,10 @@ const ENEMY_COLORS: Record<EnemyKind, number> = {
   regenerator: SNKRX.green,
   phase: SNKRX.blue,
   carrier: 0xb31730, // deep red — a heavier shade of the enemy red
+  armored: 0x8c97a3, // gunmetal grey — reads as plating
+  cruise: SNKRX.yellow,
+  mirv: 0xd94f7e, // warm pink — a diamond that is NOT the splitter's purple
+  healer: 0x4fd6a3, // mint — support-green, brighter than the regenerator
   boss: SNKRX.red,
 };
 
@@ -507,6 +511,10 @@ export class Renderer {
       if (ev.type === 'beam') this.spawnBeam(ev.kind, ev.points);
       if (ev.type === 'fieldHit') this.particles.burst(ev.pos.x, ev.pos.y, 0x6fd8ff, 4);
       if (ev.type === 'fieldPulse') this.spawnFieldPulse(ev.pos);
+      // Healer pulse: a mint disc flash spanning the heal radius telegraphs
+      // both the pulse and its reach.
+      if (ev.type === 'healPulse') this.spawnFieldPulse(ev.pos, ev.radius, ENEMY_COLORS.healer);
+      if (ev.type === 'mirvSplit') this.particles.burst(ev.pos.x, ev.pos.y, ENEMY_COLORS.mirv, 10);
       if (ev.type === 'aegisAbsorbed') {
         this.particles.burst(ev.pos.x, ev.pos.y, 0x8bd4ff, 14);
         this.shake = Math.max(this.shake, 0.3);
@@ -923,8 +931,9 @@ export class Renderer {
           opacity: 1,
         });
         const head = new THREE.Mesh(this.roundedGeo, mat);
-        // Splitters read as diamonds — the same rounded square turned 45°.
-        if (e.kind === 'splitter') head.rotation.z = Math.PI / 4;
+        // Splitters and MIRV buses read as diamonds — the same rounded
+        // square turned 45° (the design doc's "diamond head" language).
+        if (e.kind === 'splitter' || e.kind === 'mirv') head.rotation.z = Math.PI / 4;
         // Hp readout: a constant-thickness rim of body colour around a dark
         // interior; the fill (sharing the body material, so it flashes and
         // fades with it) drains bottom-up as hp drops. Flat quads — see HP_RIM.
@@ -947,9 +956,16 @@ export class Renderer {
           spawnT: 0,
           lastHp: e.hp,
           flash: 0,
-          // Meteors tumble as they fall; bosses get a steady menacing turn.
+          // Meteors tumble as they fall; bosses get a steady menacing turn;
+          // cruise missiles hold level flight; healers rotate like slow gear.
           spin:
-            e.kind === 'boss' ? 0.5 : (1 + Math.random() * 1.8) * (Math.random() < 0.5 ? -1 : 1),
+            e.kind === 'boss'
+              ? 0.5
+              : e.kind === 'cruise'
+                ? 0
+                : e.kind === 'healer'
+                  ? 0.7
+                  : (1 + Math.random() * 1.8) * (Math.random() < 0.5 ? -1 : 1),
           kind: e.kind,
         };
         this.scene.add(view.head);
@@ -964,7 +980,10 @@ export class Renderer {
       view.spawnT = Math.min(view.spawnT + dt, 0.25);
       const t = view.spawnT / 0.25;
       const pop = t * (1.3 - 0.3 * t);
-      view.head.scale.set(view.size * pop, view.size * pop, 1);
+      // Cruise missiles stretch into a low, wide airframe (the collider stays
+      // the square enemySize — the stretch trades height for width around it).
+      const stretch = e.kind === 'cruise' ? 1.45 : 1;
+      view.head.scale.set(view.size * pop * stretch, (view.size * pop) / stretch, 1);
       // Scale/rotation change every frame, so keep the shadow's world offset
       // pinned down-right; phased enemies are ghosts and cast none.
       this.placeShadow(view.head, view.shadow);
@@ -1105,21 +1124,22 @@ export class Renderer {
     });
   }
 
-  /** Pulse feedback: a bright disc flash at the aura that fades fast. */
+  /** Pulse feedback: a bright disc flash at the aura that fades fast. Also
+   *  reused by the healer's pulse with its own radius/colour. */
   private readonly fieldPulses: { mesh: THREE.Mesh; ttl: number; maxTtl: number }[] = [];
 
-  private spawnFieldPulse(pos: Vec2): void {
+  private spawnFieldPulse(pos: Vec2, radiusOverride?: number, color = 0x6fd8ff): void {
     const mesh = new THREE.Mesh(
       this.discGeo,
       new THREE.MeshBasicMaterial({
-        color: 0x6fd8ff,
+        color,
         transparent: true,
         opacity: 0.3,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }),
     );
-    const radius = this.fieldGroup?.scale.x ?? 9;
+    const radius = radiusOverride ?? this.fieldGroup?.scale.x ?? 9;
     mesh.scale.setScalar(radius);
     mesh.position.set(pos.x, pos.y, 2.62);
     this.scene.add(mesh);

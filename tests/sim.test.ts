@@ -8,6 +8,7 @@ import {
   CHILD_SPAWN,
   COMBO,
   DT,
+  ENEMY,
   EXPLOSION,
   FIELD,
   TICK_RATE,
@@ -582,6 +583,9 @@ describe('enemy kinds', () => {
     }
     if (kind === 'regenerator') e.regenTimer = 0;
     if (kind === 'carrier') e.spawnTimer = 1.6;
+    if (kind === 'armored') e.armor ??= ENEMY.armored.armor;
+    if (kind === 'cruise') e.cruiseT = 0;
+    if (kind === 'healer') e.healTimer = ENEMY.healer.pulseInterval;
     sim.state.enemies.push(e);
     return e;
   }
@@ -675,6 +679,145 @@ describe('enemy kinds', () => {
     expect(sim.state.enemies.some((e) => e.kind === 'swarmer')).toBe(true);
   });
 
+  it('armored shaves flat damage off every hit, floored at the chip fraction', () => {
+    const sim = new Sim(1, nightConfig(36));
+    const armored = inject(sim, 'armored', { hp: 6, maxHp: 6, vel: { x: 0, y: 0 }, armor: 1 });
+    sim.state.explosions.push({
+      id: 1,
+      pos: { ...armored.pos },
+      age: 0.3,
+      maxRadius: 8,
+      damage: 3,
+      hitEnemyIds: [],
+    });
+    run(sim, 1);
+    expect(armored.hp).toBeCloseTo(6 - (3 - 1), 5); // 3 dmg - 1 armor
+    // Armor larger than the hit: the chip floor still gets through. (Placed
+    // clear of the first blast, which lingers for a few more ticks.)
+    const tank = inject(sim, 'armored', {
+      id: 556,
+      hp: 6,
+      maxHp: 6,
+      pos: { x: 60, y: 50 },
+      vel: { x: 0, y: 0 },
+      armor: 100,
+    });
+    sim.state.explosions.push({
+      id: 2,
+      pos: { ...tank.pos },
+      age: 0.3,
+      maxRadius: 8,
+      damage: 2,
+      hitEnemyIds: [],
+    });
+    run(sim, 1);
+    expect(tank.hp).toBeCloseTo(6 - 2 * ENEMY.armored.minDamageFrac, 5);
+  });
+
+  it('cruise crosses horizontally, bobbing, then dives at its target x', () => {
+    const sim = new Sim(1, nightConfig(42));
+    const cruise = inject(sim, 'cruise', {
+      pos: { x: -40, y: 75 },
+      origin: { x: -122, y: 75 },
+      vel: { x: 10, y: 0 },
+      diveX: 0,
+    });
+    sim.step([]);
+    expect(cruise.vel.y).not.toBe(0); // bobbing while crossing
+    expect(cruise.vel.x).toBe(10);
+    run(sim, TICK_RATE * 5); // plenty to cover the 40 units to diveX
+    expect(cruise.cruiseT).toBeUndefined(); // committed to the dive...
+    expect(cruise.vel.x).toBe(0);
+    expect(cruise.vel.y).toBeLessThan(0);
+    // ...at the dive multiplier over the crossing speed.
+    expect(-cruise.vel.y).toBeCloseTo(10 * ENEMY.cruise.diveSpeedMul, 5);
+  });
+
+  it('mirv splits into scrapless ballistic warheads at its split altitude', () => {
+    const sim = new Sim(1, nightConfig(51));
+    inject(sim, 'mirv', {
+      hp: 3,
+      maxHp: 3,
+      pos: { x: 0, y: 50 },
+      vel: { x: 0, y: -8 },
+      splitY: 48,
+    });
+    const events: GameEvent[] = [];
+    for (let i = 0; i < TICK_RATE; i++) events.push(...sim.step([]));
+    expect(sim.state.enemies.find((e) => e.kind === 'mirv')).toBeUndefined();
+    const warheads = sim.state.enemies.filter((e) => e.kind === 'ballistic');
+    expect(warheads).toHaveLength(ENEMY.mirv.childCount);
+    expect(events.some((e) => e.type === 'mirvSplit')).toBe(true);
+    for (const w of warheads) {
+      expect(w.scrapReward).toBe(0); // splits pay nothing — kill the bus early
+      expect(w.rampTimer).toBeGreaterThan(0); // spawn ramp reaction window
+    }
+    // The fan spreads: warheads must not share a horizontal velocity.
+    const vxs = warheads.map((w) => Math.round(w.vel.x * 100));
+    expect(new Set(vxs).size).toBe(warheads.length);
+  });
+
+  it('mirv killed before the split altitude spawns nothing', () => {
+    const sim = new Sim(1, nightConfig(51));
+    const mirv = inject(sim, 'mirv', {
+      hp: 1,
+      maxHp: 3,
+      pos: { x: 0, y: 70 },
+      vel: { x: 0, y: 0 },
+      splitY: 48,
+    });
+    sim.state.explosions.push({
+      id: 1,
+      pos: { ...mirv.pos },
+      age: 0.3,
+      maxRadius: 8,
+      damage: 10,
+      hitEnemyIds: [],
+    });
+    run(sim, 2);
+    expect(sim.state.enemies).toHaveLength(0);
+  });
+
+  it('healer pulse heals damaged enemies in radius, but not bosses or itself', () => {
+    const sim = new Sim(1, nightConfig(66));
+    const healer = inject(sim, 'healer', {
+      hp: 3,
+      maxHp: 6,
+      pos: { x: 0, y: 60 },
+      vel: { x: 0, y: 0 },
+    });
+    const near = inject(sim, 'ballistic', {
+      id: 601,
+      hp: 1,
+      maxHp: 4,
+      pos: { x: 10, y: 60 },
+      vel: { x: 0, y: 0 },
+    });
+    const far = inject(sim, 'ballistic', {
+      id: 602,
+      hp: 1,
+      maxHp: 4,
+      pos: { x: 80, y: 60 },
+      vel: { x: 0, y: 0 },
+    });
+    const boss = inject(sim, 'boss', {
+      id: 603,
+      hp: 10,
+      maxHp: 100,
+      pos: { x: -5, y: 60 },
+      vel: { x: 0, y: 0 },
+      spawnTimer: 999,
+    });
+    const events: GameEvent[] = [];
+    for (let i = 0; i < TICK_RATE * 2; i++) events.push(...sim.step([]));
+    expect(events.some((e) => e.type === 'healPulse')).toBe(true);
+    expect(near.hp).toBeGreaterThan(1);
+    expect(near.hp).toBeLessThanOrEqual(near.maxHp);
+    expect(far.hp).toBe(1); // out of radius
+    expect(boss.hp).toBe(10); // bosses are never topped up
+    expect(healer.hp).toBe(3); // and neither is the healer itself
+  });
+
   it('enemy pool widens with the night number', () => {
     expect(enemyPool(1).map((p) => p.kind)).toEqual(['ballistic']);
     // Debuts are paced around the boss-token cadence: phase after the first
@@ -687,6 +830,20 @@ describe('enemy kinds', () => {
     expect(enemyPool(19).find((p) => p.kind === 'carrier')!.weight).toBeLessThan(
       enemyPool(23).find((p) => p.kind === 'carrier')!.weight,
     );
+    // Worlds 2-4 debuts: a few nights past each world's entry ramp, at
+    // reduced weight first (the carrier lesson).
+    for (const [kind, debut] of [
+      ['armored', 36],
+      ['cruise', 42],
+      ['mirv', 51],
+      ['healer', 66],
+    ] as const) {
+      expect(enemyPool(debut - 1).map((p) => p.kind)).not.toContain(kind);
+      expect(enemyPool(debut).map((p) => p.kind)).toContain(kind);
+      expect(enemyPool(debut).find((p) => p.kind === kind)!.weight).toBeLessThan(
+        enemyPool(debut + 4).find((p) => p.kind === kind)!.weight,
+      );
+    }
   });
 });
 

@@ -217,6 +217,45 @@ export const ENEMY = {
   phase: { speed: 8.5, hp: 2, scrapReward: 7, phaseInterval: 1.5, phaseDuration: 0.7 },
   /** Slow, tanky; drips out swarmers as it descends. */
   carrier: { speed: 4, hp: 10, scrapReward: 22, spawnInterval: 1.6 },
+  /** Every hit is reduced by a flat armor value (scaled with the night's hp
+   *  curve, like hp), floored at minDamageFrac of the raw hit — streams of
+   *  small hits are blunted, single big hits barely notice. The counter to
+   *  the gatling/pulse chip-damage meta once world 2 opens. */
+  armored: { speed: 6, hp: 6, scrapReward: 14, armor: 1, minDamageFrac: 0.3 },
+  /** Flies in from a side edge at altitude, bobbing on a sine wave, then
+   *  dives once it passes over its target. The night's first horizontal
+   *  threat axis: lead shots and jammer placement suddenly matter. */
+  cruise: {
+    speed: 10,
+    hp: 4,
+    scrapReward: 12,
+    /** Dive speed = crossing speed × this. */
+    diveSpeedMul: 1.5,
+    /** Vertical bob velocity as a fraction of the crossing speed. */
+    bobFrac: 0.45,
+    /** Bob angular frequency (rad/s of the sine phase). */
+    bobFrequency: 2.4,
+    /** Crossing altitude is rolled in this world-y band. */
+    altitudeRange: [68, 86],
+  },
+  /** Splits into ballistic warheads at mid altitude. The inverse of the
+   *  splitter's punish: killing the bus BEFORE the split is pure profit —
+   *  warheads pay no scrap and each must be shot down separately. */
+  mirv: {
+    speed: 7.5,
+    hp: 3,
+    scrapReward: 12,
+    childCount: 3,
+    /** Split altitude is rolled in this world-y band. */
+    splitAltitude: [48, 64],
+    /** Angular fan step between adjacent warheads (radians). */
+    spreadRad: 0.5,
+  },
+  /** Slow support unit: periodically pulses, topping up every damaged
+   *  non-boss enemy nearby. Stays high (slow descent), so ignoring it and
+   *  focusing the low threats — the default targeting — feeds it. The
+   *  priority-target enemy the Data targeting tree gets to answer. */
+  healer: { speed: 4.5, hp: 6, scrapReward: 18, healRadius: 22, pulseInterval: 1.2, healPerPulse: 2 },
 } as const;
 
 /** Render size (full extent, world units) per enemy kind, with a capped
@@ -224,10 +263,19 @@ export const ENEMY = {
  *  off-screen. Lives here (not the renderer) because hit tests use it too:
  *  what you see IS the collider — a boss drawn 22 wide must not require
  *  threading a shot through its 3.5-unit centre point. */
+const ENEMY_BASE_SIZE: Partial<Record<EnemyKind, number>> = {
+  swarmer: 2.2,
+  regenerator: 4.4,
+  carrier: 9,
+  armored: 5,
+  cruise: 5,
+  mirv: 4.2,
+  healer: 5.5,
+};
+
 export function enemySize(kind: EnemyKind, maxHp: number): number {
   if (kind === 'boss') return 22;
-  const base =
-    kind === 'swarmer' ? 2.2 : kind === 'carrier' ? 9 : kind === 'regenerator' ? 4.4 : 3.8;
+  const base = ENEMY_BASE_SIZE[kind] ?? 3.8;
   return base * (1 + Math.min(1.2, (maxHp - 1) * 0.03));
 }
 

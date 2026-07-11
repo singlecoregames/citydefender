@@ -113,6 +113,14 @@ export function enemyPool(night: number): EnemyWeight[] {
   // together with the hp ramp, and the sim piled every world-1 fail onto that
   // single night (7-8 straight, a near-softlock at the 8-fail stuck limit).
   if (night >= 19) pool.push({ kind: 'carrier', weight: night >= 23 ? 2 : 1 });
+  // Worlds 2-4 each introduce fresh kinds so the back 90 nights aren't pure
+  // stat inflation. Debuts sit a few nights PAST each world's entry (the hp
+  // step ramps over worldEntryRampNights) and clear of boss nights, and each
+  // starts at reduced weight — the carrier's N12 near-softlock lesson.
+  if (night >= 36) pool.push({ kind: 'armored', weight: night >= 40 ? 3 : 2 });
+  if (night >= 42) pool.push({ kind: 'cruise', weight: night >= 46 ? 3 : 2 });
+  if (night >= 51) pool.push({ kind: 'mirv', weight: night >= 55 ? 3 : 2 });
+  if (night >= 66) pool.push({ kind: 'healer', weight: night >= 70 ? 2 : 1 });
   // Thin out plain ballistics once the roster fills in.
   if (night >= 10) pool[0]!.weight = 5;
   return pool;

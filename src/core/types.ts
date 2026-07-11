@@ -96,6 +96,10 @@ export type EnemyKind =
   | 'regenerator'
   | 'phase'
   | 'carrier'
+  | 'armored'
+  | 'cruise'
+  | 'mirv'
+  | 'healer'
   | 'boss';
 
 export interface EnemyMissile {
@@ -115,6 +119,17 @@ export interface EnemyMissile {
   regenTimer?: number;
   /** Carrier: seconds until it sheds another swarmer. */
   spawnTimer?: number;
+  /** Armored: flat damage shaved off every hit (scaled with the night). */
+  armor?: number;
+  /** Cruise: seconds spent crossing (drives the sine bob). Cleared once the
+   *  dive starts — `undefined` on a cruise means it is already diving. */
+  cruiseT?: number;
+  /** Cruise: world x it crosses toward, then dives at. */
+  diveX?: number;
+  /** MIRV: altitude (world y) at which the bus splits into warheads. */
+  splitY?: number;
+  /** Healer: seconds until the next heal pulse. */
+  healTimer?: number;
   /** Static Field: seconds of lingering slow left from the last pulse. */
   staticSlow?: number;
   /** Mid-air-spawned children: seconds left on the spawn speed ramp (they
@@ -145,6 +160,10 @@ export type GameEvent =
   /** Instant-hit visuals: laser/railgun lines, tesla chain polyline. */
   | { type: 'beam'; kind: 'laser' | 'railgun' | 'tesla' | 'lance'; points: Vec2[] }
   | { type: 'enemyKilled'; pos: Vec2; reward: number }
+  /** A MIRV bus reached its split altitude and broke into warheads. */
+  | { type: 'mirvSplit'; pos: Vec2 }
+  /** A healer pulsed, topping up nearby enemies. */
+  | { type: 'healPulse'; pos: Vec2; radius: number }
   | { type: 'groundImpact'; pos: Vec2 }
   | { type: 'cityHit'; cityId: number; destroyed: boolean }
   /** The static field pulsed (ring flash at the aura). */
