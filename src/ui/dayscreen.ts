@@ -2,9 +2,14 @@ import { worldOf } from '../core/balance';
 import type { RunState } from '../core/run';
 import {
   BUILDING_NODES,
+  getNode,
+  isRevealed,
   isUnlocked,
+  missingRequirement,
   nodeTier,
   nextPrice,
+  reqId,
+  reqLevel,
   TREE,
   TURRET_NODES,
   TURRET_TWIN_NODES,
@@ -180,8 +185,8 @@ export class DayScreen {
 
     // Connection lines first (under the nodes).
     for (const node of TREE) {
-      for (const reqId of node.requires) {
-        const from = TREE.find((n) => n.id === reqId);
+      for (const req of node.requires) {
+        const from = TREE.find((n) => n.id === reqId(req));
         if (!from) continue;
         const a = this.nodePx(from);
         const b = this.nodePx(node);
@@ -442,10 +447,17 @@ export class DayScreen {
       status = `<span class="tt-core">${t().ttCore}</span>`;
     } else if (cost === null) {
       status = `<span class="tt-max">${t().ttMaxed(level, node.maxLevel)}</span>`;
+    } else if (!isUnlocked(node, run.upgrades)) {
+      // Name the graduation gate so the player knows exactly what to level.
+      const missing = missingRequirement(node, run.upgrades);
+      const gate = missing ? getNode(reqId(missing)) : undefined;
+      status = `<span class="tt-locked">${
+        missing && gate
+          ? t().ttGateLocked(nodeName(gate), reqLevel(missing))
+          : t().ttLocked
+      }</span>`;
     } else if (nodeTier(node) > worldOf(run.night)) {
       status = `<span class="tt-locked">${t().ttTierLocked(nodeTier(node))}</span>`;
-    } else if (!isUnlocked(node, run.upgrades)) {
-      status = `<span class="tt-locked">${t().ttLocked}</span>`;
     } else if (bank >= cost) {
       status =
         `<span class="tt-buy">${t().ttPrice(icon, formatAmount(cost), level, node.maxLevel)}</span>` +
@@ -489,11 +501,13 @@ export class DayScreen {
     for (const node of TREE) {
       const els = this.nodeEls.get(node.id)!;
       const level = run.upgrades[node.id] ?? 0;
-      // Two gates, shown differently: nodes whose PREREQS aren't bought stay
-      // entirely hidden (the tree reveals ring by ring), but a prereq-met
-      // node in a not-yet-reached TIER is teased as a locked silhouette —
-      // playtest finding: fully hiding tiers made the world-2 unlock
-      // invisible (new nodes popped in silently at the tree's edges).
+      // Three gates, shown differently: nodes with an UNSTARTED prereq stay
+      // entirely hidden (fog — the tree unfolds one step ahead of ownership);
+      // a revealed node behind a graduation gate ("prereq at level n") is a
+      // locked silhouette naming its gate; and a prereq-met node in a
+      // not-yet-reached TIER is teased the same way — playtest finding:
+      // fully hiding tiers made the world-2 unlock invisible.
+      const revealed = node.branch === 'core' || isRevealed(node, run.upgrades);
       const prereqMet = isUnlocked(node, run.upgrades);
       const tierOpen = nodeTier(node) <= worldOf(run.night);
       const price = nextPrice(node, level);
@@ -503,7 +517,7 @@ export class DayScreen {
       const bank = price ? bankOf(run, price.currency) : 0;
       const g = els.box.parentElement!;
 
-      if (node.branch !== 'core' && !prereqMet) {
+      if (!revealed) {
         g.setAttribute('display', 'none');
         if (this.selectedId === node.id) {
           this.selectedId = null;
@@ -523,6 +537,12 @@ export class DayScreen {
       if (node.branch === 'core') {
         stroke = color;
         costText = t().costCore;
+      } else if (!prereqMet) {
+        // Graduation gate: revealed but locked until the prereq levels up.
+        const missing = missingRequirement(node, run.upgrades);
+        stroke = '#333333';
+        opacity = '0.45';
+        costText = t().costGateLocked(reqLevel(missing ?? node.requires[0]!));
       } else if (!tierOpen) {
         // Teased: visible so the player knows what the next world opens,
         // but unmistakably locked until its world is reached.
@@ -558,7 +578,7 @@ export class DayScreen {
 
     for (const { line, to } of this.lineEls) {
       // A line only exists once its destination node is revealed.
-      if (!isUnlocked(to, run.upgrades)) {
+      if (!isRevealed(to, run.upgrades)) {
         line.setAttribute('display', 'none');
         continue;
       }

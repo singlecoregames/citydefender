@@ -8,7 +8,9 @@ import type { RunState } from '../../src/core/run';
 import {
   getNode,
   isUnlocked,
+  missingRequirement,
   nextPrice,
+  reqId,
   TREE,
   type Currency,
   type NodePrice,
@@ -155,22 +157,39 @@ function greedySpend(run: RunState, bought: string[], focus?: TreeBranch): void 
  *  (tokens come from boss kills, not thrift) — they're skipped until a token
  *  is in hand (see spendCores). */
 const BUILD_ORDER: { id: string; level: number }[] = [
-  { id: 'static_charge', level: 1 }, // the field IS the primary attack
+  { id: 'static_charge', level: 2 }, // the field IS the primary attack
   { id: 'turret_gatling', level: 1 },
-  { id: 'wide_field', level: 1 },
-  { id: 'salvage', level: 2 },
+  { id: 'salvage', level: 4 }, // graduates the economy trunk
+  { id: 'wide_field', level: 2 },
+  { id: 'turret_power', level: 1 },
+  { id: 'turret_flak', level: 1 },
   { id: 'pulse_cycle', level: 1 },
-  { id: 'turret_flak', level: 1 }, // via salvage (quartermaster path)
-  { id: 'turret_speed', level: 2 }, // cheap turret dps before manual luxuries
-  { id: 'turret_power', level: 2 },
-  { id: 'turret_laser', level: 1 }, // via static_charge (gunner path)
-  { id: 'static_charge', level: 3 },
-  { id: 'blast_radius', level: 1 }, // the burst tool's side ladder
+  { id: 'reinforced', level: 2 }, // graduates toward the Shield Generator...
+  { id: 'bld_shield', level: 1 }, // ...the answer to the N13-15 wall
+  { id: 'turret_power', level: 3 },
+  { id: 'turret_speed', level: 2 },
+  { id: 'turret_laser', level: 1 }, // via wide_field (battery path)
+  { id: 'static_charge', level: 5 },
   { id: 'field_coils', level: 1 },
-  { id: 'turret_missile', level: 1 }, // walks reinforced (warden path)
-  // The list ends deliberately early: post-repricing, the deep milestones
-  // (static_link, warhead) cost several nights of income — saving toward
-  // them mid-world starves the build. Greedy cheapest-first handles the rest.
+  // Mid-game: the banded prices mean greedy dribbling on cheap levels never
+  // banks up for the run-defining unlocks — keep naming them so the smart
+  // strategy SAVES (walking the gatling side-chain toward the Missile Pod,
+  // then survivability, then the deep power spine).
+  { id: 'turret_missile', level: 1 }, // walks gatling_spin 3 → belt 1
+  { id: 'turret_flak', level: 2 }, // graduates toward Tesla — the N20 token pick
+  { id: 'compact', level: 1 },
+  { id: 'pulse_cycle', level: 3 },
+  { id: 'overcharge_matrix', level: 1 },
+  { id: 'static_link', level: 1 },
+  { id: 'bunker', level: 1 },
+  { id: 'turret_power2', level: 1 },
+  // The world-1 gate (N30, an absolute-hp boss) is a raw DPS check: pump
+  // the damage spine before it instead of nickel-and-diming stat filler.
+  { id: 'overcharge_matrix', level: 3 },
+  { id: 'static_link', level: 3 },
+  { id: 'turret_tesla', level: 3 }, // scrap levels once the token unlocks it
+  { id: 'turret_power2', level: 3 },
+  // Past this, greedy cheapest-first mops up while war_effort eats surplus.
 ];
 
 /** Next unmet, scrap-payable milestone (walking down to the first unbought
@@ -179,11 +198,13 @@ function nextGoal(run: RunState): Candidate | null {
   for (const step of BUILD_ORDER) {
     if ((run.upgrades[step.id] ?? 0) >= step.level) continue;
     let node = getNode(step.id)!;
-    // Walk down to the first unbought prerequisite if the goal is locked.
+    // Walk down to the first unmet prerequisite if the goal is locked —
+    // graduation gates included (the walk buys prereq LEVELS until the gate
+    // is met, one shop iteration at a time).
     while (!isUnlocked(node, run.upgrades, worldOf(run.night))) {
-      const missing = node.requires.find((req) => (run.upgrades[req] ?? 0) < 1);
+      const missing = missingRequirement(node, run.upgrades);
       if (!missing) break;
-      node = getNode(missing)!;
+      node = getNode(reqId(missing))!;
     }
     const price = nextPrice(node, run.upgrades[node.id] ?? 0);
     if (price === null) continue;

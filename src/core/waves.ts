@@ -43,12 +43,18 @@ export function generateNight(night: number, failStreak = 0): WaveSpec[] {
     s.hpPivotNight - s.hpRampStartNight,
   );
   // Past the pivot (= world 1's end) hp steps per world and regrows inside
-  // the world, mirroring how kill pay is stepped — see NIGHT_SCALING.
+  // the world, mirroring how kill pay is stepped — see NIGHT_SCALING. The
+  // step itself ramps in over the world's first few nights (see
+  // worldEntryRampNights) instead of landing as a cliff on night one.
   const world = worldOf(night);
   const lateSpan = night <= s.hpPivotNight ? 0 : world === 1 ? night - s.hpPivotNight : nightInWorld(night);
+  const step = s.worldHpStep[world - 1] ?? 1;
+  const prevStep = s.worldHpStep[world - 2] ?? 1;
+  const entryT = Math.min(1, nightInWorld(night) / s.worldEntryRampNights);
+  const stepMul = prevStep * Math.pow(step / prevStep, entryT);
   const hpScale =
     Math.pow(s.hpGrowthEarly, earlySpan) *
-    (night > s.hpPivotNight ? s.worldHpStep[world - 1] ?? 1 : 1) *
+    (night > s.hpPivotNight ? stepMul : 1) *
     Math.pow(s.hpGrowthLate, lateSpan);
   const speedScale = Math.min(s.speedCap, Math.pow(s.speedGrowth, night - 1));
   const rewardScale =

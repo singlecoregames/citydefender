@@ -21,7 +21,8 @@ describe('worlds & tiers', () => {
   it('higher-tier nodes stay locked until their world', () => {
     const arsenal = getNode('arsenal_core')!;
     const twin = getNode('gatling_twin')!;
-    const levels = { core: 1, turret_power: 1, gatling_belt: 1 };
+    // Prereqs met (graduation gates included) so only the TIER gate varies.
+    const levels = { core: 1, turret_speed2: 1, gatling_belt: 3 };
     expect(nodeTier(arsenal)).toBe(2);
     expect(nodeTier(twin)).toBe(3);
     expect(isUnlocked(arsenal, levels, 1)).toBe(false); // world 1: tier 2 locked
