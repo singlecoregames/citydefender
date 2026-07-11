@@ -64,6 +64,15 @@ function migrate(env: SaveEnvelope): RunState {
     );
     delete upgrades['magazine'];
   }
+  // Hold-to-fire is gone (the cannon is a tap-only burst shot now), so
+  // Rapid Trigger folds into its neighbour Autoloader — merge, capped.
+  if (upgrades['rapid_trigger'] !== undefined) {
+    upgrades['autoloader'] = Math.min(
+      5,
+      (upgrades['autoloader'] ?? 0) + (upgrades['rapid_trigger'] ?? 0),
+    );
+    delete upgrades['rapid_trigger'];
+  }
   // The reset-prestige era: its permanent upgrades became tier-2 tree nodes
   // with the same ids — carry bought levels over (head_start has no heir).
   const legacy = (env.run as { prestigeUpgrades?: Record<string, number> }).prestigeUpgrades;

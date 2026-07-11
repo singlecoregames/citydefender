@@ -89,22 +89,19 @@ function startNight(r: RunState): Sim {
 let pending: Command[] = [];
 
 // Pointer stream. Every move (hover included) is an 'aim' — the static
-// field's aura simply follows the pointer. A press fires immediately (a tap
-// = the classic click) and keeps firing while held (hold-to-fire). See
-// Sim.handleAim / Sim.handlePointer.
-let pointerHeld = false;
-
+// field's aura simply follows the pointer. A tap fires one cannon shot at
+// the same spot (the burst tool; the aura is the sustained attack).
 container.addEventListener('pointerdown', (e) => {
   if (dayScreen.visible || titleScreen.visible) return; // clicks belong to the overlay UI
-  pointerHeld = true;
-  // Keep receiving moves even when the finger/cursor drifts off the canvas.
+  // Keep receiving moves while a touch drags across (and off) the canvas.
   try {
     container.setPointerCapture(e.pointerId);
   } catch {
     /* capture is best-effort (some embedded webviews refuse it) */
   }
   const world = renderer.screenToWorld(e.clientX, e.clientY);
-  pending.push({ type: 'pointer', x: world.x, y: world.y, held: true });
+  pending.push({ type: 'aim', x: world.x, y: world.y });
+  pending.push({ type: 'fire', x: world.x, y: world.y });
 });
 
 container.addEventListener('pointermove', (e) => {
@@ -112,15 +109,6 @@ container.addEventListener('pointermove', (e) => {
   const world = renderer.screenToWorld(e.clientX, e.clientY);
   pending.push({ type: 'aim', x: world.x, y: world.y });
 });
-
-function releasePointer(): void {
-  if (!pointerHeld) return;
-  pointerHeld = false;
-  pending.push({ type: 'pointer', x: 0, y: 0, held: false });
-}
-
-container.addEventListener('pointerup', releasePointer);
-container.addEventListener('pointercancel', releasePointer);
 
 /** Apply the night result to the run, persist, flash the outcome banner over
  *  the frozen field for a beat, then open the Day screen. */

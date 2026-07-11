@@ -12,8 +12,6 @@ export interface DerivedStats {
   interceptorSpeed: number;
   explosionMaxRadius: number;
   explosionDamage: number;
-  /** Seconds between hold-to-fire shots while the pointer is held down. */
-  holdFireInterval: number;
   /** Static Field: damage per pulse (Static Charge). */
   fieldDamage: number;
   /** Field pulses add this fraction of total turret DPS, paid per pulse
@@ -104,7 +102,6 @@ export function baseStats(): DerivedStats {
     interceptorSpeed: CANNON.interceptorSpeed,
     explosionMaxRadius: EXPLOSION.maxRadius,
     explosionDamage: EXPLOSION.damage,
-    holdFireInterval: CANNON.holdFireInterval,
     fieldDamage: FIELD.damage,
     fieldDpsRate: 0,
     fieldRadius: FIELD.radius,

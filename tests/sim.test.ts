@@ -152,15 +152,16 @@ describe('idle auto-fire', () => {
   it('a manual shot resets the idle timer', () => {
     const sim = idleSim();
     injectEnemy(sim, { x: 30, y: 60 }, { x: 0, y: 0 }, 99);
-    const almost = IDLE_TICKS - 30;
-    run(sim, almost);
-    sim.step([{ type: 'fire', x: -80, y: 90 }]); // resets the timer, ammo 3/4
-    // Refill takes 1.5s of the next 4.5s, so the full-magazine idle time is
-    // only ~3s — under the threshold: no auto shot yet.
-    run(sim, almost);
+    run(sim, IDLE_TICKS - 30); // almost armed...
+    sim.step([{ type: 'fire', x: -80, y: 90 }]); // ...but a manual shot resets it
+    // The idle clock only runs on a FULL magazine, so the earliest auto shot
+    // is one reload plus one full threshold away. A second short of that:
+    // nothing yet.
+    const reloadTicks = Math.ceil(CANNON.reloadSeconds * TICK_RATE);
+    run(sim, reloadTicks + IDLE_TICKS - TICK_RATE);
     expect(sim.state.cannon.ammo).toBe(CANNON.maxAmmo);
-    // Two more seconds of idling crosses the threshold and the auto shot goes.
-    run(sim, TICK_RATE * 2 + 5);
+    // ...and just past it, the auto shot goes.
+    run(sim, TICK_RATE + 10);
     expect(sim.state.cannon.ammo).toBe(CANNON.maxAmmo - 1);
   });
 
@@ -1202,8 +1203,11 @@ describe('combo / overcharge / data (skilled-play layer)', () => {
     run(sim, TICK_RATE); // interceptor lands ~0.8s in; explosion still alive
     const manual = sim.state.explosions.find((e) => e.source === 'manual');
     expect(manual).toBeDefined();
-    // gatling dps = damage 1 × fireRate 1.1; rate 1 → 1 + 1.1
-    expect(manual!.damage).toBeCloseTo(1 + TURRETS.gatling.damage * TURRETS.gatling.fireRate, 5);
+    // rate 1 → base blast damage + the gatling's dps (damage × fireRate)
+    expect(manual!.damage).toBeCloseTo(
+      EXPLOSION.damage + TURRETS.gatling.damage * TURRETS.gatling.fireRate,
+      5,
+    );
   });
 
   it('a boss kill drops exactly one core token', () => {
@@ -1239,85 +1243,6 @@ describe('combo / overcharge / data (skilled-play layer)', () => {
     };
     expect(kill(false)).toBe(9001); // default: lowest enemy dies first → 9002 gone
     expect(kill(true)).toBe(9002); // threat analysis: ground-bound 9001 dies first
-  });
-});
-
-describe('hold-to-fire', () => {
-  function bare(stats: Partial<ReturnType<typeof baseStats>> = {}) {
-    const cfg = defaultNightConfig(1);
-    cfg.waves = []; // no natural spawns in these controlled tests
-    cfg.stats = { ...cfg.stats, ...stats };
-    return cfg;
-  }
-
-  /** Park an inert enemy in a far corner so the empty-wave night can't end
-   *  mid-test (victory needs a cleared field). */
-  function keepNightAlive(sim: Sim): void {
-    sim.state.enemies.push({
-      id: 424242,
-      kind: 'ballistic',
-      pos: { x: -95, y: 98 },
-      origin: { x: -95, y: 100 },
-      vel: { x: 0, y: 0 },
-      hp: 1e9,
-      maxHp: 1e9,
-      scrapReward: 0,
-    });
-  }
-
-  it('a press fires immediately, like the classic click', () => {
-    const sim = new Sim(1, bare());
-    sim.step([{ type: 'pointer', x: 0, y: 60, held: true }]);
-    expect(sim.state.cannon.ammo).toBe(CANNON.maxAmmo - 1);
-    expect(sim.state.interceptors).toHaveLength(1);
-  });
-
-  it('holding keeps firing at the hold interval until the magazine runs dry', () => {
-    const sim = new Sim(1, bare());
-    keepNightAlive(sim);
-    sim.step([{ type: 'pointer', x: 0, y: 60, held: true }]);
-    // Hold long enough for the whole magazine: press + 3 more held shots.
-    run(sim, Math.ceil(CANNON.holdFireInterval * 3 * TICK_RATE) + 4);
-    expect(sim.state.cannon.ammo).toBe(0);
-  });
-
-  it('a released trigger stops the volley', () => {
-    const sim = new Sim(1, bare());
-    keepNightAlive(sim);
-    let fired = 0;
-    const count = (events: readonly GameEvent[]) => {
-      for (const ev of events) if (ev.type === 'fired') fired++;
-    };
-    count(sim.step([{ type: 'pointer', x: 0, y: 60, held: true }]));
-    count(sim.step([{ type: 'pointer', x: 0, y: 0, held: false }]));
-    for (let i = 0; i < TICK_RATE * 2; i++) count(sim.step([]));
-    expect(fired).toBe(1); // just the press — nothing after the release
-  });
-
-  it('an empty magazine never spams fireDenied while held (only the press complains)', () => {
-    const sim = new Sim(1, bare());
-    keepNightAlive(sim);
-    let denied = 0;
-    const count = (events: readonly GameEvent[]) => {
-      for (const ev of events) if (ev.type === 'fireDenied') denied++;
-    };
-    count(sim.step([{ type: 'pointer', x: 0, y: 60, held: true }]));
-    for (let i = 0; i < TICK_RATE * 2; i++) count(sim.step([]));
-    expect(denied).toBe(0); // silent waiting, no denial spam
-  });
-
-  it('holding the trigger slows the reload by the hold factor', () => {
-    const held = new Sim(1, bare());
-    keepNightAlive(held);
-    // Spend one round, then rest the pointer in the cannon's dead zone so the
-    // trigger stays held without any further shots.
-    held.step([{ type: 'fire', x: 0, y: 60 }]);
-    held.step([{ type: 'pointer', x: 0, y: CANNON.y, held: true }]);
-    const normalTicks = Math.ceil(CANNON.reloadSeconds * TICK_RATE) + 1;
-    run(held, normalTicks);
-    expect(held.state.cannon.ammo).toBe(CANNON.maxAmmo - 1); // still reloading
-    run(held, Math.ceil(normalTicks / CANNON.holdReloadFactor));
-    expect(held.state.cannon.ammo).toBe(CANNON.maxAmmo);
   });
 });
 

@@ -156,8 +156,6 @@ export class Sim {
         this.fire(cmd.x, cmd.y);
       } else if (cmd.type === 'aim') {
         this.handleAim(cmd);
-      } else if (cmd.type === 'pointer') {
-        this.handlePointer(cmd);
       } else if (cmd.type === 'ability') this.useAbility(cmd.ability);
     }
 
@@ -173,7 +171,6 @@ export class Sim {
 
     this.tickAbilities();
     this.regenAmmo();
-    this.tickHoldFire();
     this.tickField();
     this.tickAutoFire();
     this.updateDrones();
@@ -226,73 +223,22 @@ export class Sim {
   private regenAmmo(): void {
     const c = this.state.cannon;
     if (c.ammo >= this.cfg.stats.maxAmmo) return;
-    // Holding the trigger slows the reload a touch — deliberate tap-firing
-    // keeps an edge over resting a finger on the screen.
-    c.reloadTimer -= DT * (this.triggerHeld ? CANNON.holdReloadFactor : 1);
+    c.reloadTimer -= DT;
     if (c.reloadTimer <= 0) {
       c.ammo++;
       c.reloadTimer += this.cfg.stats.reloadSeconds;
     }
   }
 
-  // --- hold-to-fire & static field (the pointer stream) ---
+  // --- static field (the pointer stream) ---
 
-  /** True between a pointer press and its release. */
-  private triggerHeld = false;
-  /** Latest pointer world position while held. */
-  private aim: Vec2 | null = null;
-  /** Seconds until the held trigger fires again. */
-  private holdCooldown = 0;
-
-  /** Pointer moved (hover or drag): the aura follows, and a held trigger
-   *  re-aims. */
+  /** Pointer moved (hover or drag): the aura follows. Taps arrive as plain
+   *  'fire' commands — the cannon is a deliberate burst shot, not a stream. */
   private handleAim(cmd: { x: number; y: number }): void {
-    const p: Vec2 = {
+    this.state.field.pos = {
       x: clamp(cmd.x, -WORLD.halfWidth, WORLD.halfWidth),
       y: clamp(cmd.y, 0, WORLD.height),
     };
-    this.state.field.pos = p;
-    if (this.triggerHeld) this.aim = p;
-  }
-
-  private handlePointer(cmd: { x: number; y: number; held: boolean }): void {
-    if (!cmd.held) {
-      this.triggerHeld = false;
-      this.aim = null;
-      return;
-    }
-    const p: Vec2 = {
-      x: clamp(cmd.x, -WORLD.halfWidth, WORLD.halfWidth),
-      y: clamp(cmd.y, 0, WORLD.height),
-    };
-    this.state.field.pos = p;
-    if (!this.triggerHeld) {
-      // Press: fire immediately — a tap behaves exactly like the old click.
-      this.triggerHeld = true;
-      this.holdShot(p);
-    }
-    this.aim = p;
-  }
-
-  /** One hold-to-fire shot: manual in every way (idle reset, combo rules). */
-  private holdShot(p: Vec2): void {
-    this.state.cannon.idleSeconds = 0;
-    this.comboIdle = 0;
-    this.fire(p.x, p.y);
-    this.holdCooldown = this.cfg.stats.holdFireInterval;
-  }
-
-  /** While the trigger is held the cannon keeps firing at the pointer. Unlike
-   *  the press this never emits fireDenied — an empty magazine or a dead-zone
-   *  aim just waits silently for the next chance. */
-  private tickHoldFire(): void {
-    const s = this.state;
-    this.holdCooldown = Math.max(0, this.holdCooldown - DT);
-    if (!this.triggerHeld || !this.aim || this.holdCooldown > 0) return;
-    if (s.ability.freefire <= 0 && s.cannon.ammo <= 0) return;
-    const origin: Vec2 = { x: CANNON.x, y: CANNON.y };
-    if (dist(origin, this.aim) < CANNON.minTargetDistance) return;
-    this.holdShot(this.aim);
   }
 
   /** Damage per field pulse: the base charge plus the Static Link share of
@@ -350,8 +296,12 @@ export class Sim {
     // Spending a Free Fire salvo: the cannon dumps the free shots on the most
     // urgent targets at a fast cadence, no magazine or idle wait needed — so an
     // idle player gets the same salvo an active one would tap out by hand.
+    // A pending reload-length cooldown from a regular auto shot must not eat
+    // the salvo window: clamp it down to the burst cadence.
     const salvo = s.ability.freefire > 0;
-    if (!salvo) {
+    if (salvo) {
+      this.autoFireCooldown = Math.min(this.autoFireCooldown, CANNON.autoFireBurstInterval);
+    } else {
       if (s.cannon.ammo < this.cfg.stats.maxAmmo) return;
       s.cannon.idleSeconds += DT;
       if (s.cannon.idleSeconds < threshold) return;

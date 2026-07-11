@@ -164,12 +164,8 @@ export type GameEvent =
 
 export type Command =
   | { type: 'fire'; x: number; y: number }
-  /** Pointer position update (hover or drag): moves the static field's aura,
-   *  and re-aims the held trigger's fire. */
+  /** Pointer position update (hover or drag): moves the static field's aura. */
   | { type: 'aim'; x: number; y: number }
-  /** Trigger state: held=true on press (fires immediately, like the classic
-   *  click, and keeps firing while held), held=false on release. */
-  | { type: 'pointer'; x: number; y: number; held: boolean }
   | { type: 'ability'; ability: AbilityKind };
 
 export type AbilityKind = 'emp' | 'megabomb' | 'freefire' | 'surge';

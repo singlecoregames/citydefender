@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CANNON, FIELD, NIGHT_SCALING } from '../src/core/balance';
+import { FIELD, NIGHT_SCALING } from '../src/core/balance';
 import { baseStats } from '../src/core/stats';
 import { newRun } from '../src/core/run';
 import { deserialize, serialize, SAVE_VERSION } from '../src/core/save';
@@ -155,10 +155,6 @@ describe('skill tree / stats', () => {
       FIELD.pulseSeconds * 0.94,
       5,
     );
-    expect(resolveStats({ rapid_trigger: 1 }).holdFireInterval).toBeCloseTo(
-      CANNON.holdFireInterval * 0.9,
-      5,
-    );
   });
 
   it('special nodes unlock with exactly one boss token, then upgrade in scrap', () => {
@@ -208,6 +204,17 @@ describe('save / load', () => {
     );
     expect(restored.upgrades['drum_magazine']).toBe(3); // 2+2 capped at max 3
     expect(restored.upgrades['magazine']).toBeUndefined();
+  });
+
+  it('folds Rapid Trigger levels into Autoloader, capped at its max', () => {
+    const restored = deserialize(
+      JSON.stringify({
+        version: SAVE_VERSION,
+        run: { night: 20, upgrades: { core: 1, rapid_trigger: 3, autoloader: 4 } },
+      }),
+    );
+    expect(restored.upgrades['autoloader']).toBe(5); // 4+3 capped at max 5
+    expect(restored.upgrades['rapid_trigger']).toBeUndefined();
   });
 
   it('migrates Heat Sink levels onto Field Coils', () => {

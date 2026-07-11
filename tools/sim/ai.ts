@@ -48,11 +48,13 @@ export class NightAi {
     const freeFiring = state.ability.freefire > 0;
     if (this.fireCooldown <= 0 && (state.cannon.ammo > 0 || freeFiring)) {
       const target = this.pickTarget(state);
-      // Ammo discipline: with a near-empty magazine hold the last rounds for
-      // genuine emergencies; with a full one (or Free Fire) engage early.
-      const engageY = freeFiring
-        ? 95
-        : state.cannon.ammo <= 2 ? 45 : state.cannon.ammo >= state.cannon.maxAmmo ? 95 : 85;
+      // Ammo discipline: with a full magazine (or Free Fire) engage early;
+      // down to the last rounds, hold them for genuine emergencies. Ratios,
+      // not counts — the burst cannon's whole magazine is 2 rounds.
+      const engageY =
+        freeFiring || state.cannon.ammo >= state.cannon.maxAmmo
+          ? 95
+          : state.cannon.ammo <= state.cannon.maxAmmo / 2 ? 45 : 85;
       if (target && target.pos.y < engageY) {
         out.push(this.planShot(state, target));
         this.fireCooldown = this.shotInterval;

@@ -135,7 +135,6 @@ const TREE_KO: Record<string, { name: string; description: string }> = {
   pulse_cycle: { name: '펄스 사이클', description: '펄스 쿨다운 -7%' },
   static_link: { name: '정전 링크', description: '필드 펄스에 전체 터렛 DPS의 +4%가 피해로 추가' },
   field_coils: { name: '필드 코일', description: '필드 반경 +12%, 펄스 쿨다운 -6%' },
-  rapid_trigger: { name: '속사 트리거', description: '홀드 연사 간격 -10%' },
   wide_blast: { name: '광역 폭발', description: '폭발 반경 +14%' },
   laser_focus: { name: '집속 렌즈', description: '레이저 피해 +25%' },
   fast_intercept: { name: '고속 요격', description: '요격탄 속도 +10%' },
