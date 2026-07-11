@@ -5,7 +5,7 @@
 
 ## 한 줄 요약
 플랜 M1~M5 핵심이 모두 구현됨 — 코어 플레이, 런 루프+경제, 분기형 스킬트리,
-자동 포탑 6종, 적 6종+보스, Cores 화폐, 수동 어빌리티 4종. 테스트 91개 통과.
+자동 포탑 6종, 적 10종+보스, Cores 화폐, 수동 어빌리티 4종.
 트리 확장 완료: 35→55노드. 수동 플레이 보상 축(콤보/Overcharge/▣ Data) 구현됨.
 
 ## 기술 스택 / 구조
@@ -29,8 +29,12 @@
 - **M4** 자동 포탑 + 예측 사격(리드 에임 + 랜덤 오차) + **6종 포탑**:
   Gatling/Flak/Laser/Missile/Railgun/Tesla, 종류별 고정 위치, 포탑별 특수 업그레이드
 - **M4 마무리** 보스(N10마다) + **Cores 화폐(◆)** + Cores 전용 노드 3개
-- **적 6종**: ballistic, swarmer(무리), splitter(분열), regenerator(재생),
+- **적 10종**: ballistic, swarmer(무리), splitter(분열), regenerator(재생),
   phase(점멸 무적), carrier(미니언 사출) — 밤별 가중 등장
+  - 월드 2~4 신규 4종: armored(N36, 피격당 고정 데미지 감산 — 잽 무기 카운터),
+    cruise(N42, 측면 진입·사인 횡단 후 급강하), mirv(N51, 중고도 3분열 —
+    분열 전 격추가 이득, 자식 scrap 0), healer(N66, 주변 적 주기 회복 — 우선표적).
+    데뷔는 월드 진입 램프 이후 + 초기 저가중치(캐리어 N12 데뷔의 교훈)
 - **M5 Tech 브랜치**: 수동 어빌리티 EMP(정지)/Mega Bomb(대폭발)/Time Dilation(둔화),
   쿨다운제, 1/2/3 단축키 + 하단 버튼
 - **트리 확장 1차** (economy/city/tech 보강, StatMod 계열 7노드):

@@ -528,10 +528,22 @@ export class Sim {
   private spawnEnemy(kind: SpawnableKind, wave: WaveSpec): EnemyMissile {
     const s = this.state;
     const spec = ENEMY[kind];
-    const origin: Vec2 = {
-      x: this.rng.range(-WORLD.halfWidth * 0.95, WORLD.halfWidth * 0.95),
-      y: WORLD.height + WORLD.spawnMargin,
-    };
+    // Cruise missiles fly in from a side edge at crossing altitude; everything
+    // else drops in from above the top of the screen.
+    let origin: Vec2;
+    if (kind === 'cruise') {
+      const [aLo, aHi] = ENEMY.cruise.altitudeRange;
+      const fromLeft = this.rng.next() < 0.5;
+      origin = {
+        x: (WORLD.halfWidth + WORLD.spawnMargin) * (fromLeft ? -1 : 1),
+        y: this.rng.range(aLo, aHi),
+      };
+    } else {
+      origin = {
+        x: this.rng.range(-WORLD.halfWidth * 0.95, WORLD.halfWidth * 0.95),
+        y: WORLD.height + WORLD.spawnMargin,
+      };
+    }
     const living = s.cities.filter((c) => c.hp > 0);
     let targetX: number;
     if (this.decoyLure && this.rng.next() < this.decoyLure.chance) {
@@ -543,10 +555,14 @@ export class Sim {
     } else {
       targetX = this.rng.range(-WORLD.halfWidth * 0.9, WORLD.halfWidth * 0.9);
     }
-    // Aim at the ground target so the descent angle is correct from off-screen.
-    const dir = norm({ x: targetX - origin.x, y: -origin.y });
     const hp = Math.max(1, Math.round(spec.hp * wave.hpScale));
     const speed = spec.speed * wave.speedScale;
+    // Cruise crosses horizontally toward its target; the rest aim straight at
+    // the ground target so the descent angle is correct from off-screen.
+    const dir =
+      kind === 'cruise'
+        ? { x: origin.x < 0 ? 1 : -1, y: 0 }
+        : norm({ x: targetX - origin.x, y: -origin.y });
     const enemy: EnemyMissile = {
       id: s.nextId++,
       kind,
@@ -564,6 +580,17 @@ export class Sim {
       enemy.regenTimer = 0;
     } else if (kind === 'carrier') {
       enemy.spawnTimer = ENEMY.carrier.spawnInterval;
+    } else if (kind === 'armored') {
+      // Armor rides the night's hp curve so it keeps pace with player damage.
+      enemy.armor = ENEMY.armored.armor * wave.hpScale;
+    } else if (kind === 'cruise') {
+      enemy.cruiseT = 0;
+      enemy.diveX = targetX;
+    } else if (kind === 'mirv') {
+      const [yLo, yHi] = ENEMY.mirv.splitAltitude;
+      enemy.splitY = this.rng.range(yLo, yHi);
+    } else if (kind === 'healer') {
+      enemy.healTimer = ENEMY.healer.pulseInterval;
     }
     s.enemies.push(enemy);
     return enemy;
@@ -645,20 +672,62 @@ export class Sim {
           }
           break;
         }
+        case 'cruise': {
+          if (e.cruiseT === undefined) break; // already diving
+          const spec = ENEMY.cruise;
+          e.cruiseT += dt;
+          const crossSpeed = Math.abs(e.vel.x);
+          // Sine bob while crossing: the vertical velocity oscillates, the
+          // horizontal component carries it toward its dive point.
+          e.vel.y = crossSpeed * spec.bobFrac * Math.cos(e.cruiseT * spec.bobFrequency);
+          const passed = e.vel.x > 0 ? e.pos.x >= e.diveX! : e.pos.x <= e.diveX!;
+          if (passed) {
+            // Over the target: commit to a straight dive.
+            e.vel = { x: 0, y: -crossSpeed * spec.diveSpeedMul };
+            e.cruiseT = undefined;
+          }
+          break;
+        }
+        case 'healer': {
+          e.healTimer! -= dt;
+          if (e.healTimer! <= 0) {
+            const spec = ENEMY.healer;
+            // The pulse rides the healer's own night scaling (like child hp),
+            // so a world-4 healer matters as much as its world-2 debut.
+            const amount = spec.healPerPulse * (e.maxHp / spec.hp);
+            for (const o of s.enemies) {
+              // No boss topping (its hp is the fight's clock) and no healer
+              // pairs keeping each other alive forever.
+              if (o === e || o.kind === 'boss' || o.kind === 'healer') continue;
+              if (o.hp >= o.maxHp) continue;
+              if (dist(e.pos, o.pos) > spec.healRadius) continue;
+              o.hp = Math.min(o.maxHp, o.hp + amount);
+            }
+            s.events.push({ type: 'healPulse', pos: { ...e.pos }, radius: spec.healRadius });
+            e.healTimer! += spec.pulseInterval;
+          }
+          break;
+        }
       }
     }
   }
 
   /** Spawn a child enemy at a parent's position (carrier shedding, splitter
-   *  death). Inherits a fraction of the parent's hp scaling via its own base. */
-  private spawnChild(kind: 'swarmer', parent: EnemyMissile, speedMul: number): void {
+   *  death, MIRV split). Inherits a fraction of the parent's hp scaling via
+   *  its own base. `angle` tilts the descent off vertical (random when the
+   *  caller doesn't care; MIRV fans its warheads deterministically). */
+  private spawnChild(
+    kind: 'swarmer' | 'ballistic',
+    parent: EnemyMissile,
+    speedMul: number,
+    angle = this.rng.range(-0.5, 0.5),
+  ): void {
     const s = this.state;
     const spec = ENEMY[kind];
     // Recover the night's hp scale from the parent (boss has no ENEMY entry).
     const parentBaseHp = parent.kind === 'boss' ? BOSS.hp : ENEMY[parent.kind].hp;
     const hpScale = parent.maxHp / Math.max(1, parentBaseHp);
     const hp = Math.max(1, Math.round(spec.hp * hpScale));
-    const angle = this.rng.range(-0.5, 0.5);
     const dir = rotate({ x: 0, y: -1 }, angle);
     const speed = spec.speed * speedMul;
     s.enemies.push({
@@ -947,6 +1016,9 @@ export class Sim {
   /** Threat Analysis: true when this enemy's projected ground impact would
    *  damage a living segment. Enemies climbing or hovering are non-threats. */
   private threatensCity(e: EnemyMissile): boolean {
+    // A crossing cruise bobs through negative vel.y without being committed
+    // to any impact point yet — it only becomes a threat once it dives.
+    if (e.cruiseT !== undefined) return false;
     if (e.vel.y >= 0) return false;
     const t = (e.pos.y - CITY.groundTop) / -e.vel.y;
     if (t < 0) return false;
@@ -1071,6 +1143,8 @@ export class Sim {
   private damageEnemy(enemy: EnemyMissile, dmg: number, piercePhase = false): boolean {
     const s = this.state;
     if (!piercePhase && this.isUntouchable(enemy)) return false; // phased & no Doppler Tracking
+    // Armored: flat reduction per hit, floored so it can always be chipped.
+    if (enemy.armor) dmg = Math.max(dmg * ENEMY.armored.minDamageFrac, dmg - enemy.armor);
     if (enemy.kind === 'regenerator') enemy.regenTimer = 0; // interrupt healing
     enemy.hp -= dmg;
     if (enemy.hp <= 0) {
@@ -1170,6 +1244,18 @@ export class Sim {
       e.pos.x += e.vel.x * edt;
       e.pos.y += e.vel.y * edt;
       if (e.pos.y < s.minEnemyY) s.minEnemyY = e.pos.y;
+      // MIRV: at split altitude the bus breaks into ballistic warheads fanned
+      // across the sky. Killing it before this line is the counter — the
+      // warheads pay no scrap and each must be shot down separately.
+      if (e.kind === 'mirv' && e.pos.y <= e.splitY!) {
+        s.enemies.splice(i, 1);
+        const m = ENEMY.mirv;
+        for (let k = 0; k < m.childCount; k++) {
+          this.spawnChild('ballistic', e, 1.15, (k - (m.childCount - 1) / 2) * m.spreadRad);
+        }
+        s.events.push({ type: 'mirvSplit', pos: { ...e.pos } });
+        continue;
+      }
       // Aegis Dome (tier 4): while charges remain, anything but a boss that
       // touches the shell is vaporised on contact — one charge each, no
       // scrap, no ground impact.
