@@ -117,6 +117,9 @@ export interface EnemyMissile {
   spawnTimer?: number;
   /** Static Field: seconds of lingering slow left from the last pulse. */
   staticSlow?: number;
+  /** Mid-air-spawned children: seconds left on the spawn speed ramp (they
+   *  start slow and accelerate to full speed — see CHILD_SPAWN). */
+  rampTimer?: number;
 }
 
 /** Static Field runtime state (see FIELD in balance.ts): the cursor-following

@@ -23,6 +23,7 @@ import {
   ENEMY,
   enemyHalfSize,
   swarmerGroupFor,
+  CHILD_SPAWN,
   FIELD,
   TURRET,
   TURRETS,
@@ -459,6 +460,7 @@ export class Sim {
     const jam = this.jammerField;
     if (jam && dist(jam, e.pos) <= jam.radius) ts *= jam.factor;
     if ((e.staticSlow ?? 0) > 0) ts *= FIELD.slowFactor;
+    ts *= this.spawnRampFactor(e);
     return { x: e.vel.x * ts, y: e.vel.y * ts };
   }
 
@@ -671,7 +673,19 @@ export class Sim {
       // scrap — only director-spawned enemies and bosses are worth money, so
       // farming spawners can't inflate the economy.
       scrapReward: 0,
+      // Born slow, accelerating to the intended speed — the reaction window
+      // for a split that lands right where the player just spent a pulse.
+      rampTimer: CHILD_SPAWN.rampSeconds,
     });
+  }
+
+  /** Speed factor for a mid-air-spawned child still on its spawn ramp:
+   *  startFrac at birth, 1 once the ramp has run out. */
+  private spawnRampFactor(e: EnemyMissile): number {
+    const left = e.rampTimer ?? 0;
+    if (left <= 0) return 1;
+    const progress = 1 - Math.min(1, left / CHILD_SPAWN.rampSeconds);
+    return CHILD_SPAWN.startFrac + (1 - CHILD_SPAWN.startFrac) * progress;
   }
 
   /** Seconds until the next Orbital Lance strike. */
@@ -1146,6 +1160,12 @@ export class Sim {
       if ((e.staticSlow ?? 0) > 0) {
         e.staticSlow! -= DT;
         edt *= FIELD.slowFactor;
+      }
+      // Spawn ramp: children born mid-air accelerate up to full speed. The
+      // ramp clock runs on enemy time (a frozen child stays a slow child).
+      if ((e.rampTimer ?? 0) > 0) {
+        edt *= this.spawnRampFactor(e);
+        e.rampTimer! -= dt;
       }
       e.pos.x += e.vel.x * edt;
       e.pos.y += e.vel.y * edt;

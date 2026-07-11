@@ -180,6 +180,19 @@ export const BUILDING_TUNING = {
   decoy: { pullBase: 0.3, pullPerLevel: 0.08, jitter: 6 },
 } as const;
 
+/** Children spawned mid-air (splitter death splits, carrier/boss sheds)
+ *  START slow and accelerate to their intended speed: a split used to dump
+ *  full-speed swarmers right where the player just spent a pulse/shell,
+ *  with no window to react (playtest feedback — worst under the 2s pulse
+ *  cycle). The ramp is the reaction window; the intended speed still
+ *  arrives, just rampSeconds later. */
+export const CHILD_SPAWN = {
+  /** Fraction of the intended speed at the moment of spawning. */
+  startFrac: 0.35,
+  /** Seconds to ramp linearly from startFrac up to full speed. */
+  rampSeconds: 2.5,
+} as const;
+
 export const CITY = {
   /** Ground segments the field starts with; upgrades split the ground finer.
    *  ("Cities" in code = the ground segments being defended.) */

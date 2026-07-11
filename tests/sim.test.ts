@@ -5,6 +5,7 @@ import {
   autoFireThresholdFor,
   CANNON,
   BOSS,
+  CHILD_SPAWN,
   COMBO,
   DT,
   EXPLOSION,
@@ -602,6 +603,32 @@ describe('enemy kinds', () => {
     expect(sim.state.enemies.find((e) => e.id === 555)).toBeUndefined();
     const children = sim.state.enemies.filter((e) => e.kind === 'swarmer');
     expect(children).toHaveLength(2);
+  });
+
+  it('split children start slow and ramp up to their intended speed', () => {
+    const sim = new Sim(1, nightConfig(5));
+    inject(sim, 'splitter', {
+      hp: 0.5,
+      maxHp: 2,
+      vel: { x: 0, y: 0 },
+      pos: { x: 0, y: 80 },
+    });
+    sim.step([{ type: 'aim', x: 0, y: 80 }]); // the field pulse kills it
+    sim.step([{ type: 'aim', x: -90, y: 95 }]); // park the aura off the children
+    const child = sim.state.enemies.find((e) => e.kind === 'swarmer')!;
+    expect(child.rampTimer).toBeGreaterThan(0);
+    const speed = Math.hypot(child.vel.x, child.vel.y);
+    // Fresh from the split, a tick moves it at only the starting fraction...
+    const before = { ...child.pos };
+    sim.step([]);
+    const freshStep = Math.hypot(child.pos.x - before.x, child.pos.y - before.y);
+    expect(freshStep / (speed * DT)).toBeLessThan(CHILD_SPAWN.startFrac + 0.05);
+    // ...and once the ramp has run out, at the full intended speed.
+    run(sim, Math.ceil(CHILD_SPAWN.rampSeconds * TICK_RATE) + 5);
+    const later = { ...child.pos };
+    sim.step([]);
+    const fullStep = Math.hypot(child.pos.x - later.x, child.pos.y - later.y);
+    expect(fullStep).toBeCloseTo(speed * DT, 4);
   });
 
   it('regenerator heals when left alone and resets on hit', () => {
