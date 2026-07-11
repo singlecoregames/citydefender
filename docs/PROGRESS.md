@@ -58,6 +58,9 @@
     Threat Analysis(터렛이 도시에 실제로 떨어질 적 우선 조준 — threatensCity()
     낙하점 투영), Neural Lead(조준 오차 −15%/lvl, 레이더와 곱연산),
     + Overcharge Shot은 scrap. 트리 51→55노드, Currency에 'data' 추가.
+- **CRT 필터** (`#crt` — index.html 오버레이 + style.css): 캔버스 위·DOM UI 아래
+  레이어에 순수 CSS로 스캔라인(3px 주기)/RGB 그릴/비네트/롤링 밴드(9s). UI 비적용은
+  DOM 순서로 구조 보장. prefers-reduced-motion 대응.
 - **트리 재구성 — 3경로 + 졸업 게이트 + 가격 밴드 + 안개** (피드백: 노드 배치가
   난잡, 동시 선택지 과다 — 그리디 측정 24개):
   - `NodeRequirement = string | {id, level}` — **졸업 게이트** 도입 (isUnlocked 확장,
