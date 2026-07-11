@@ -1,4 +1,4 @@
-import { CANNON, CITY, ECONOMY, EXPLOSION } from './balance';
+import { CANNON, CITY, ECONOMY, EXPLOSION, SWEEP } from './balance';
 
 /**
  * The fully-resolved numbers a single night's sim runs on. Base values come
@@ -12,6 +12,16 @@ export interface DerivedStats {
   interceptorSpeed: number;
   explosionMaxRadius: number;
   explosionDamage: number;
+  /** Seconds between hold-to-fire shots while the pointer is held down. */
+  holdFireInterval: number;
+  /** Static Sweep: damage per zap (Static Charge). */
+  sweepDamage: number;
+  /** Sweep zaps add this fraction of total turret DPS, paid per hit interval
+   *  (Static Link) — scrubbing scales with your automation like Overcharge. */
+  sweepDpsRate: number;
+  /** Static Sweep heat budget and refill rate (Heat Sink). */
+  sweepHeatMax: number;
+  sweepHeatRegen: number;
   /** Multiplier on all scrap earned during the night. */
   scrapMul: number;
   /** Multiplier on the night-completion bonus specifically. */
@@ -93,6 +103,11 @@ export function baseStats(): DerivedStats {
     interceptorSpeed: CANNON.interceptorSpeed,
     explosionMaxRadius: EXPLOSION.maxRadius,
     explosionDamage: EXPLOSION.damage,
+    holdFireInterval: CANNON.holdFireInterval,
+    sweepDamage: SWEEP.damage,
+    sweepDpsRate: 0,
+    sweepHeatMax: SWEEP.heatMax,
+    sweepHeatRegen: SWEEP.heatRegen,
     scrapMul: 1,
     nightBonusMul: 1,
     cityMaxHp: CITY.hp,

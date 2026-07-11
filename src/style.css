@@ -261,6 +261,33 @@ body {
   background: #6fd8ff;
 }
 
+/* Static sweep heat: a thin bar along the top edge of the ammo box. Hidden
+   while full; flares red once the sweep overheats. */
+.sweep-gauge {
+  position: absolute;
+  left: clamp(8px, 1.4vh, 16px);
+  right: clamp(8px, 1.4vh, 16px);
+  top: 2px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(111, 216, 255, 0.2);
+  overflow: hidden;
+}
+
+.sweep-gauge.hidden {
+  display: none;
+}
+
+.sweep-fill {
+  height: 100%;
+  width: 100%;
+  background: rgba(111, 216, 255, 0.75);
+}
+
+.sweep-gauge.overheated .sweep-fill {
+  background: #e91d39;
+}
+
 /* Launch title: full-screen overlay above the frozen night scene. */
 #titlescreen {
   position: absolute;

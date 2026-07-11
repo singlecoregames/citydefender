@@ -505,6 +505,7 @@ export class Renderer {
       if (ev.type === 'cityHit') this.shake = Math.max(this.shake, 1.6);
       if (ev.type === 'groundImpact') this.shake = Math.max(this.shake, 0.5);
       if (ev.type === 'beam') this.spawnBeam(ev.kind, ev.points);
+      if (ev.type === 'sweepHit') this.particles.burst(ev.pos.x, ev.pos.y, 0x6fd8ff, 4);
       if (ev.type === 'aegisAbsorbed') {
         this.particles.burst(ev.pos.x, ev.pos.y, 0x8bd4ff, 14);
         this.shake = Math.max(this.shake, 0.3);
@@ -630,6 +631,7 @@ export class Renderer {
     this.syncProjectiles(state);
     this.syncEnemies(state, dt);
     this.syncInterceptors(state);
+    this.syncSweep(state);
     this.syncExplosions(state, dt);
     this.particles.update(dt);
     this.updateBeams(dt);
@@ -1030,6 +1032,48 @@ export class Renderer {
         this.scene.remove(view.head, view.marker);
         view.marker.geometry.dispose();
         this.interceptorViews.delete(id);
+      }
+    }
+  }
+
+  /** Static sweep trail: one additive streak quad per stroke segment, fading
+   *  out with its lethal ttl so what you see IS what still zaps. Opacity is
+   *  per-segment, so each mesh clones the base material (few dozen alive at
+   *  worst — same lifecycle cost as the beam fx). */
+  private readonly sweepViews = new Map<number, THREE.Mesh>();
+  private readonly sweepBaseMat = new THREE.MeshBasicMaterial({
+    color: 0x6fd8ff,
+    transparent: true,
+    opacity: 0.55,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  private syncSweep(state: GameState): void {
+    const seen = new Set<number>();
+    for (const seg of state.sweep.segments) {
+      seen.add(seg.id);
+      let mesh = this.sweepViews.get(seg.id);
+      if (!mesh) {
+        mesh = new THREE.Mesh(this.quadGeo, this.sweepBaseMat.clone());
+        const dx = seg.b.x - seg.a.x;
+        const dy = seg.b.y - seg.a.y;
+        // Stretch past the endpoints by the streak's width so consecutive
+        // segments overlap into one continuous stroke instead of a dashed one.
+        const w = 2.4;
+        mesh.scale.set(Math.hypot(dx, dy) + w * 0.5, w, 1);
+        mesh.rotation.z = Math.atan2(dy, dx);
+        mesh.position.set((seg.a.x + seg.b.x) / 2, (seg.a.y + seg.b.y) / 2, 2.6);
+        this.scene.add(mesh);
+        this.sweepViews.set(seg.id, mesh);
+      }
+      (mesh.material as THREE.MeshBasicMaterial).opacity = 0.55 * (seg.ttl / seg.maxTtl);
+    }
+    for (const [id, mesh] of this.sweepViews) {
+      if (!seen.has(id)) {
+        this.scene.remove(mesh);
+        (mesh.material as THREE.Material).dispose();
+        this.sweepViews.delete(id);
       }
     }
   }

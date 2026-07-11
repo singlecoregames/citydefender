@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NIGHT_SCALING } from '../src/core/balance';
+import { CANNON, NIGHT_SCALING, SWEEP } from '../src/core/balance';
 import { baseStats } from '../src/core/stats';
 import { newRun } from '../src/core/run';
 import { deserialize, serialize, SAVE_VERSION } from '../src/core/save';
@@ -140,6 +140,17 @@ describe('skill tree / stats', () => {
     expect(resolveStats({ combo_memory: 3 }).comboRetention).toBeCloseTo(0.75, 5);
     expect(resolveStats({ threat_analysis: 1 }).threatTargeting).toBe(1);
     expect(resolveStats({ neural_lead: 2 }).turretSpreadMul).toBeCloseTo(0.85 * 0.85, 5);
+  });
+
+  it('sweep / hold-fire nodes resolve their stats', () => {
+    expect(resolveStats({ static_charge: 2 }).sweepDamage).toBeCloseTo(SWEEP.damage + 0.7, 5);
+    expect(resolveStats({ static_link: 5 }).sweepDpsRate).toBeCloseTo(0.2, 5);
+    expect(resolveStats({ heat_sink: 1 }).sweepHeatMax).toBe(SWEEP.heatMax + 30);
+    expect(resolveStats({ heat_sink: 1 }).sweepHeatRegen).toBeCloseTo(SWEEP.heatRegen * 1.15, 5);
+    expect(resolveStats({ rapid_trigger: 1 }).holdFireInterval).toBeCloseTo(
+      CANNON.holdFireInterval * 0.9,
+      5,
+    );
   });
 
   it('special nodes unlock with exactly one boss token, then upgrade in scrap', () => {
