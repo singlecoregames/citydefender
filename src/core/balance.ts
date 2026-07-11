@@ -82,9 +82,11 @@ export function autoFireThresholdFor(level: number): number {
 }
 
 /** Cannon blast: sized for the burst role — one shot clears a cluster
- *  (the field handles the sustained trickle). */
+ *  (the field handles the sustained trickle). Playtest: 13 made the manual
+ *  shot dominate; the base starts tighter and the Blast Radius / Wide Blast
+ *  ladder is what grows it (maxed ≈ 10 × 1.08^5 × 1.14^5 ≈ 28). */
 export const EXPLOSION = {
-  maxRadius: 13,
+  maxRadius: 10,
   /** At full blast radius from the instant of detonation... */
   holdSeconds: 0.45,
   /** ...then the radius shrinks to nothing over this long. */
