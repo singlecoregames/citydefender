@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CANNON, NIGHT_SCALING, SWEEP } from '../src/core/balance';
+import { CANNON, FIELD, NIGHT_SCALING } from '../src/core/balance';
 import { baseStats } from '../src/core/stats';
 import { newRun } from '../src/core/run';
 import { deserialize, serialize, SAVE_VERSION } from '../src/core/save';
@@ -142,11 +142,14 @@ describe('skill tree / stats', () => {
     expect(resolveStats({ neural_lead: 2 }).turretSpreadMul).toBeCloseTo(0.85 * 0.85, 5);
   });
 
-  it('sweep / hold-fire nodes resolve their stats', () => {
-    expect(resolveStats({ static_charge: 2 }).sweepDamage).toBeCloseTo(SWEEP.damage + 0.7, 5);
-    expect(resolveStats({ static_link: 5 }).sweepDpsRate).toBeCloseTo(0.2, 5);
-    expect(resolveStats({ heat_sink: 1 }).sweepHeatMax).toBe(SWEEP.heatMax + 30);
-    expect(resolveStats({ heat_sink: 1 }).sweepHeatRegen).toBeCloseTo(SWEEP.heatRegen * 1.15, 5);
+  it('field / hold-fire nodes resolve their stats', () => {
+    expect(resolveStats({ static_charge: 2 }).fieldDamage).toBeCloseTo(FIELD.damage + 1, 5);
+    expect(resolveStats({ static_link: 5 }).fieldDpsRate).toBeCloseTo(0.2, 5);
+    expect(resolveStats({ field_coils: 1 }).fieldRadius).toBeCloseTo(FIELD.radius * 1.12, 5);
+    expect(resolveStats({ field_coils: 1 }).fieldPulseSeconds).toBeCloseTo(
+      FIELD.pulseSeconds * 0.94,
+      5,
+    );
     expect(resolveStats({ rapid_trigger: 1 }).holdFireInterval).toBeCloseTo(
       CANNON.holdFireInterval * 0.9,
       5,
@@ -189,6 +192,17 @@ describe('save / load', () => {
     // The command core is always kept so branch roots stay unlocked.
     expect(restored.upgrades).toEqual({ core: 1 });
     expect(restored.bestNight).toBe(0);
+  });
+
+  it('migrates Heat Sink levels onto Field Coils', () => {
+    const restored = deserialize(
+      JSON.stringify({
+        version: SAVE_VERSION,
+        run: { night: 12, upgrades: { core: 1, heat_sink: 2 } },
+      }),
+    );
+    expect(restored.upgrades['field_coils']).toBe(2);
+    expect(restored.upgrades['heat_sink']).toBeUndefined();
   });
 
   it('migrates Time Dilation levels onto Free Fire', () => {

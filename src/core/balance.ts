@@ -51,37 +51,26 @@ export const CANNON = {
   holdReloadFactor: 0.85,
 } as const;
 
-/** Static Sweep: dragging the held pointer leaves a short-lived static trail
- *  that zaps and slows enemies it crosses — low-precision "scrubbing" damage
- *  that softens waves without spending ammo. Bounded by a heat budget so it
- *  augments the cannon instead of replacing it. The static charge also arcs
- *  through phase shields: sweeping is the manual counter to phased enemies
- *  (turrets still need Doppler Tracking). */
-export const SWEEP = {
-  /** Enemies within this distance of the swept path are hit (their own
-   *  half-extent is added on top, like every other hit test). */
-  radius: 3,
-  /** Base damage per zap (see also the static_charge / static_link nodes). */
-  damage: 0.5,
-  /** Seconds between zaps on the SAME enemy — continuous scrubbing on one
-   *  target deals damage / hitInterval dps. */
-  hitInterval: 0.25,
+/** Static Field: a circular aura that simply follows the pointer (no click
+ *  needed) and periodically pulses, zapping and slowing every enemy inside —
+ *  low-precision "park the cursor on the threat" damage that softens waves
+ *  without spending ammo. The pulse cooldown (drawn as a ring-shaped
+ *  progress bar around the circle) is the throughput limiter. The static
+ *  also arcs through phase shields: the field is the manual counter to
+ *  phased enemies (turrets still need Doppler Tracking). */
+export const FIELD = {
+  /** Aura radius (enemy half-extents are added on top, like every hit test). */
+  radius: 9,
+  /** Base damage per pulse (see also the static_charge / static_link nodes). */
+  damage: 1,
+  /** Seconds between pulses. A ready field with nothing in range HOLDS its
+   *  charge — the first enemy to wander in is zapped immediately. */
+  pulseSeconds: 0.9,
   /** Zapped enemies move at this speed factor while the static lingers... */
   slowFactor: 0.6,
-  /** ...for this long after the last zap. Bosses are immune to the slow
+  /** ...for this long after the pulse. Bosses are immune to the slow
    *  (their descent IS the fight timer) but still take the damage. */
   slowSeconds: 0.8,
-  /** Heat budget: sweeping costs heatPerUnit per world unit of pointer
-   *  travel; heat refills at heatRegen/s. Hitting 0 overheats the sweep
-   *  until heat climbs back above recoverFrac of the maximum. */
-  heatMax: 100,
-  heatPerUnit: 0.55,
-  heatRegen: 30,
-  recoverFrac: 0.4,
-  /** How long a trail segment stays lethal-and-visible after being drawn. */
-  trailSeconds: 0.35,
-  /** Pointer moves shorter than this don't count (touch jitter). */
-  minSegment: 0.05,
 } as const;
 
 /** Idle seconds before auto-fire arms at the given node level (0 = locked). */

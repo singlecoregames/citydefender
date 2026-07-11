@@ -505,7 +505,8 @@ export class Renderer {
       if (ev.type === 'cityHit') this.shake = Math.max(this.shake, 1.6);
       if (ev.type === 'groundImpact') this.shake = Math.max(this.shake, 0.5);
       if (ev.type === 'beam') this.spawnBeam(ev.kind, ev.points);
-      if (ev.type === 'sweepHit') this.particles.burst(ev.pos.x, ev.pos.y, 0x6fd8ff, 4);
+      if (ev.type === 'fieldHit') this.particles.burst(ev.pos.x, ev.pos.y, 0x6fd8ff, 4);
+      if (ev.type === 'fieldPulse') this.spawnFieldPulse(ev.pos);
       if (ev.type === 'aegisAbsorbed') {
         this.particles.burst(ev.pos.x, ev.pos.y, 0x8bd4ff, 14);
         this.shake = Math.max(this.shake, 0.3);
@@ -631,7 +632,8 @@ export class Renderer {
     this.syncProjectiles(state);
     this.syncEnemies(state, dt);
     this.syncInterceptors(state);
-    this.syncSweep(state);
+    this.syncField(state);
+    this.updateFieldPulses(dt);
     this.syncExplosions(state, dt);
     this.particles.update(dt);
     this.updateBeams(dt);
@@ -1036,44 +1038,104 @@ export class Renderer {
     }
   }
 
-  /** Static sweep trail: one additive streak quad per stroke segment, fading
-   *  out with its lethal ttl so what you see IS what still zaps. Opacity is
-   *  per-segment, so each mesh clones the base material (few dozen alive at
-   *  worst — same lifecycle cost as the beam fx). */
-  private readonly sweepViews = new Map<number, THREE.Mesh>();
-  private readonly sweepBaseMat = new THREE.MeshBasicMaterial({
+  /** Static field aura: a faint circle following the pointer, with the pulse
+   *  cooldown drawn as a segmented ring-shaped progress bar around its rim —
+   *  it fills as the charge builds and lights up fully when a pulse is ready.
+   *  Built lazily on first use; unit radius, scaled to the night's aura size. */
+  private fieldGroup: THREE.Group | null = null;
+  private fieldSegments: THREE.Mesh[] = [];
+  private static readonly FIELD_SEGMENTS = 24;
+  private readonly fieldOutlineMat = new THREE.MeshBasicMaterial({
+    color: 0x019bd6,
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false,
+  });
+  private readonly fieldChargingMat = new THREE.MeshBasicMaterial({
+    color: 0x019bd6,
+    transparent: true,
+    opacity: 0.65,
+    depthWrite: false,
+  });
+  private readonly fieldArmedMat = new THREE.MeshBasicMaterial({
     color: 0x6fd8ff,
     transparent: true,
-    opacity: 0.55,
-    blending: THREE.AdditiveBlending,
+    opacity: 0.95,
     depthWrite: false,
   });
 
-  private syncSweep(state: GameState): void {
-    const seen = new Set<number>();
-    for (const seg of state.sweep.segments) {
-      seen.add(seg.id);
-      let mesh = this.sweepViews.get(seg.id);
-      if (!mesh) {
-        mesh = new THREE.Mesh(this.quadGeo, this.sweepBaseMat.clone());
-        const dx = seg.b.x - seg.a.x;
-        const dy = seg.b.y - seg.a.y;
-        // Stretch past the endpoints by the streak's width so consecutive
-        // segments overlap into one continuous stroke instead of a dashed one.
-        const w = 2.4;
-        mesh.scale.set(Math.hypot(dx, dy) + w * 0.5, w, 1);
-        mesh.rotation.z = Math.atan2(dy, dx);
-        mesh.position.set((seg.a.x + seg.b.x) / 2, (seg.a.y + seg.b.y) / 2, 2.6);
-        this.scene.add(mesh);
-        this.sweepViews.set(seg.id, mesh);
-      }
-      (mesh.material as THREE.MeshBasicMaterial).opacity = 0.55 * (seg.ttl / seg.maxTtl);
+  private ensureFieldGroup(): THREE.Group {
+    if (this.fieldGroup) return this.fieldGroup;
+    const group = new THREE.Group();
+    // Aura boundary: a thin faint ring the size of the damage radius.
+    group.add(new THREE.Mesh(this.ringGeo, this.fieldOutlineMat));
+    // Cooldown progress: fixed arc segments around the rim, toggled visible
+    // as the charge fills (a stepped ring suits the pixel-art look and costs
+    // nothing to update). Clockwise from 12 o'clock.
+    const n = Renderer.FIELD_SEGMENTS;
+    const step = (Math.PI * 2) / n;
+    for (let i = 0; i < n; i++) {
+      const arc = new THREE.RingGeometry(0.86, 1.02, 6, 1, Math.PI / 2 - (i + 1) * step, step * 0.72);
+      const mesh = new THREE.Mesh(arc, this.fieldChargingMat);
+      mesh.position.z = 0.05;
+      group.add(mesh);
+      this.fieldSegments.push(mesh);
     }
-    for (const [id, mesh] of this.sweepViews) {
-      if (!seen.has(id)) {
-        this.scene.remove(mesh);
-        (mesh.material as THREE.Material).dispose();
-        this.sweepViews.delete(id);
+    this.scene.add(group);
+    this.fieldGroup = group;
+    return group;
+  }
+
+  private syncField(state: GameState): void {
+    const f = state.field;
+    if (!f.pos) {
+      if (this.fieldGroup) this.fieldGroup.visible = false;
+      return;
+    }
+    const group = this.ensureFieldGroup();
+    group.visible = true;
+    group.position.set(f.pos.x, f.pos.y, 2.6);
+    group.scale.setScalar(f.radius);
+    const charge = f.pulseSeconds > 0 ? 1 - f.cooldown / f.pulseSeconds : 1;
+    const armed = charge >= 1;
+    const filled = Math.floor(charge * Renderer.FIELD_SEGMENTS + 1e-6);
+    this.fieldSegments.forEach((mesh, i) => {
+      mesh.visible = i < filled;
+      mesh.material = armed ? this.fieldArmedMat : this.fieldChargingMat;
+    });
+  }
+
+  /** Pulse feedback: a bright disc flash at the aura that fades fast. */
+  private readonly fieldPulses: { mesh: THREE.Mesh; ttl: number; maxTtl: number }[] = [];
+
+  private spawnFieldPulse(pos: Vec2): void {
+    const mesh = new THREE.Mesh(
+      this.discGeo,
+      new THREE.MeshBasicMaterial({
+        color: 0x6fd8ff,
+        transparent: true,
+        opacity: 0.3,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    );
+    const radius = this.fieldGroup?.scale.x ?? 9;
+    mesh.scale.setScalar(radius);
+    mesh.position.set(pos.x, pos.y, 2.62);
+    this.scene.add(mesh);
+    this.fieldPulses.push({ mesh, ttl: 0.18, maxTtl: 0.18 });
+  }
+
+  private updateFieldPulses(dt: number): void {
+    for (let i = this.fieldPulses.length - 1; i >= 0; i--) {
+      const fx = this.fieldPulses[i]!;
+      fx.ttl -= dt;
+      if (fx.ttl <= 0) {
+        this.scene.remove(fx.mesh);
+        (fx.mesh.material as THREE.Material).dispose();
+        this.fieldPulses.splice(i, 1);
+      } else {
+        (fx.mesh.material as THREE.MeshBasicMaterial).opacity = 0.3 * (fx.ttl / fx.maxTtl);
       }
     }
   }
