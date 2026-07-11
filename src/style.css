@@ -43,6 +43,62 @@ body {
   image-rendering: crisp-edges;
 }
 
+/* CRT filter over the game picture only (the DOM UI sits above it).
+   Pure composited CSS — free on mobile, no shader pass:
+   - horizontal scanlines (the defining CRT texture)
+   - a whisper of a vertical RGB aperture grille
+   - corner vignette (tube falloff)
+   - a slow rolling scan band for a hint of life */
+#crt {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.32) 100%),
+    repeating-linear-gradient(
+      to right,
+      rgba(255, 60, 60, 0.045) 0 1px,
+      rgba(60, 255, 60, 0.035) 1px 2px,
+      rgba(60, 60, 255, 0.045) 2px 3px
+    ),
+    repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px);
+}
+
+#crt::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -20%;
+  height: 12%;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(218, 218, 218, 0.028) 50%,
+    transparent
+  );
+  animation: crt-roll 9s linear infinite;
+}
+
+@keyframes crt-roll {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    /* The band is 12% tall and starts at -20%: 1100% of its own height
+       carries it from above the screen to past the bottom edge. */
+    transform: translateY(1100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #crt::after {
+    animation: none;
+    display: none;
+  }
+}
+
 #hud {
   position: absolute;
   inset: 0;

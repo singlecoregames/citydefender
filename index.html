@@ -22,6 +22,10 @@
   </head>
   <body>
     <div id="app">
+      <!-- CRT overlay: sits above the game canvas (prepended at runtime, so
+           the canvas lands before this) and below every DOM UI layer — the
+           filter touches the picture, never the interface. -->
+      <div id="crt"></div>
       <div id="hud">
         <div id="hud-top">
           <div id="hud-scrap">⬡ 0</div>
