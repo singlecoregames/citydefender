@@ -3,7 +3,16 @@ import { FIELD, NIGHT_SCALING } from '../src/core/balance';
 import { baseStats } from '../src/core/stats';
 import { newRun } from '../src/core/run';
 import { deserialize, serialize, SAVE_VERSION } from '../src/core/save';
-import { getNode, isUnlocked, nextPrice, resolveStats, TREE } from '../src/core/tree';
+import {
+  getNode,
+  isUnlocked,
+  nextPrice,
+  reqId,
+  reqLevel,
+  resolveStats,
+  TREE,
+  type TreeLevels,
+} from '../src/core/tree';
 import { generateNight, waveCountForNight } from '../src/core/waves';
 
 describe('waves', () => {
@@ -85,10 +94,17 @@ describe('skill tree / stats', () => {
     }
   });
 
-  it('every prerequisite id refers to an existing node', () => {
-    const ids = new Set(TREE.map((n) => n.id));
+  it('every prerequisite id refers to an existing node, within its level cap', () => {
+    const byId = new Map(TREE.map((n) => [n.id, n]));
     for (const node of TREE) {
-      for (const req of node.requires) expect(ids.has(req)).toBe(true);
+      for (const req of node.requires) {
+        const target = byId.get(reqId(req));
+        expect(target, `${node.id} requires missing node ${reqId(req)}`).toBeDefined();
+        // A graduation gate above the prereq's max level could never open.
+        expect(reqLevel(req), `${node.id} gate exceeds ${reqId(req)} max`).toBeLessThanOrEqual(
+          target!.maxLevel,
+        );
+      }
     }
   });
 
@@ -97,11 +113,12 @@ describe('skill tree / stats', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('locked node unlocks once its prerequisite has a level', () => {
+  it('graduation gates need the prerequisite at its required LEVEL', () => {
     const warhead = getNode('warhead')!;
     expect(isUnlocked(warhead, {})).toBe(false);
-    // warhead requires wide_blast
-    expect(isUnlocked(warhead, { wide_blast: 1 })).toBe(true);
+    // warhead requires wide_blast at level 2 — level 1 is not enough.
+    expect(isUnlocked(warhead, { wide_blast: 1 })).toBe(false);
+    expect(isUnlocked(warhead, { wide_blast: 2 })).toBe(true);
   });
 
   it('root nodes (no prerequisites) are always unlocked', () => {
@@ -168,6 +185,94 @@ describe('skill tree / stats', () => {
     }
   });
 
+});
+
+describe('tree structure invariants (the Nodebuster/Shelldiver rules)', () => {
+  /** Graph depth from the core: 1 + the shallowest prerequisite's depth. */
+  function depths(): Map<string, number> {
+    const d = new Map<string, number>([['core', 0]]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const n of TREE) {
+        if (d.has(n.id) || n.requires.length === 0) continue;
+        const parents = n.requires.map((r) => d.get(reqId(r)));
+        if (parents.every((p) => p !== undefined)) {
+          d.set(n.id, Math.min(...(parents as number[])) + 1);
+          changed = true;
+        }
+      }
+    }
+    return d;
+  }
+
+  it('every node is reachable from the core', () => {
+    const d = depths();
+    for (const node of TREE) expect(d.has(node.id), `${node.id} unreachable`).toBe(true);
+  });
+
+  it('prices step hard with depth: ring d min ≥ 1.5 × ring d-1 max', () => {
+    // Tier-1 scrap content only — special (◆) unlocks price their later
+    // levels off-band by design, and tier 2-4 ride the world income steps.
+    const d = depths();
+    const bands = new Map<number, { min: number; max: number }>();
+    for (const node of TREE) {
+      if (node.id === 'core' || node.unlockCores || (node.tier ?? 1) > 1) continue;
+      const price = nextPrice(node, 0)!;
+      if (price.currency !== 'scrap') continue;
+      const ring = d.get(node.id)!;
+      const band = bands.get(ring) ?? { min: Infinity, max: 0 };
+      band.min = Math.min(band.min, price.amount);
+      band.max = Math.max(band.max, price.amount);
+      bands.set(ring, band);
+    }
+    const rings = [...bands.keys()].sort((a, b) => a - b);
+    for (let i = 1; i < rings.length; i++) {
+      const prev = bands.get(rings[i - 1]!)!;
+      const cur = bands.get(rings[i]!)!;
+      expect(
+        cur.min,
+        `ring ${rings[i]} min ${cur.min} undercuts ring ${rings[i - 1]} max ${prev.max}`,
+      ).toBeGreaterThanOrEqual(prev.max * 1.5);
+    }
+  });
+
+  it('the open frontier stays small under greedy play', () => {
+    // Greedy cheapest-first through the world-1 tree: at every step, the
+    // nodes a player actually weighs (unlocked, scrap-priced, within 3× of
+    // the cheapest option) must stay a handful — the whole point of the
+    // graduation gates and serial side-chains. UNSEEN nodes are the real
+    // reading burden, so they get the tighter cap; next levels of nodes the
+    // player already owns are cheap re-buys and get a looser one. (The old
+    // 5-way fan peaked at 24 simultaneous choices.)
+    const levels: TreeLevels = { core: 1 };
+    const weighedCounts: number[] = [];
+    for (let step = 0; step < 90; step++) {
+      const open = TREE.filter((n) => n.id !== 'core' && isUnlocked(n, levels, 1))
+        .map((n) => ({ n, p: nextPrice(n, levels[n.id] ?? 0) }))
+        .filter((x) => x.p !== null && x.p.currency === 'scrap');
+      if (open.length === 0) break;
+      const cheapest = Math.min(...open.map((x) => x.p!.amount));
+      // "Weighed" = options in the same price class as the cheapest buy;
+      // "fresh" = the never-bought ones among them (the real reading burden).
+      const weighed = open.filter((x) => x.p!.amount <= cheapest * 2);
+      const fresh = weighed.filter((x) => (levels[x.n.id] ?? 0) === 0);
+      expect(
+        fresh.length,
+        `step ${step}: ${fresh.map((x) => x.n.id).join(',')}`,
+      ).toBeLessThanOrEqual(5);
+      weighedCounts.push(weighed.length);
+      // A player takes new content when it is in reach, else levels the
+      // cheapest owned node — pure cheapest-first would hoard fresh nodes
+      // it never intends to buy and measure its own artifact.
+      const sorted = open.sort((a, b) => a.p!.amount - b.p!.amount);
+      const pick =
+        fresh.length > 0 ? fresh.sort((a, b) => a.p!.amount - b.p!.amount)[0]! : sorted[0]!;
+      levels[pick.n.id] = (levels[pick.n.id] ?? 0) + 1;
+    }
+    const mean = weighedCounts.reduce((a, b) => a + b, 0) / weighedCounts.length;
+    expect(mean, `mean weighed choices ${mean.toFixed(1)}`).toBeLessThanOrEqual(15);
+  });
 });
 
 describe('save / load', () => {

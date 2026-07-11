@@ -180,6 +180,19 @@ export const BUILDING_TUNING = {
   decoy: { pullBase: 0.3, pullPerLevel: 0.08, jitter: 6 },
 } as const;
 
+/** Children spawned mid-air (splitter death splits, carrier/boss sheds)
+ *  START slow and accelerate to their intended speed: a split used to dump
+ *  full-speed swarmers right where the player just spent a pulse/shell,
+ *  with no window to react (playtest feedback — worst under the 2s pulse
+ *  cycle). The ramp is the reaction window; the intended speed still
+ *  arrives, just rampSeconds later. */
+export const CHILD_SPAWN = {
+  /** Fraction of the intended speed at the moment of spawning. */
+  startFrac: 0.35,
+  /** Seconds to ramp linearly from startFrac up to full speed. */
+  rampSeconds: 2.5,
+} as const;
+
 export const CITY = {
   /** Ground segments the field starts with; upgrades split the ground finer.
    *  ("Cities" in code = the ground segments being defended.) */
@@ -307,10 +320,10 @@ export const BOSS = {
   hp: 40,
   /** World-end gate bosses (N30/60/90/120): absolute hp per world, sized so
    *  each falls to a build that has finished (or nearly finished) that
-   *  world's unlocked tier — the campaign's four climaxes. Mid-world bosses
-   *  (N10, 20, 40, ...) use the regular hpScale formula, floored at a
-   *  fraction of the previous gate so they stay relevant. */
-  gateHp: [17000, 900000, 8500000, 40000000] as readonly number[],
+   *  world's REACHABLE spend — re-tuned when the banded tree rework
+   *  stretched deep tier-1 rings into world 2 (the old 17000 gate assumed
+   *  a tree bought out by ~N24; the banded tree deliberately isn't). */
+  gateHp: [10000, 900000, 8500000, 40000000] as readonly number[],
   /** Mid-world bosses (N40, 50, 70, …) climb the GEOMETRIC path between the
    *  surrounding gates (prev × (next/prev)^(nightInWorld/30)) — each boss
    *  night is a checkpoint that ramps to the world's gate. Swarm nights
@@ -400,6 +413,11 @@ export const NIGHT_SCALING = {
   hpPivotNight: 30,
   hpGrowthLate: 1.045,
   worldHpStep: [1, 4, 16, 40] as readonly number[],
+  /** The per-world hp step used to land in FULL on the world's first night —
+   *  an ×4 cliff the entry build (its tier still unbought) piled defeats on.
+   *  It now ramps in geometrically over this many nights, so a world opens
+   *  hard-but-climbable and peaks at the intended step. */
+  worldEntryRampNights: 5,
   hpRampStartNight: 9,
   /** Speed is unanswerable by upgrades, so it grows mildly and CAPS — an
    *  uncapped speed exponent was the old absolute-ceiling bug. */
