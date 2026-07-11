@@ -87,6 +87,23 @@ describe('skill tree / stats', () => {
     expect(nextPrice(node, node.maxLevel)).toBeNull();
   });
 
+  it('every scrap price lands on a friendly step (5s under 100, 10s above)', () => {
+    for (const node of TREE) {
+      for (let level = 0; level < node.maxLevel; level++) {
+        const price = nextPrice(node, level)!;
+        if (price.currency !== 'scrap' || price.amount === 0) continue;
+        const step = price.amount < 100 ? 5 : 10;
+        expect(price.amount % step, `${node.id} L${level} = ${price.amount}`).toBe(0);
+        // Snapping must never collapse two levels onto the same price.
+        if (level > 0) {
+          expect(price.amount, `${node.id} L${level}`).toBeGreaterThan(
+            nextPrice(node, level - 1)!.amount,
+          );
+        }
+      }
+    }
+  });
+
   it('every node effect targets a real stat key', () => {
     const keys = new Set(Object.keys(baseStats()));
     for (const node of TREE) {
