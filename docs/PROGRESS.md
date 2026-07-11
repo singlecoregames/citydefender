@@ -58,6 +58,18 @@
     Threat Analysis(터렛이 도시에 실제로 떨어질 적 우선 조준 — threatensCity()
     낙하점 투영), Neural Lead(조준 오차 −15%/lvl, 레이더와 곱연산),
     + Overcharge Shot은 scrap. 트리 51→55노드, Currency에 'data' 추가.
+- **필드 주공 재편** (플레이테스트: 런칭값 필드가 드래그만으로 밤을 캐리 → 역할 반전):
+  - 필드 기본치 대폭 너프: 반경 9→**5.5**, 펄스 주기 0.9→**2.0s** (데미지 1 유지).
+    트리 필드 사다리 만렙 시 반경 ≈12.4 / 주기 ≈1.15s로 성장 — **펄스가 기본 공격,
+    캐논은 탄창 제한 버스트 서브**.
+  - UP 트리 재편: 트렁크 = 필드 사다리(Static Charge 링1 게이트웨이 20⬡ → Wide Field
+    신규 → Pulse Cycle 신규 → Field Coils → Static Link 키스톤 1750⬡). 캐논 노드 강등:
+    blast_radius 링2로, Magazine은 Drum Magazine에 흡수(세이브 마이그레이션, 캡 3),
+    autoloader/fast_intercept/rapid_trigger는 워든 측면 체인으로, overcharge_shot 링5.
+    warhead 선행조건 wide_blast 단독으로 단순화. turret_laser 선행 → static_charge.
+  - 밸런스 시뮬 AI가 **오라를 조준**(0.2s 추적, parkAura)하도록 확장 — 필드 주공
+    페이싱을 실제로 검증: N50 클리어 2h12m, 초반 텐션 유지(N8·N14-15 패배 클러스터).
+  - 시뮬 BUILD_ORDER 재편(static_charge 첫 구매). 테스트 139개.
 - **홀드 연사 + 스태틱 스위프** (초반 조작 피로 완화 — 노드버스터류 드래그 축):
   - **홀드 연사**: `pointer` 커맨드 스트림(press/move/release) → 누르는 동안
     `holdFireInterval`(0.34s)마다 포인터 위치로 발사. 탭 = 기존 클릭과 동일(press 즉발).

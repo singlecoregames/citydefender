@@ -55,6 +55,15 @@ function migrate(env: SaveEnvelope): RunState {
     upgrades['field_coils'] = upgrades['heat_sink'] ?? 0;
     delete upgrades['heat_sink'];
   }
+  // The field-primary rework folded Magazine into Drum Magazine (one ammo
+  // node is enough for a burst weapon) — merge levels, capped at its max.
+  if (upgrades['magazine'] !== undefined) {
+    upgrades['drum_magazine'] = Math.min(
+      3,
+      (upgrades['drum_magazine'] ?? 0) + (upgrades['magazine'] ?? 0),
+    );
+    delete upgrades['magazine'];
+  }
   // The reset-prestige era: its permanent upgrades became tier-2 tree nodes
   // with the same ids — carry bought levels over (head_start has no heir).
   const legacy = (env.run as { prestigeUpgrades?: Record<string, number> }).prestigeUpgrades;

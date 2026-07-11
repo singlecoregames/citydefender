@@ -50,10 +50,10 @@ describe('skill tree / stats', () => {
     expect(resolveStats({})).toEqual(baseStats());
   });
 
-  it('additive node (magazine) raises max ammo per level', () => {
+  it('additive node (drum magazine) raises max ammo per level', () => {
     const base = baseStats().maxAmmo;
-    expect(resolveStats({ magazine: 1 }).maxAmmo).toBe(base + 1);
-    expect(resolveStats({ magazine: 3 }).maxAmmo).toBe(base + 3);
+    expect(resolveStats({ drum_magazine: 1 }).maxAmmo).toBe(base + 1);
+    expect(resolveStats({ drum_magazine: 3 }).maxAmmo).toBe(base + 3);
   });
 
   it('multiplicative node (blast radius) compounds per level', () => {
@@ -100,8 +100,8 @@ describe('skill tree / stats', () => {
   it('locked node unlocks once its prerequisite has a level', () => {
     const warhead = getNode('warhead')!;
     expect(isUnlocked(warhead, {})).toBe(false);
-    // warhead requires wide_blast + fast_intercept
-    expect(isUnlocked(warhead, { wide_blast: 1, fast_intercept: 1 })).toBe(true);
+    // warhead requires wide_blast
+    expect(isUnlocked(warhead, { wide_blast: 1 })).toBe(true);
   });
 
   it('root nodes (no prerequisites) are always unlocked', () => {
@@ -144,6 +144,11 @@ describe('skill tree / stats', () => {
 
   it('field / hold-fire nodes resolve their stats', () => {
     expect(resolveStats({ static_charge: 2 }).fieldDamage).toBeCloseTo(FIELD.damage + 1, 5);
+    expect(resolveStats({ wide_field: 5 }).fieldRadius).toBeCloseTo(FIELD.radius * 1.1 ** 5, 5);
+    expect(resolveStats({ pulse_cycle: 5 }).fieldPulseSeconds).toBeCloseTo(
+      FIELD.pulseSeconds * 0.93 ** 5,
+      5,
+    );
     expect(resolveStats({ static_link: 5 }).fieldDpsRate).toBeCloseTo(0.2, 5);
     expect(resolveStats({ field_coils: 1 }).fieldRadius).toBeCloseTo(FIELD.radius * 1.12, 5);
     expect(resolveStats({ field_coils: 1 }).fieldPulseSeconds).toBeCloseTo(
@@ -174,7 +179,7 @@ describe('save / load', () => {
     const run = newRun(42);
     run.night = 5;
     run.scrap = 123;
-    run.upgrades = { core: 1, magazine: 2 };
+    run.upgrades = { core: 1, blast_radius: 2 };
     const restored = deserialize(serialize(run));
     expect(restored).toEqual(run);
   });
@@ -192,6 +197,17 @@ describe('save / load', () => {
     // The command core is always kept so branch roots stay unlocked.
     expect(restored.upgrades).toEqual({ core: 1 });
     expect(restored.bestNight).toBe(0);
+  });
+
+  it('merges Magazine levels into Drum Magazine, capped at its max', () => {
+    const restored = deserialize(
+      JSON.stringify({
+        version: SAVE_VERSION,
+        run: { night: 9, upgrades: { core: 1, magazine: 2, drum_magazine: 2 } },
+      }),
+    );
+    expect(restored.upgrades['drum_magazine']).toBe(3); // 2+2 capped at max 3
+    expect(restored.upgrades['magazine']).toBeUndefined();
   });
 
   it('migrates Heat Sink levels onto Field Coils', () => {

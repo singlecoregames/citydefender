@@ -52,20 +52,25 @@ export const CANNON = {
 } as const;
 
 /** Static Field: a circular aura that simply follows the pointer (no click
- *  needed) and periodically pulses, zapping and slowing every enemy inside —
- *  low-precision "park the cursor on the threat" damage that softens waves
- *  without spending ammo. The pulse cooldown (drawn as a ring-shaped
- *  progress bar around the circle) is the throughput limiter. The static
- *  also arcs through phase shields: the field is the manual counter to
- *  phased enemies (turrets still need Doppler Tracking). */
+ *  needed) and periodically pulses, zapping and slowing every enemy inside.
+ *  This is the PRIMARY attack — the cannon is the ammo-limited burst tool on
+ *  top of it — so its baseline starts deliberately weak (small, slow) and
+ *  the field ladder in the tree is what grows it into a weapon (playtest:
+ *  the 9 / 0.9s launch values carried whole nights by themselves). The
+ *  pulse cooldown (drawn as a ring-shaped progress bar around the circle)
+ *  is the throughput limiter. The static also arcs through phase shields:
+ *  the field is the manual counter to phased enemies (turrets still need
+ *  Doppler Tracking). */
 export const FIELD = {
-  /** Aura radius (enemy half-extents are added on top, like every hit test). */
-  radius: 9,
+  /** Aura radius (enemy half-extents are added on top, like every hit test).
+   *  Maxed tree (Wide Field ×5, Field Coils ×3) reaches ≈ 12.4. */
+  radius: 5.5,
   /** Base damage per pulse (see also the static_charge / static_link nodes). */
   damage: 1,
   /** Seconds between pulses. A ready field with nothing in range HOLDS its
-   *  charge — the first enemy to wander in is zapped immediately. */
-  pulseSeconds: 0.9,
+   *  charge — the first enemy to wander in is zapped immediately. Maxed
+   *  tree (Pulse Cycle ×5, Field Coils ×3) reaches ≈ 1.15s. */
+  pulseSeconds: 2.0,
   /** Zapped enemies move at this speed factor while the static lingers... */
   slowFactor: 0.6,
   /** ...for this long after the pulse. Bosses are immune to the slow

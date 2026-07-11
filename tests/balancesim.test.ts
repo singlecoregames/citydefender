@@ -13,9 +13,9 @@ describe('balance simulator', () => {
 
   it('smart shopping follows the build order and saves for its next goal', () => {
     const run = newRun(1);
-    run.scrap = 25; // enough for blast_radius (20), not the next milestone
+    run.scrap = 25; // enough for static_charge (20), not the next milestone
     const bought = shop(run, 'smart');
-    expect(bought).toEqual(['blast_radius']);
+    expect(bought).toEqual(['static_charge']);
     expect(run.scrap).toBe(5); // saved, not spent on other cheap nodes
   });
 

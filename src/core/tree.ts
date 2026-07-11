@@ -51,7 +51,7 @@ export type TreeLevels = Record<string, number>;
  * still names its content type (colour in the UI); the paths are wired by
  * `requires`. Levels come in 1 / 3 / 5 — never more (splits, not ladders).
  *
- *   UP    gunner   — manual cannon + Laser turret
+ *   UP    gunner   — static field (primary) + cannon (burst) + Laser turret
  *   DOWN  engineer — Gatling/Tesla + turret globals + Scrap Surge
  *   LEFT  quartermaster — economy + Flak turret + Mega Bomb
  *   RIGHT warden   — city defence + Missile Pod + ammo
@@ -81,11 +81,16 @@ export const TREE: readonly TreeNode[] = [
   // d4 node undercuts a d2 node the shop stops reading as a progression.
   // SPECIAL nodes (unlockCores) charge their first level in boss tokens.
 
-  // ── UP · gunner path: manual cannon, with the Laser turret grafted in ──
+  // ── UP · gunner path: the static field (the PRIMARY attack) up the
+  //    trunk, the cannon (the ammo-limited burst tool) demoted to the
+  //    flanks, with the Laser turret grafted in. ──────────────────────────
   {
-    id: 'blast_radius',
-    name: 'Blast Radius',
-    description: '+8% explosion radius',
+    // The field ladder owns the prime cells: the aura is the main weapon,
+    // so its first upgrade must be one of the first things a player can
+    // afford — this is the gateway node of the whole path.
+    id: 'static_charge',
+    name: 'Static Charge',
+    description: '+0.5 field pulse damage',
     branch: 'cannon',
     col: 0,
     row: -1,
@@ -93,15 +98,12 @@ export const TREE: readonly TreeNode[] = [
     baseCost: 20,
     costGrowth: 1.4,
     requires: ['core'],
-    effects: [{ stat: 'explosionMaxRadius', op: 'mul', value: 0.08 }],
+    effects: [{ stat: 'fieldDamage', op: 'add', value: 0.5 }],
   },
   {
-    // The static field's stat ladder starts at ring 1: the aura is the
-    // early game's low-precision pressure valve, so its first upgrade must
-    // be one of the first things a player can afford.
-    id: 'static_charge',
-    name: 'Static Charge',
-    description: '+0.5 field pulse damage',
+    id: 'wide_field',
+    name: 'Wide Field',
+    description: '+10% field radius',
     branch: 'cannon',
     col: 1,
     row: -1,
@@ -109,33 +111,34 @@ export const TREE: readonly TreeNode[] = [
     baseCost: 45,
     costGrowth: 1.5,
     requires: ['core'],
-    effects: [{ stat: 'fieldDamage', op: 'add', value: 0.5 }],
+    effects: [{ stat: 'fieldRadius', op: 'mul', value: 0.1 }],
   },
   {
-    id: 'magazine',
-    name: 'Magazine',
-    description: '+1 max ammo',
-    branch: 'cannon',
-    col: -1,
-    row: -2,
-    maxLevel: 3,
-    baseCost: 140,
-    costGrowth: 1.5,
-    requires: ['blast_radius'],
-    effects: [{ stat: 'maxAmmo', op: 'add', value: 1 }],
-  },
-  {
-    id: 'autoloader',
-    name: 'Autoloader',
-    description: '-7% reload time',
+    id: 'pulse_cycle',
+    name: 'Pulse Cycle',
+    description: '-7% pulse cooldown',
     branch: 'cannon',
     col: 1,
     row: -2,
     maxLevel: 5,
+    baseCost: 140,
+    costGrowth: 1.5,
+    requires: ['wide_field'],
+    effects: [{ stat: 'fieldPulseSeconds', op: 'mul', value: -0.07 }],
+  },
+  {
+    // Demoted from the old ring-1 gateway: the cannon is the burst tool now.
+    id: 'blast_radius',
+    name: 'Blast Radius',
+    description: '+8% explosion radius',
+    branch: 'cannon',
+    col: -1,
+    row: -2,
+    maxLevel: 5,
     baseCost: 130,
     costGrowth: 1.45,
-    requires: ['blast_radius'],
-    effects: [{ stat: 'reloadSeconds', op: 'mul', value: -0.07 }],
+    requires: ['static_charge'],
+    effects: [{ stat: 'explosionMaxRadius', op: 'mul', value: 0.08 }],
   },
   {
     id: 'turret_laser',
@@ -147,7 +150,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 500,
     costGrowth: 1.9,
-    requires: ['blast_radius'],
+    requires: ['static_charge'],
     effects: [],
   },
   {
@@ -160,7 +163,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 510,
     costGrowth: 1.55,
-    requires: ['magazine'],
+    requires: ['blast_radius'],
     effects: [{ stat: 'explosionMaxRadius', op: 'mul', value: 0.14 }],
   },
   {
@@ -181,10 +184,10 @@ export const TREE: readonly TreeNode[] = [
     name: 'Fast Intercept',
     description: '+10% interceptor speed',
     branch: 'cannon',
-    col: 1,
-    row: -3,
+    col: 3,
+    row: -4,
     maxLevel: 5,
-    baseCost: 470,
+    baseCost: 1500,
     costGrowth: 1.5,
     requires: ['autoloader'],
     effects: [{ stat: 'interceptorSpeed', op: 'mul', value: 0.1 }],
@@ -199,7 +202,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 1600,
     costGrowth: 2.0,
-    requires: ['wide_blast', 'fast_intercept'],
+    requires: ['wide_blast'],
     effects: [{ stat: 'explosionDamage', op: 'add', value: 1 }],
   },
   {
@@ -221,7 +224,7 @@ export const TREE: readonly TreeNode[] = [
     description: 'Manual blasts gain +4% of total turret DPS as damage',
     branch: 'cannon',
     col: 1,
-    row: -4,
+    row: -5,
     maxLevel: 5,
     baseCost: 3600,
     costGrowth: 1.7,
@@ -242,16 +245,18 @@ export const TREE: readonly TreeNode[] = [
     effects: [{ stat: 'explosionDamage', op: 'add', value: 1 }],
   },
   {
+    // The field's keystone: the aura rides total turret DPS, so the main
+    // attack keeps scaling into the automation era (the Overcharge formula).
     id: 'static_link',
     name: 'Static Link',
     description: 'Field pulses gain +4% of total turret DPS as damage',
     branch: 'cannon',
     col: 1,
-    row: -5,
+    row: -4,
     maxLevel: 5,
-    baseCost: 6000,
+    baseCost: 1750,
     costGrowth: 1.7,
-    requires: ['overcharge_shot'],
+    requires: ['field_coils'],
     effects: [{ stat: 'fieldDpsRate', op: 'add', value: 0.04 }],
   },
   {
@@ -680,21 +685,36 @@ export const TREE: readonly TreeNode[] = [
     effects: [{ stat: 'maxAmmo', op: 'add', value: 1 }],
   },
   {
-    // Warden flavour: field hardware lives next to the Drum Magazine.
     id: 'field_coils',
     name: 'Field Coils',
     description: '+12% field radius, -6% pulse cooldown',
     branch: 'cannon',
-    col: 3,
+    col: 1,
     row: -3,
     maxLevel: 3,
-    baseCost: 1800,
+    baseCost: 510,
     costGrowth: 1.6,
-    requires: ['drum_magazine'],
+    requires: ['pulse_cycle'],
     effects: [
       { stat: 'fieldRadius', op: 'mul', value: 0.12 },
       { stat: 'fieldPulseSeconds', op: 'mul', value: -0.06 },
     ],
+  },
+  {
+    // Warden flavour: the cannon's reload hardware lives with the Drum
+    // Magazine, off the main trunk — the burst tool's upgrades are a side
+    // investment now.
+    id: 'autoloader',
+    name: 'Autoloader',
+    description: '-7% reload time',
+    branch: 'cannon',
+    col: 3,
+    row: -3,
+    maxLevel: 5,
+    baseCost: 700,
+    costGrowth: 1.5,
+    requires: ['drum_magazine'],
+    effects: [{ stat: 'reloadSeconds', op: 'mul', value: -0.07 }],
   },
   {
     id: 'rapid_trigger',
@@ -704,9 +724,9 @@ export const TREE: readonly TreeNode[] = [
     col: 2,
     row: -4,
     maxLevel: 3,
-    baseCost: 4500,
+    baseCost: 2400,
     costGrowth: 1.6,
-    requires: ['field_coils'],
+    requires: ['autoloader'],
     effects: [{ stat: 'holdFireInterval', op: 'mul', value: -0.1 }],
   },
   {

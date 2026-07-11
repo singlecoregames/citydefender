@@ -29,16 +29,21 @@ export class NightAi {
     this.jitter = 5 * (1 - skill);
   }
 
+  /** Ticks between aura re-aims (mouse tracking rate, not a fire rate). */
+  private aimCooldown = 0;
+
   /** Decide this tick's commands from the visible game state. */
   commands(state: GameState): Command[] {
     this.tick++;
     if (this.fireCooldown > 0) this.fireCooldown--;
+    if (this.aimCooldown > 0) this.aimCooldown--;
     this.claims = this.claims.filter(
       (c) => c.expiresTick > this.tick && state.enemies.some((e) => e.id === c.enemyId),
     );
 
     const out: Command[] = [];
     this.useAbilities(state, out);
+    this.parkAura(state, out);
 
     const freeFiring = state.ability.freefire > 0;
     if (this.fireCooldown <= 0 && (state.cannon.ammo > 0 || freeFiring)) {
@@ -121,6 +126,25 @@ export class NightAi {
       this.claims.push({ enemyId: e.id, damage: this.cfg.stats.explosionDamage, expiresTick: expires });
     }
     return { type: 'fire', x: aim.x, y: aim.y };
+  }
+
+  /** The static field is the primary attack: keep the aura parked on the
+   *  most urgent enemy, re-aiming at a human mouse-tracking cadence. Phased
+   *  enemies count — the field pierces phase shields. */
+  private parkAura(state: GameState, out: Command[]): void {
+    if (this.aimCooldown > 0) return;
+    let best: EnemyMissile | null = null;
+    for (const e of state.enemies) {
+      if (e.pos.y > WORLD.height || e.pos.y < 8) continue;
+      if (!best || e.pos.y < best.pos.y) best = e;
+    }
+    if (!best) return;
+    out.push({
+      type: 'aim',
+      x: best.pos.x + this.rng.range(-this.jitter, this.jitter),
+      y: best.pos.y + this.rng.range(-this.jitter, this.jitter),
+    });
+    this.aimCooldown = 12; // ~0.2s tracking rate
   }
 
   private useAbilities(state: GameState, out: Command[]): void {
