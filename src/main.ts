@@ -88,11 +88,38 @@ function startNight(r: RunState): Sim {
 /** Commands queued between fixed-timestep ticks. */
 let pending: Command[] = [];
 
+// Pointer stream: press fires immediately (a tap = the classic click), and
+// while held the sim keeps firing at the pointer (hold-to-fire) and turns
+// drag strokes into the static sweep trail. See Sim.handlePointer.
+let pointerHeld = false;
+
 container.addEventListener('pointerdown', (e) => {
   if (dayScreen.visible || titleScreen.visible) return; // clicks belong to the overlay UI
+  pointerHeld = true;
+  // Keep receiving moves even when the finger/cursor drifts off the canvas.
+  try {
+    container.setPointerCapture(e.pointerId);
+  } catch {
+    /* capture is best-effort (some embedded webviews refuse it) */
+  }
   const world = renderer.screenToWorld(e.clientX, e.clientY);
-  pending.push({ type: 'fire', x: world.x, y: world.y });
+  pending.push({ type: 'pointer', x: world.x, y: world.y, held: true });
 });
+
+container.addEventListener('pointermove', (e) => {
+  if (!pointerHeld) return;
+  const world = renderer.screenToWorld(e.clientX, e.clientY);
+  pending.push({ type: 'pointer', x: world.x, y: world.y, held: true });
+});
+
+function releasePointer(): void {
+  if (!pointerHeld) return;
+  pointerHeld = false;
+  pending.push({ type: 'pointer', x: 0, y: 0, held: false });
+}
+
+container.addEventListener('pointerup', releasePointer);
+container.addEventListener('pointercancel', releasePointer);
 
 /** Apply the night result to the run, persist, flash the outcome banner over
  *  the frozen field for a beat, then open the Day screen. */
@@ -129,7 +156,11 @@ function frame(now: number): void {
 
   // Only advance the sim while actually playing a night.
   while (acc >= DT) {
-    if (sim.state.phase === 'playing' && !titleScreen.visible) {
+    if (sim.state.phase !== 'playing' || titleScreen.visible) {
+      // Not simulating: drop queued input so a stale press/aim from the
+      // night's last moments can't replay into the next night's first tick.
+      pending = [];
+    } else {
       const events = sim.step(pending);
       pending = [];
       renderer.onEvents(events);

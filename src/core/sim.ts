@@ -23,6 +23,7 @@ import {
   ENEMY,
   enemyHalfSize,
   swarmerGroupFor,
+  SWEEP,
   TURRET,
   TURRETS,
   WAVE_BREAK_SECONDS,
@@ -153,6 +154,8 @@ export class Sim {
         s.cannon.idleSeconds = 0;
         this.comboIdle = 0;
         this.fire(cmd.x, cmd.y);
+      } else if (cmd.type === 'pointer') {
+        this.handlePointer(cmd);
       } else if (cmd.type === 'ability') this.useAbility(cmd.ability);
     }
 
@@ -168,6 +171,8 @@ export class Sim {
 
     this.tickAbilities();
     this.regenAmmo();
+    this.tickHoldFire();
+    this.tickSweep();
     this.tickAutoFire();
     this.updateDrones();
     this.updateLance();
@@ -219,10 +224,123 @@ export class Sim {
   private regenAmmo(): void {
     const c = this.state.cannon;
     if (c.ammo >= this.cfg.stats.maxAmmo) return;
-    c.reloadTimer -= DT;
+    // Holding the trigger slows the reload a touch — deliberate tap-firing
+    // keeps an edge over resting a finger on the screen.
+    c.reloadTimer -= DT * (this.triggerHeld ? CANNON.holdReloadFactor : 1);
     if (c.reloadTimer <= 0) {
       c.ammo++;
       c.reloadTimer += this.cfg.stats.reloadSeconds;
+    }
+  }
+
+  // --- hold-to-fire & static sweep (the pointer stream) ---
+
+  /** True between a pointer press and its release. */
+  private triggerHeld = false;
+  /** Latest pointer world position while held. */
+  private aim: Vec2 | null = null;
+  /** Seconds until the held trigger fires again. */
+  private holdCooldown = 0;
+
+  private handlePointer(cmd: { x: number; y: number; held: boolean }): void {
+    const s = this.state;
+    if (!cmd.held) {
+      this.triggerHeld = false;
+      this.aim = null;
+      s.sweep.pos = null;
+      return;
+    }
+    const p: Vec2 = {
+      x: clamp(cmd.x, -WORLD.halfWidth, WORLD.halfWidth),
+      y: clamp(cmd.y, 0, WORLD.height),
+    };
+    if (!this.triggerHeld) {
+      // Press: fire immediately — a tap behaves exactly like the old click.
+      this.triggerHeld = true;
+      this.holdShot(p);
+    } else if (s.sweep.pos) {
+      this.sweepStroke(s.sweep.pos, p);
+    }
+    this.aim = p;
+    s.sweep.pos = { ...p };
+  }
+
+  /** One hold-to-fire shot: manual in every way (idle reset, combo rules). */
+  private holdShot(p: Vec2): void {
+    this.state.cannon.idleSeconds = 0;
+    this.comboIdle = 0;
+    this.fire(p.x, p.y);
+    this.holdCooldown = this.cfg.stats.holdFireInterval;
+  }
+
+  /** While the trigger is held the cannon keeps firing at the pointer. Unlike
+   *  the press this never emits fireDenied — an empty magazine or a dead-zone
+   *  aim just waits silently for the next chance. */
+  private tickHoldFire(): void {
+    const s = this.state;
+    this.holdCooldown = Math.max(0, this.holdCooldown - DT);
+    if (!this.triggerHeld || !this.aim || this.holdCooldown > 0) return;
+    if (s.ability.freefire <= 0 && s.cannon.ammo <= 0) return;
+    const origin: Vec2 = { x: CANNON.x, y: CANNON.y };
+    if (dist(origin, this.aim) < CANNON.minTargetDistance) return;
+    this.holdShot(this.aim);
+  }
+
+  /** Record one drag stroke as a trail segment, paying its heat cost. The
+   *  damage happens in tickSweep, where every live segment zaps what touches
+   *  it — so a fresh trail is briefly a static fence, not just a swipe. */
+  private sweepStroke(a: Vec2, b: Vec2): void {
+    const s = this.state;
+    const len = dist(a, b);
+    if (len < SWEEP.minSegment) return;
+    if (s.sweep.overheated) return;
+    s.sweep.heat -= len * SWEEP.heatPerUnit;
+    if (s.sweep.heat <= 0) {
+      s.sweep.heat = 0;
+      s.sweep.overheated = true;
+    }
+    s.sweep.segments.push({
+      id: s.nextId++,
+      a: { ...a },
+      b: { ...b },
+      ttl: SWEEP.trailSeconds,
+      maxTtl: SWEEP.trailSeconds,
+    });
+  }
+
+  /** Damage per sweep zap: the base charge plus the Static Link share of
+   *  turret DPS (paid per hit interval, so contact dps = rate × turretDps). */
+  private sweepZapDamage(): number {
+    return this.cfg.stats.sweepDamage + this.cfg.stats.sweepDpsRate * this.turretDps * SWEEP.hitInterval;
+  }
+
+  /** Heat refill, trail decay, and the zap pass: every live segment damages
+   *  and slows the enemies touching it (per-enemy zap cooldown bounds the
+   *  dps). The static arcs through phase shields — sweeping is the manual
+   *  answer to phased enemies. */
+  private tickSweep(): void {
+    const s = this.state;
+    const sw = s.sweep;
+    sw.heat = Math.min(sw.maxHeat, sw.heat + this.cfg.stats.sweepHeatRegen * DT);
+    if (sw.overheated && sw.heat >= sw.maxHeat * SWEEP.recoverFrac) sw.overheated = false;
+    for (let i = sw.segments.length - 1; i >= 0; i--) {
+      const seg = sw.segments[i]!;
+      seg.ttl -= DT;
+      if (seg.ttl <= 0) sw.segments.splice(i, 1);
+    }
+    if (sw.segments.length === 0) return;
+    const damage = this.sweepZapDamage();
+    for (let i = s.enemies.length - 1; i >= 0; i--) {
+      const e = s.enemies[i]!;
+      if ((e.sweepCooldown ?? 0) > 0) continue;
+      if (e.pos.y > WORLD.height) continue; // still flying in from off-screen
+      const reach = SWEEP.radius + enemyHalfSize(e.kind, e.maxHp);
+      if (!sw.segments.some((seg) => distToSegment(e.pos, seg.a, seg.b) <= reach)) continue;
+      e.sweepCooldown = SWEEP.hitInterval;
+      // Bosses shrug off the slow — their descent is the fight's clock.
+      if (e.kind !== 'boss') e.staticSlow = SWEEP.slowSeconds;
+      s.events.push({ type: 'sweepHit', pos: { ...e.pos } });
+      this.damageEnemy(e, damage, true);
     }
   }
 
@@ -405,6 +523,7 @@ export class Sim {
     let ts = this.enemyTimeScale();
     const jam = this.jammerField;
     if (jam && dist(jam, e.pos) <= jam.radius) ts *= jam.factor;
+    if ((e.staticSlow ?? 0) > 0) ts *= SWEEP.slowFactor;
     return { x: e.vel.x * ts, y: e.vel.y * ts };
   }
 
@@ -998,10 +1117,11 @@ export class Sim {
 
   /** Apply damage to an enemy; on death remove it and award scrap.
    *  Shared by explosions, projectiles and instant-hit turrets.
+   *  `piercePhase` (the static sweep) ignores phase shields.
    *  Returns true when the hit was lethal. */
-  private damageEnemy(enemy: EnemyMissile, dmg: number): boolean {
+  private damageEnemy(enemy: EnemyMissile, dmg: number, piercePhase = false): boolean {
     const s = this.state;
-    if (this.isUntouchable(enemy)) return false; // phased & no Doppler Tracking
+    if (!piercePhase && this.isUntouchable(enemy)) return false; // phased & no Doppler Tracking
     if (enemy.kind === 'regenerator') enemy.regenTimer = 0; // interrupt healing
     enemy.hp -= dmg;
     if (enemy.hp <= 0) {
@@ -1083,9 +1203,17 @@ export class Sim {
     const dt = DT * this.enemyTimeScale(); // EMP freezes, Time Dilation slows
     for (let i = s.enemies.length - 1; i >= 0; i--) {
       const e = s.enemies[i]!;
+      // Sweep timers run on real time (they are player-side rhythm, not
+      // enemy behaviour — EMP freeze must not preserve the zap cooldown).
+      if ((e.sweepCooldown ?? 0) > 0) e.sweepCooldown! -= DT;
       // Jammer Tower: extra slow while inside its field.
       const jam = this.jammerField;
-      const edt = jam && dist(jam, e.pos) <= jam.radius ? dt * jam.factor : dt;
+      let edt = jam && dist(jam, e.pos) <= jam.radius ? dt * jam.factor : dt;
+      // Lingering static from a sweep zap: slowed until the charge fades.
+      if ((e.staticSlow ?? 0) > 0) {
+        e.staticSlow! -= DT;
+        edt *= SWEEP.slowFactor;
+      }
       e.pos.x += e.vel.x * edt;
       e.pos.y += e.vel.y * edt;
       if (e.pos.y < s.minEnemyY) s.minEnemyY = e.pos.y;
@@ -1259,6 +1387,13 @@ function createInitialState(cfg: NightConfig): GameState {
       idleSeconds: 0,
       autoFireThreshold: autoFireThresholdFor(cfg.stats.autoFireLevel),
     },
+    sweep: {
+      pos: null,
+      heat: cfg.stats.sweepHeatMax,
+      maxHeat: cfg.stats.sweepHeatMax,
+      overheated: false,
+      segments: [],
+    },
     // Ground segments ("cities"): equal slices of the full field width, each
     // with its own hp. Upgrades raise the count, splitting damage finer.
     cities: groundSegments(cfg.stats),
@@ -1395,6 +1530,16 @@ function clamp(v: number, lo: number, hi: number): number {
 
 function dist(a: Vec2, b: Vec2): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+/** Distance from point `p` to the line segment `a`→`b`. */
+function distToSegment(p: Vec2, a: Vec2, b: Vec2): number {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const lenSq = abx * abx + aby * aby;
+  if (lenSq < 1e-12) return dist(p, a);
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * abx + (p.y - a.y) * aby) / lenSq));
+  return Math.hypot(p.x - (a.x + abx * t), p.y - (a.y + aby * t));
 }
 
 function norm(v: Vec2): Vec2 {

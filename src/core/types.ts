@@ -115,6 +115,33 @@ export interface EnemyMissile {
   regenTimer?: number;
   /** Carrier: seconds until it sheds another swarmer. */
   spawnTimer?: number;
+  /** Static Sweep: seconds until this enemy can be zapped again. */
+  sweepCooldown?: number;
+  /** Static Sweep: seconds of lingering slow left from the last zap. */
+  staticSlow?: number;
+}
+
+/** One stroke of the static sweep trail. Stays lethal (and visible) until
+ *  its ttl runs out, so enemies flying into a fresh trail still get zapped. */
+export interface SweepSegment {
+  id: number;
+  a: Vec2;
+  b: Vec2;
+  /** Seconds left; drawn at maxTtl, fades to nothing. */
+  ttl: number;
+  maxTtl: number;
+}
+
+/** Static Sweep runtime state (see SWEEP in balance.ts). */
+export interface SweepState {
+  /** Pointer world position while the trigger is held (null = pointer up). */
+  pos: Vec2 | null;
+  /** Heat left to sweep with; drains per unit swept, refills over time. */
+  heat: number;
+  maxHeat: number;
+  /** True after heat hits 0 — sweeping is dead until heat recovers. */
+  overheated: boolean;
+  segments: SweepSegment[];
 }
 
 /** One-shot occurrences emitted during a tick, consumed by render/audio. */
@@ -127,6 +154,8 @@ export type GameEvent =
   | { type: 'enemyKilled'; pos: Vec2; reward: number }
   | { type: 'groundImpact'; pos: Vec2 }
   | { type: 'cityHit'; cityId: number; destroyed: boolean }
+  /** The static sweep zapped an enemy (spark feedback). */
+  | { type: 'sweepHit'; pos: Vec2 }
   /** A Shield Generator soaked a ground impact that would have hit a city. */
   | { type: 'shieldAbsorbed'; cityId: number }
   /** A Repair Bay restored a point of city HP. */
@@ -143,6 +172,10 @@ export type GameEvent =
 
 export type Command =
   | { type: 'fire'; x: number; y: number }
+  /** Pointer state stream: held=true on press and on every drag move (x/y =
+   *  world position), held=false on release. Drives hold-to-fire and the
+   *  static sweep; a bare press fires immediately like the classic click. */
+  | { type: 'pointer'; x: number; y: number; held: boolean }
   | { type: 'ability'; ability: AbilityKind };
 
 export type AbilityKind = 'emp' | 'megabomb' | 'freefire' | 'surge';
@@ -167,6 +200,8 @@ export interface GameState {
      *  (no auto-fire, and the HUD hides the gauge). */
     autoFireThreshold: number;
   };
+  /** Static Sweep: drag the held pointer to zap enemies along the trail. */
+  sweep: SweepState;
   cities: City[];
   interceptors: Interceptor[];
   explosions: Explosion[];

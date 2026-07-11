@@ -8,6 +8,7 @@ import {
   COMBO,
   DT,
   EXPLOSION,
+  SWEEP,
   TICK_RATE,
   TURRETS,
 } from '../src/core/balance';
@@ -1238,6 +1239,210 @@ describe('combo / overcharge / data (skilled-play layer)', () => {
     };
     expect(kill(false)).toBe(9001); // default: lowest enemy dies first → 9002 gone
     expect(kill(true)).toBe(9002); // threat analysis: ground-bound 9001 dies first
+  });
+});
+
+describe('hold-to-fire', () => {
+  function bare(stats: Partial<ReturnType<typeof baseStats>> = {}) {
+    const cfg = defaultNightConfig(1);
+    cfg.waves = []; // no natural spawns in these controlled tests
+    cfg.stats = { ...cfg.stats, ...stats };
+    return cfg;
+  }
+
+  /** Park an inert enemy in a far corner so the empty-wave night can't end
+   *  mid-test (victory needs a cleared field). */
+  function keepNightAlive(sim: Sim): void {
+    sim.state.enemies.push({
+      id: 424242,
+      kind: 'ballistic',
+      pos: { x: -95, y: 98 },
+      origin: { x: -95, y: 100 },
+      vel: { x: 0, y: 0 },
+      hp: 1e9,
+      maxHp: 1e9,
+      scrapReward: 0,
+    });
+  }
+
+  it('a press fires immediately, like the classic click', () => {
+    const sim = new Sim(1, bare());
+    sim.step([{ type: 'pointer', x: 0, y: 60, held: true }]);
+    expect(sim.state.cannon.ammo).toBe(CANNON.maxAmmo - 1);
+    expect(sim.state.interceptors).toHaveLength(1);
+  });
+
+  it('holding keeps firing at the hold interval until the magazine runs dry', () => {
+    const sim = new Sim(1, bare());
+    keepNightAlive(sim);
+    sim.step([{ type: 'pointer', x: 0, y: 60, held: true }]);
+    // Hold long enough for the whole magazine: press + 3 more held shots.
+    run(sim, Math.ceil(CANNON.holdFireInterval * 3 * TICK_RATE) + 4);
+    expect(sim.state.cannon.ammo).toBe(0);
+  });
+
+  it('a released trigger stops the volley', () => {
+    const sim = new Sim(1, bare());
+    keepNightAlive(sim);
+    let fired = 0;
+    const count = (events: readonly GameEvent[]) => {
+      for (const ev of events) if (ev.type === 'fired') fired++;
+    };
+    count(sim.step([{ type: 'pointer', x: 0, y: 60, held: true }]));
+    count(sim.step([{ type: 'pointer', x: 0, y: 0, held: false }]));
+    for (let i = 0; i < TICK_RATE * 2; i++) count(sim.step([]));
+    expect(fired).toBe(1); // just the press — nothing after the release
+  });
+
+  it('an empty magazine never spams fireDenied while held (only the press complains)', () => {
+    const sim = new Sim(1, bare());
+    keepNightAlive(sim);
+    let denied = 0;
+    const count = (events: readonly GameEvent[]) => {
+      for (const ev of events) if (ev.type === 'fireDenied') denied++;
+    };
+    count(sim.step([{ type: 'pointer', x: 0, y: 60, held: true }]));
+    for (let i = 0; i < TICK_RATE * 2; i++) count(sim.step([]));
+    expect(denied).toBe(0); // silent waiting, no denial spam
+  });
+
+  it('holding the trigger slows the reload by the hold factor', () => {
+    const held = new Sim(1, bare());
+    keepNightAlive(held);
+    // Spend one round, then rest the pointer in the cannon's dead zone so the
+    // trigger stays held without any further shots.
+    held.step([{ type: 'fire', x: 0, y: 60 }]);
+    held.step([{ type: 'pointer', x: 0, y: CANNON.y, held: true }]);
+    const normalTicks = Math.ceil(CANNON.reloadSeconds * TICK_RATE) + 1;
+    run(held, normalTicks);
+    expect(held.state.cannon.ammo).toBe(CANNON.maxAmmo - 1); // still reloading
+    run(held, Math.ceil(normalTicks / CANNON.holdReloadFactor));
+    expect(held.state.cannon.ammo).toBe(CANNON.maxAmmo);
+  });
+});
+
+describe('static sweep', () => {
+  function bare(stats: Partial<ReturnType<typeof baseStats>> = {}) {
+    const cfg = defaultNightConfig(1);
+    cfg.waves = []; // no natural spawns in these controlled tests
+    cfg.stats = { ...cfg.stats, ...stats };
+    return cfg;
+  }
+
+  function spawnEnemy(
+    sim: Sim,
+    id: number,
+    pos: { x: number; y: number },
+    kind: EnemyKind = 'ballistic',
+    hp = 1,
+  ) {
+    sim.state.enemies.push({
+      id,
+      kind,
+      pos: { ...pos },
+      origin: { x: pos.x, y: 100 },
+      vel: { x: 0, y: 0 },
+      hp,
+      maxHp: hp,
+      scrapReward: 5,
+      // Injected bosses must not shed minions mid-test.
+      spawnTimer: kind === 'boss' ? 9999 : undefined,
+    });
+  }
+
+  /** Press away from the enemy, then drag across it. */
+  function sweepAcross(sim: Sim, y = 60): readonly GameEvent[] {
+    sim.step([{ type: 'pointer', x: 10, y, held: true }]);
+    return sim.step([{ type: 'pointer', x: 50, y, held: true }]);
+  }
+
+  it('dragging across an enemy zaps it for the sweep damage', () => {
+    const sim = new Sim(1, bare());
+    spawnEnemy(sim, 9001, { x: 30, y: 60 }, 'ballistic', 5);
+    const events = sweepAcross(sim);
+    expect(events.some((ev) => ev.type === 'sweepHit')).toBe(true);
+    expect(sim.state.enemies[0]!.hp).toBeCloseTo(5 - SWEEP.damage, 5);
+  });
+
+  it('the zap cooldown bounds per-enemy sweep dps', () => {
+    const sim = new Sim(1, bare());
+    spawnEnemy(sim, 9001, { x: 30, y: 60 }, 'ballistic', 5);
+    sim.step([{ type: 'pointer', x: 10, y: 60, held: true }]);
+    // Scrub back and forth over the enemy for several ticks within one
+    // hit interval: only the first crossing may zap.
+    sim.step([{ type: 'pointer', x: 50, y: 60, held: true }]);
+    sim.step([{ type: 'pointer', x: 10, y: 60, held: true }]);
+    sim.step([{ type: 'pointer', x: 50, y: 60, held: true }]);
+    expect(sim.state.enemies[0]!.hp).toBeCloseTo(5 - SWEEP.damage, 5);
+  });
+
+  it('the static arcs through phase shields (unlike explosions)', () => {
+    const sim = new Sim(1, bare());
+    spawnEnemy(sim, 9001, { x: 30, y: 60 }, 'phase', 5);
+    sim.state.enemies[0]!.phased = true;
+    sim.state.enemies[0]!.phaseTimer = 999;
+    sweepAcross(sim);
+    expect(sim.state.enemies[0]!.hp).toBeCloseTo(5 - SWEEP.damage, 5);
+  });
+
+  it('zapped enemies are slowed while the static lingers, bosses are not', () => {
+    const sim = new Sim(1, bare());
+    spawnEnemy(sim, 9001, { x: 30, y: 60 }, 'ballistic', 5);
+    spawnEnemy(sim, 9002, { x: 30, y: 60 }, 'boss', 5000);
+    sim.state.enemies.forEach((e) => (e.vel = { x: 0, y: -10 }));
+    sweepAcross(sim);
+    const [zapped, boss] = sim.state.enemies;
+    expect(zapped!.staticSlow).toBeGreaterThan(0);
+    expect(boss!.staticSlow).toBeUndefined();
+    const before = { a: zapped!.pos.y, b: boss!.pos.y };
+    sim.step([]);
+    expect(before.a - zapped!.pos.y).toBeCloseTo(10 * DT * SWEEP.slowFactor, 5);
+    expect(before.b - boss!.pos.y).toBeCloseTo(10 * DT, 5);
+  });
+
+  it('sweep kills pay scrap but never touch the combo meter', () => {
+    const sim = new Sim(1, bare());
+    spawnEnemy(sim, 9001, { x: 30, y: 60 }, 'ballistic', SWEEP.damage / 2);
+    const scrapBefore = sim.state.scrap;
+    sweepAcross(sim);
+    expect(sim.state.enemies).toHaveLength(0);
+    expect(sim.state.scrap).toBeGreaterThan(scrapBefore);
+    expect(sim.state.combo).toBe(0);
+  });
+
+  it('sweeping drains heat to an overheat, which recovers over time', () => {
+    const sim = new Sim(1, bare());
+    // Far-corner sentinel so the empty-wave night can't end mid-test.
+    spawnEnemy(sim, 424242, { x: 90, y: 98 }, 'ballistic', 1e9);
+    sim.step([{ type: 'pointer', x: -95, y: 60, held: true }]);
+    // Full-width scrubbing empties the budget within a couple of strokes.
+    for (let i = 0; i < 12 && !sim.state.sweep.overheated; i++) {
+      sim.step([{ type: 'pointer', x: i % 2 === 0 ? 95 : -95, y: 60, held: true }]);
+    }
+    expect(sim.state.sweep.overheated).toBe(true);
+    const segments = sim.state.sweep.segments.length;
+    // Overheated: further strokes leave no trail.
+    sim.step([{ type: 'pointer', x: 0, y: 80, held: true }]);
+    expect(sim.state.sweep.segments.length).toBeLessThanOrEqual(segments);
+    // Heat refills past the recovery threshold and sweeping resumes.
+    const recoverTicks = Math.ceil(
+      ((sim.state.sweep.maxHeat * SWEEP.recoverFrac) / SWEEP.heatRegen) * TICK_RATE,
+    );
+    run(sim, recoverTicks + 2);
+    expect(sim.state.sweep.overheated).toBe(false);
+  });
+
+  it('Static Link scales the zap with total turret dps', () => {
+    const cfg = bare({ sweepDpsRate: 0.2 });
+    cfg.turrets = [{ kind: 'laser', level: 1 }]; // 0.8/s × 1 dmg = 0.8 dps
+    const sim = new Sim(1, cfg);
+    // Park the enemy far from the laser turret (x=-80, range 45) so only the
+    // sweep touches it.
+    spawnEnemy(sim, 9001, { x: 60, y: 90 }, 'ballistic', 5);
+    sim.step([{ type: 'pointer', x: 40, y: 90, held: true }]);
+    sim.step([{ type: 'pointer', x: 80, y: 90, held: true }]);
+    const expected = SWEEP.damage + 0.2 * 0.8 * SWEEP.hitInterval;
+    expect(sim.state.enemies[0]!.hp).toBeCloseTo(5 - expected, 5);
   });
 });
 

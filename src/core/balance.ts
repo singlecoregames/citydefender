@@ -40,6 +40,48 @@ export const CANNON = {
    *  cadence and dumps the free shots this fast — so leaving it to the
    *  cannon is nearly as quick as tapping the salvo out by hand. */
   autoFireBurstInterval: 0.28,
+  /** Hold-to-fire: while the pointer is held down the cannon keeps firing at
+   *  the pointer at this cadence (magazine rules unchanged — the reload rate
+   *  is still the sustained-fire limiter). The press itself always fires
+   *  immediately, so a tap behaves exactly like the classic click. */
+  holdFireInterval: 0.34,
+  /** While the trigger is held the magazine regenerates at this fraction of
+   *  the normal rate — deliberate tap-firing keeps a small reload edge over
+   *  holding the button down. */
+  holdReloadFactor: 0.85,
+} as const;
+
+/** Static Sweep: dragging the held pointer leaves a short-lived static trail
+ *  that zaps and slows enemies it crosses — low-precision "scrubbing" damage
+ *  that softens waves without spending ammo. Bounded by a heat budget so it
+ *  augments the cannon instead of replacing it. The static charge also arcs
+ *  through phase shields: sweeping is the manual counter to phased enemies
+ *  (turrets still need Doppler Tracking). */
+export const SWEEP = {
+  /** Enemies within this distance of the swept path are hit (their own
+   *  half-extent is added on top, like every other hit test). */
+  radius: 3,
+  /** Base damage per zap (see also the static_charge / static_link nodes). */
+  damage: 0.5,
+  /** Seconds between zaps on the SAME enemy — continuous scrubbing on one
+   *  target deals damage / hitInterval dps. */
+  hitInterval: 0.25,
+  /** Zapped enemies move at this speed factor while the static lingers... */
+  slowFactor: 0.6,
+  /** ...for this long after the last zap. Bosses are immune to the slow
+   *  (their descent IS the fight timer) but still take the damage. */
+  slowSeconds: 0.8,
+  /** Heat budget: sweeping costs heatPerUnit per world unit of pointer
+   *  travel; heat refills at heatRegen/s. Hitting 0 overheats the sweep
+   *  until heat climbs back above recoverFrac of the maximum. */
+  heatMax: 100,
+  heatPerUnit: 0.55,
+  heatRegen: 30,
+  recoverFrac: 0.4,
+  /** How long a trail segment stays lethal-and-visible after being drawn. */
+  trailSeconds: 0.35,
+  /** Pointer moves shorter than this don't count (touch jitter). */
+  minSegment: 0.05,
 } as const;
 
 /** Idle seconds before auto-fire arms at the given node level (0 = locked). */
