@@ -268,7 +268,7 @@ export class Sim {
       zapped = true;
       // Bosses shrug off the slow — their descent is the fight's clock.
       if (e.kind !== 'boss') e.staticSlow = FIELD.slowSeconds;
-      s.events.push({ type: 'fieldHit', pos: { ...e.pos } });
+      s.events.push({ type: 'fieldHit', pos: { ...e.pos }, from: { ...f.pos } });
       this.damageEnemy(e, damage, true);
     }
     if (!zapped) return; // stay charged until something is in range
@@ -1156,7 +1156,7 @@ export class Sim {
       const reward =
         enemy.scrapReward > 0 ? this.scaledScrap(enemy.scrapReward * this.comboScrapMul()) : 0;
       s.scrap += reward;
-      s.events.push({ type: 'enemyKilled', pos: { ...enemy.pos }, reward });
+      s.events.push({ type: 'enemyKilled', pos: { ...enemy.pos }, reward, kind: enemy.kind });
       if (enemy.kind === 'boss') {
         const cores = BOSS.coresPerKill;
         s.events.push({ type: 'bossKilled', cores });

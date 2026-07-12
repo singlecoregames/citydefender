@@ -159,7 +159,8 @@ export type GameEvent =
   | { type: 'detonation'; pos: Vec2 }
   /** Instant-hit visuals: laser/railgun lines, tesla chain polyline. */
   | { type: 'beam'; kind: 'laser' | 'railgun' | 'tesla' | 'lance'; points: Vec2[] }
-  | { type: 'enemyKilled'; pos: Vec2; reward: number }
+  /** `kind` lets feedback scale with the victim (heavy kills kick the camera). */
+  | { type: 'enemyKilled'; pos: Vec2; reward: number; kind: EnemyKind }
   /** A MIRV bus reached its split altitude and broke into warheads. */
   | { type: 'mirvSplit'; pos: Vec2 }
   /** A healer pulsed, topping up nearby enemies. */
@@ -168,8 +169,9 @@ export type GameEvent =
   | { type: 'cityHit'; cityId: number; destroyed: boolean }
   /** The static field pulsed (ring flash at the aura). */
   | { type: 'fieldPulse'; pos: Vec2 }
-  /** The pulse zapped this enemy (spark feedback). */
-  | { type: 'fieldHit'; pos: Vec2 }
+  /** The pulse zapped this enemy (spark feedback); `from` is the aura's
+   *  centre so the renderer can arc the static across to the victim. */
+  | { type: 'fieldHit'; pos: Vec2; from: Vec2 }
   /** A Shield Generator soaked a ground impact that would have hit a city. */
   | { type: 'shieldAbsorbed'; cityId: number }
   /** A Repair Bay restored a point of city HP. */

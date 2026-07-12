@@ -603,10 +603,13 @@ describe('enemy kinds', () => {
       damage: 10,
       hitEnemyIds: [],
     });
-    run(sim, 1);
+    const events = sim.step([]);
     expect(sim.state.enemies.find((e) => e.id === 555)).toBeUndefined();
     const children = sim.state.enemies.filter((e) => e.kind === 'swarmer');
     expect(children).toHaveLength(2);
+    // The kill event names its victim so feedback can scale with the kind.
+    const kill = events.find((ev) => ev.type === 'enemyKilled');
+    expect(kill!.type === 'enemyKilled' && kill!.kind).toBe('splitter');
   });
 
   it('split children start slow and ramp up to their intended speed', () => {
@@ -1464,7 +1467,10 @@ describe('static field', () => {
     spawnEnemy(sim, 9001, { x: 30, y: 60 }, 'ballistic', 5);
     const events = sim.step([{ type: 'aim', x: 30, y: 60 }]);
     expect(events.some((ev) => ev.type === 'fieldPulse')).toBe(true);
-    expect(events.some((ev) => ev.type === 'fieldHit')).toBe(true);
+    const hit = events.find((ev) => ev.type === 'fieldHit');
+    expect(hit).toBeDefined();
+    // The hit carries the aura's centre so the renderer can arc across.
+    expect(hit!.type === 'fieldHit' && hit!.from).toEqual({ x: 30, y: 60 });
     expect(sim.state.enemies[0]!.hp).toBeCloseTo(5 - FIELD.damage, 5);
   });
 
