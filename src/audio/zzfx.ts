@@ -52,9 +52,10 @@ export function zzfx(params: ZzfxSound, volumeScale = 1): void {
 }
 
 // ---------------------------------------------------------------------------
-// Faithful port of ZZFX.buildSamples (v1.3.2).
+// Faithful port of ZZFX.buildSamples (v1.3.2). Exported (pure, DOM-free) so
+// the sound table can be sanity-tested headlessly.
 // ---------------------------------------------------------------------------
-function buildSamples(
+export function buildSamples(
   volume = 1,
   randomness = 0.05,
   frequency = 220,
