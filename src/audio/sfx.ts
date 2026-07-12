@@ -35,12 +35,13 @@ export const SOUNDS = {
    *  of a xylophone scale (playtest: the clean triangle blip was "too
    *  melodic" under the ladder). */
   kill: [0.4, 0.15, 240, , 0.012, 0.08, 0, 1.8, -9, , , , , 0.6, , , , 0.85, 0.02],
-  /** Static field pulse — the drag attack, so it needs WEIGHT: a low sine
-   *  thump for body layered under a buzzy electric zap (played together,
-   *  like cityHit's boom+alarm pair). The old single thin zap at 0.22
-   *  volume read as a tick, not an attack. */
-  fieldPulse: [0.42, 0.12, 620, , 0.02, 0.12, 3, 1.4, -4],
-  fieldPulseBody: [0.38, 0.1, 120, , 0.025, 0.14, 0, 1.6, -6],
+  /** Static field pulse — the drag attack. Two layers, BOTH noise-based
+   *  (played together, like cityHit's boom+alarm pair): an electric crackle
+   *  and a low rumble. Earlier tonal versions (thin tan zap, then a sine
+   *  thump under it) kept reading as a beep — any pitched core does under a
+   *  2s cadence; noise is what makes it a discharge instead of a note. */
+  fieldPulse: [0.45, 0.3, 480, , 0.02, 0.13, 4, 1.4, -6, , , , 0.02, 1.5],
+  fieldPulseBody: [0.4, 0.2, 90, 0.005, 0.03, 0.16, 4, 1.8, , , , , , 1.2],
   /** A city segment took the hit: heavy noise boom + descending alarm tail. */
   cityHitBoom: [0.65, 0.2, 55, 0.01, 0.09, 0.5, 4, 2, , , , , , 1.5],
   cityHitAlarm: [0.4, 0.05, 520, 0.02, 0.12, 0.3, 2, 1, -14],
