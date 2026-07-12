@@ -44,8 +44,14 @@ export class Hud {
     }
   }
 
-  /** Combo meter: hidden until a streak of 2, then count + scrap multiplier. */
+  private prevCombo = 0;
+
+  /** Combo meter: hidden until a streak of 2, then count + scrap multiplier.
+   *  Tier classes recolour it as the streak grows, and crossing a milestone
+   *  retriggers a scale-pulse so the moment registers without reading. */
   private renderCombo(combo: number): void {
+    const crossed = [10, 25, 50].some((m) => this.prevCombo < m && combo >= m);
+    this.prevCombo = combo;
     if (combo < 2) {
       this.comboEl.classList.add('hidden');
       return;
@@ -53,6 +59,13 @@ export class Hud {
     const mul = 1 + COMBO.scrapPerStack * Math.min(combo, COMBO.maxStacks);
     this.comboEl.textContent = `⚡ ${combo}  ×${mul.toFixed(2)}`;
     this.comboEl.classList.remove('hidden');
+    this.comboEl.classList.toggle('tier1', combo >= 10 && combo < 25);
+    this.comboEl.classList.toggle('tier2', combo >= 25);
+    if (crossed) {
+      this.comboEl.classList.remove('pulse');
+      void this.comboEl.offsetWidth; // reflow restarts the animation
+      this.comboEl.classList.add('pulse');
+    }
   }
 
   /** Rebuild ammo pips when the magazine size changes (upgrades). The pips

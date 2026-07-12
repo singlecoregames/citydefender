@@ -38,6 +38,7 @@ interface Strings {
   wipeSaveConfirm: string;
   nightWave: (world: number, night: number, wave: number, total: number) => string;
   bossTag: string;
+  bossWarning: string;
   nightSurvived: (night: number) => string;
   citiesLost: string;
   daySubtitleVictory: string;
@@ -70,6 +71,7 @@ const EN: Strings = {
   wipeSaveConfirm: 'TAP AGAIN TO WIPE SAVE',
   nightWave: (wd, n, w, t) => `WORLD ${wd} · NIGHT ${n} — WAVE ${w}/${t}`,
   bossTag: '  ☠ BOSS',
+  bossWarning: '☠ BOSS INBOUND',
   nightSurvived: (n) => `NIGHT ${n} SURVIVED`,
   citiesLost: 'CITIES LOST',
   daySubtitleVictory: 'Spend scrap on your skill tree, then push on.',
@@ -102,6 +104,7 @@ const KO: Strings = {
   wipeSaveConfirm: '한 번 더 누르면 삭제됩니다',
   nightWave: (wd, n, w, t) => `월드 ${wd} · ${n}번째 밤 — 웨이브 ${w}/${t}`,
   bossTag: '  ☠ 보스',
+  bossWarning: '☠ 보스 접근 중',
   nightSurvived: (n) => `${n}번째 밤 생존`,
   citiesLost: '도시 함락',
   daySubtitleVictory: '스크랩으로 스킬 트리를 강화하고 계속 나아가세요.',

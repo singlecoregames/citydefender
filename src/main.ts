@@ -1,3 +1,4 @@
+import { AudioSystem } from './audio/sfx';
 import { BOSS_NIGHT_INTERVAL, DT } from './core/balance';
 import { newRun, nightSeed, type RunState } from './core/run';
 import { loadRun, saveRun } from './core/save';
@@ -9,6 +10,7 @@ import { WebStore } from './platform/store';
 import { Renderer } from './render/renderer';
 import { AbilityBar } from './ui/abilitybar';
 import { DayScreen } from './ui/dayscreen';
+import { FloatLayer } from './ui/floattext';
 import { Hud } from './ui/hud';
 import { lang, t } from './ui/i18n';
 import { TitleScreen } from './ui/titlescreen';
@@ -17,9 +19,40 @@ const container = document.getElementById('app')!;
 const renderer = new Renderer(container);
 const hud = new Hud();
 const store = new WebStore();
+const audio = new AudioSystem();
+const floats = new FloatLayer();
 const abilityBar = new AbilityBar((kind) => {
   if (sim.state.phase === 'playing') pending.push({ type: 'ability', ability: kind });
 });
+
+// Browsers keep the AudioContext suspended until a user gesture; any first
+// press unlocks it (idempotent, so just listen forever).
+document.addEventListener('pointerdown', () => audio.unlock());
+document.addEventListener('keydown', () => audio.unlock());
+
+// Mute toggle: pinned to the HUD, persisted by the AudioSystem.
+const muteBtn = document.getElementById('hud-mute') as HTMLButtonElement;
+const renderMuteBtn = (): void => {
+  muteBtn.textContent = audio.isMuted() ? '🔇' : '🔊';
+};
+muteBtn.addEventListener('pointerdown', (ev) => {
+  ev.stopPropagation(); // don't also fire the cannon
+  audio.unlock();
+  audio.setMuted(!audio.isMuted());
+  renderMuteBtn();
+});
+renderMuteBtn();
+
+// Full-screen feedback layers (see index.html).
+const flashEl = document.getElementById('fx-flash')!;
+const vignetteEl = document.getElementById('fx-vignette')!;
+
+/** Retrigger a one-shot CSS animation class on an fx layer. */
+function flashClass(el: Element, cls: string): void {
+  el.classList.remove(cls);
+  void (el as HTMLElement).offsetWidth; // reflow restarts the animation
+  el.classList.add(cls);
+}
 
 let run: RunState = loadRun(store);
 let sim: Sim = startNight(run);
@@ -54,7 +87,10 @@ const titleScreen = new TitleScreen(
 titleScreen.show(run);
 
 const dayScreen = new DayScreen(
-  (r) => saveRun(store, r), // on purchase
+  (r) => {
+    audio.playPurchase();
+    saveRun(store, r); // on purchase
+  },
   (r) => {
     // on "Next Night": advance and start the next night.
     sim = startNight(r);
@@ -163,11 +199,28 @@ function frame(now: number): void {
       const events = sim.step(pending);
       pending = [];
       renderer.onEvents(events);
+      audio.onEvents(events, sim.state);
       for (const ev of events) {
         if (ev.type === 'bossKilled') {
           hitStop = BOSS_HITSTOP_SECONDS;
+          flashClass(flashEl, 'strong');
           run.cores += ev.cores;
           saveRun(store, run);
+        }
+        if (ev.type === 'enemyKilled' && ev.reward > 0) {
+          const p = renderer.worldToScreen(ev.pos.x, ev.pos.y);
+          floats.spawn(p.x, p.y, ev.reward, sim.state.combo);
+        }
+        if (ev.type === 'abilityUsed' && ev.ability === 'megabomb') flashClass(flashEl, 'soft');
+        // A streak worth mourning flashes the edges red for a beat.
+        if (ev.type === 'comboBroken' && ev.lost >= 5) flashClass(vignetteEl, 'combo-break');
+        if (ev.type === 'bossSpawned') {
+          bannerEl.textContent = t().bossWarning;
+          bannerEl.className = 'boss';
+          setTimeout(() => {
+            // Leave it alone if the night-end banner has taken over meanwhile.
+            if (bannerEl.className === 'boss') bannerEl.className = 'hidden';
+          }, 1600);
         }
         if (ev.type === 'nightEnded' && !nightResolved) {
           nightResolved = true;
@@ -177,6 +230,16 @@ function frame(now: number): void {
     }
     acc -= DT;
   }
+  audio.update(sim.state);
+
+  // Low-HP heartbeat: the screen edges pulse red while the ground is nearly
+  // gone (only during play — the day screen shouldn't throb).
+  const hpNow = sim.state.cities.reduce((a, c) => a + c.hp, 0);
+  const hpMax = sim.state.cities.reduce((a, c) => a + c.maxHp, 0);
+  vignetteEl.classList.toggle(
+    'danger',
+    sim.state.phase === 'playing' && !titleScreen.visible && hpNow > 0 && hpNow / hpMax <= 0.34,
+  );
 
   renderer.render(sim.state);
   hud.render(sim.state, run.scrap + (nightResolved ? 0 : sim.state.scrap), run.cores);

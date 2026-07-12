@@ -26,6 +26,12 @@
            the canvas lands before this) and below every DOM UI layer — the
            filter touches the picture, never the interface. -->
       <div id="crt"></div>
+      <!-- Full-screen feedback layers: flash (boss kill / megabomb), vignette
+           (low-HP heartbeat, combo break) and floating kill numbers. All
+           pointer-transparent, above the picture, below the interactive UI. -->
+      <div id="fx-flash"></div>
+      <div id="fx-vignette"></div>
+      <div id="float-layer"></div>
       <div id="hud">
         <div id="hud-top">
           <div id="hud-scrap">⬡ 0</div>
@@ -35,6 +41,7 @@
         <div id="night-banner" class="hidden"></div>
         <div id="hud-ammo"></div>
         <div id="ability-bar"></div>
+        <button id="hud-mute" aria-label="mute">🔊</button>
       </div>
       <div id="freefire-tint" class="hidden"></div>
       <div id="titlescreen">

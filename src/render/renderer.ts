@@ -515,12 +515,37 @@ export class Renderer {
     };
   }
 
+  /** World → CSS pixels within the container (inverse of screenToWorld).
+   *  Used by the DOM overlays (floating kill numbers) to anchor to the field. */
+  worldToScreen(x: number, y: number): Vec2 {
+    const rect = this.container.getBoundingClientRect();
+    const fx = (x - this.camera.left) / (this.camera.right - this.camera.left);
+    const fy = (y - this.camera.bottom) / (this.camera.top - this.camera.bottom);
+    return { x: fx * rect.width, y: (1 - fy) * rect.height };
+  }
+
   onEvents(events: readonly GameEvent[]): void {
     for (const ev of events) {
       if (ev.type === 'cityHit') this.shake = Math.max(this.shake, 1.6);
       if (ev.type === 'groundImpact') this.shake = Math.max(this.shake, 0.5);
       if (ev.type === 'beam') this.spawnBeam(ev.kind, ev.points);
-      if (ev.type === 'enemyKilled') this.shake = Math.max(this.shake, KILL_SHAKE[ev.kind] ?? 0);
+      if (ev.type === 'fired') this.cannonFired();
+      if (ev.type === 'enemyKilled') {
+        this.shake = Math.max(this.shake, KILL_SHAKE[ev.kind] ?? 0);
+        // Boss down: the one kill that earns a spectacle — layered bursts and
+        // a big shockwave (main.ts adds the hit-stop and screen flash).
+        if (ev.kind === 'boss') {
+          for (let i = 0; i < 6; i++) {
+            this.particles.burst(
+              ev.pos.x + (Math.random() - 0.5) * 16,
+              ev.pos.y + (Math.random() - 0.5) * 12,
+              i % 2 === 0 ? ENEMY_COLORS.boss : 0xffffff,
+              12,
+            );
+          }
+          this.spawnRing(ev.pos, 6, 34, 0xffffff, 0.8, 0.5);
+        }
+      }
       // Cursor-attack feedback: the pulse arcs a static bolt across to each
       // victim, so the hit connects visibly instead of reading as "the enemy
       // near my cursor happened to flash".
@@ -690,6 +715,11 @@ export class Renderer {
     this.updateLanceFx(dt);
     this.syncAegis(state);
     this.updateEmpRings(dt);
+    // Barrel recoil: dip on the shot, spring back over ~0.15s.
+    if (this.cannonBarrel) {
+      this.cannonRecoil = Math.max(0, this.cannonRecoil - dt * 7);
+      this.cannonBarrel.position.y = this.barrelRestY - this.cannonRecoil * 1.1;
+    }
     this.applyShake();
     this.renderer.render(this.scene, this.camera);
   }
@@ -709,17 +739,33 @@ export class Renderer {
       this.scene.add(wall);
     }
 
-    // Cannon: rounded-rect base block + short rounded barrel.
+    // Cannon: rounded-rect base block + short rounded barrel. The barrel is
+    // kept for the recoil dip on every shot (see cannonFired).
     const cannonMat = new THREE.MeshBasicMaterial({ color: COLORS.cannon });
     const base = new THREE.Mesh(this.roundedGeo, cannonMat);
     base.scale.set(7, 3.5, 1);
     base.position.set(CANNON.x, CITY.groundTop + 1.75, 1);
-    const barrel = new THREE.Mesh(this.roundedGeo, cannonMat);
-    barrel.scale.set(2.2, 3, 1);
-    barrel.position.set(CANNON.x, CITY.groundTop + 4.5, 1);
+    this.cannonBarrel = new THREE.Mesh(this.roundedGeo, cannonMat);
+    this.cannonBarrel.scale.set(2.2, 3, 1);
+    this.cannonBarrel.position.set(CANNON.x, this.barrelRestY, 1);
     this.addShadow(base, true);
-    this.addShadow(barrel);
-    this.scene.add(base, barrel);
+    this.addShadow(this.cannonBarrel);
+    this.scene.add(base, this.cannonBarrel);
+  }
+
+  // Cannon recoil: 1 at the shot, springs back to 0 (see render loop).
+  private cannonBarrel: THREE.Mesh | null = null;
+  private readonly barrelRestY = CITY.groundTop + 4.5;
+  private cannonRecoil = 0;
+
+  /** Shot feedback at the launcher: muzzle flash, barrel kick, a tiny shake.
+   *  Small on purpose — this fires constantly; the payoff lives in the blast. */
+  private cannonFired(): void {
+    this.cannonRecoil = 1;
+    const muzzle: Vec2 = { x: CANNON.x, y: this.barrelRestY + 2 };
+    this.spawnDisc(muzzle, 2.4, 0x9cd6ff, 0.6, 0.08);
+    this.particles.burst(muzzle.x, muzzle.y, 0x9cd6ff, 5);
+    this.shake = Math.max(this.shake, 0.2);
   }
 
   /** SNKRX-style dark checkerboard floor, drawn from a 2x2 nearest-filtered
@@ -1025,7 +1071,11 @@ export class Renderer {
       // Cruise missiles stretch into a low, wide airframe (the collider stays
       // the square enemySize — the stretch trades height for width around it).
       const stretch = e.kind === 'cruise' ? 1.45 : 1;
-      view.head.scale.set(view.size * pop * stretch, (view.size * pop) / stretch, 1);
+      // Hit punch: the body pops ~14% for the flash beat, then springs back —
+      // the hit lands on the silhouette, not just the colour.
+      const punch = 1 + 1.6 * view.flash;
+      const sizeNow = view.size * pop * punch;
+      view.head.scale.set(sizeNow * stretch, sizeNow / stretch, 1);
       // Scale/rotation change every frame, so keep the shadow's world offset
       // pinned down-right; phased enemies are ghosts and cast none.
       this.placeShadow(view.head, view.shadow);
@@ -1177,34 +1227,47 @@ export class Renderer {
     grow?: { from: number; to: number };
   }[] = [];
 
-  private spawnFieldPulse(pos: Vec2, radiusOverride?: number, color = 0x6fd8ff, discOpacity = 0.45): void {
-    const fxMat = (opacity: number): THREE.MeshBasicMaterial =>
-      new THREE.MeshBasicMaterial({
-        color,
-        transparent: true,
-        opacity,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      });
-    const radius = radiusOverride ?? this.fieldGroup?.scale.x ?? 9;
-    const disc = new THREE.Mesh(this.discGeo, fxMat(discOpacity));
+  private fxMat(color: number, opacity: number): THREE.MeshBasicMaterial {
+    return new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+  }
+
+  /** One-shot fading disc flash (rides the pulse-fx pool). */
+  private spawnDisc(pos: Vec2, radius: number, color: number, opacity: number, ttl: number): void {
+    const disc = new THREE.Mesh(this.discGeo, this.fxMat(color, opacity));
     disc.scale.setScalar(radius);
     disc.position.set(pos.x, pos.y, 2.62);
     this.scene.add(disc);
-    this.fieldPulses.push({ mesh: disc, ttl: 0.18, maxTtl: 0.18, baseOpacity: discOpacity });
-    // The rim: a ring snapping outward past the pulse edge. The disc alone
-    // washes out over bright backgrounds; the moving edge always reads.
-    const rim = new THREE.Mesh(this.ringGeo, fxMat(0.9));
-    rim.scale.setScalar(radius * 0.75);
+    this.fieldPulses.push({ mesh: disc, ttl, maxTtl: ttl, baseOpacity: opacity });
+  }
+
+  /** One-shot ring that expands from → to while fading (shockwaves, rims). */
+  private spawnRing(
+    pos: Vec2,
+    from: number,
+    to: number,
+    color: number,
+    opacity: number,
+    ttl: number,
+  ): void {
+    const rim = new THREE.Mesh(this.ringGeo, this.fxMat(color, opacity));
+    rim.scale.setScalar(from);
     rim.position.set(pos.x, pos.y, 2.63);
     this.scene.add(rim);
-    this.fieldPulses.push({
-      mesh: rim,
-      ttl: 0.25,
-      maxTtl: 0.25,
-      baseOpacity: 0.9,
-      grow: { from: radius * 0.75, to: radius * 1.15 },
-    });
+    this.fieldPulses.push({ mesh: rim, ttl, maxTtl: ttl, baseOpacity: opacity, grow: { from, to } });
+  }
+
+  private spawnFieldPulse(pos: Vec2, radiusOverride?: number, color = 0x6fd8ff, discOpacity = 0.45): void {
+    const radius = radiusOverride ?? this.fieldGroup?.scale.x ?? 9;
+    this.spawnDisc(pos, radius, color, discOpacity, 0.18);
+    // The rim: a ring snapping outward past the pulse edge. The disc alone
+    // washes out over bright backgrounds; the moving edge always reads.
+    this.spawnRing(pos, radius * 0.75, radius * 1.15, color, 0.9, 0.25);
   }
 
   private updateFieldPulses(dt: number): void {
@@ -1249,6 +1312,10 @@ export class Renderer {
         view = { group, rim };
         this.scene.add(group);
         this.explosionViews.set(ex.id, view);
+        // Shockwave: a thin ring snapping out past the blast edge on frame
+        // one. The fill shows the damage RADIUS; the escaping ring is what
+        // makes it read as a concussion.
+        this.spawnRing(ex.pos, ex.maxRadius * 0.55, ex.maxRadius * 1.3, 0xffffff, 0.45, 0.28);
       }
       view.group.scale.setScalar(Math.max(explosionRadius(ex), 0.01));
       view.rim.rotation.z += 5.5 * dt;
