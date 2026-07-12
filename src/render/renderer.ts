@@ -233,6 +233,17 @@ const ENEMY_TRAIL_COLORS: Record<EnemyKind, number> = Object.fromEntries(
   Object.entries(ENEMY_COLORS).map(([k, c]) => [k, darken(c, 0.55)]),
 ) as Record<EnemyKind, number>;
 
+/** Camera kick per kill. Only heavyweights register — rattling the screen on
+ *  every swarmer pop would bury the signal. For scale: cityHit sits at 1.6,
+ *  megabomb at 2.4, so a boss kill matches the biggest blast in the game. */
+const KILL_SHAKE: Partial<Record<EnemyKind, number>> = {
+  boss: 2.4,
+  carrier: 0.8,
+  armored: 0.6,
+  healer: 0.6,
+  regenerator: 0.35,
+};
+
 // enemySize moved to core/balance.ts: the sim's hit tests share it, so the
 // drawn body and the collider can never drift apart again.
 
@@ -509,11 +520,18 @@ export class Renderer {
       if (ev.type === 'cityHit') this.shake = Math.max(this.shake, 1.6);
       if (ev.type === 'groundImpact') this.shake = Math.max(this.shake, 0.5);
       if (ev.type === 'beam') this.spawnBeam(ev.kind, ev.points);
-      if (ev.type === 'fieldHit') this.particles.burst(ev.pos.x, ev.pos.y, 0x6fd8ff, 4);
+      if (ev.type === 'enemyKilled') this.shake = Math.max(this.shake, KILL_SHAKE[ev.kind] ?? 0);
+      // Cursor-attack feedback: the pulse arcs a static bolt across to each
+      // victim, so the hit connects visibly instead of reading as "the enemy
+      // near my cursor happened to flash".
+      if (ev.type === 'fieldHit') {
+        this.spawnFieldArc(ev.from, ev.pos);
+        this.particles.burst(ev.pos.x, ev.pos.y, 0x6fd8ff, 9);
+      }
       if (ev.type === 'fieldPulse') this.spawnFieldPulse(ev.pos);
       // Healer pulse: a mint disc flash spanning the heal radius telegraphs
       // both the pulse and its reach.
-      if (ev.type === 'healPulse') this.spawnFieldPulse(ev.pos, ev.radius, ENEMY_COLORS.healer);
+      if (ev.type === 'healPulse') this.spawnFieldPulse(ev.pos, ev.radius, ENEMY_COLORS.healer, 0.25);
       if (ev.type === 'mirvSplit') this.particles.burst(ev.pos.x, ev.pos.y, ENEMY_COLORS.mirv, 10);
       if (ev.type === 'aegisAbsorbed') {
         this.particles.burst(ev.pos.x, ev.pos.y, 0x8bd4ff, 14);
@@ -586,6 +604,30 @@ export class Renderer {
         fx.mesh.scale.x = 4.5 * (0.4 + 0.6 * k); // pillar narrows as it fades
       }
     }
+  }
+
+  /** Static-field zap: a jagged bolt from the aura's centre to the victim,
+   *  tesla-style but in the field's cyan. Rides the shared beam pool. */
+  private spawnFieldArc(from: Vec2, to: Vec2): void {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const len = Math.hypot(dx, dy) || 1;
+    // Perpendicular jitter at the two interior points makes it read as
+    // electricity rather than a straight tether.
+    const points: Vec2[] = [from];
+    for (const t of [0.35, 0.7]) {
+      const off = (Math.random() - 0.5) * Math.min(3, len * 0.3);
+      points.push({ x: from.x + dx * t - (dy / len) * off, y: from.y + dy * t + (dx / len) * off });
+    }
+    points.push(to);
+    const geo = new THREE.BufferGeometry();
+    const arr = new Float32Array(points.length * 3);
+    points.forEach((p, i) => arr.set([p.x, p.y, 2.7], i * 3));
+    geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    const mat = new THREE.LineBasicMaterial({ color: 0x6fd8ff, transparent: true, opacity: 0.9 });
+    const line = new THREE.Line(geo, mat);
+    this.scene.add(line);
+    this.beams.push({ line, ttl: 0.12, maxTtl: 0.12 });
   }
 
   /** Short-lived glowing polyline for laser/railgun/tesla shots. */
@@ -1124,26 +1166,45 @@ export class Renderer {
     });
   }
 
-  /** Pulse feedback: a bright disc flash at the aura that fades fast. Also
-   *  reused by the healer's pulse with its own radius/colour. */
-  private readonly fieldPulses: { mesh: THREE.Mesh; ttl: number; maxTtl: number }[] = [];
+  /** Pulse feedback: a bright disc flash plus a crisp expanding rim at the
+   *  aura's edge. Also reused by the healer's pulse (own radius/colour). */
+  private readonly fieldPulses: {
+    mesh: THREE.Mesh;
+    ttl: number;
+    maxTtl: number;
+    baseOpacity: number;
+    /** Present on the rim ring: scale animates from → to over the ttl. */
+    grow?: { from: number; to: number };
+  }[] = [];
 
-  private spawnFieldPulse(pos: Vec2, radiusOverride?: number, color = 0x6fd8ff): void {
-    const mesh = new THREE.Mesh(
-      this.discGeo,
+  private spawnFieldPulse(pos: Vec2, radiusOverride?: number, color = 0x6fd8ff, discOpacity = 0.45): void {
+    const fxMat = (opacity: number): THREE.MeshBasicMaterial =>
       new THREE.MeshBasicMaterial({
         color,
         transparent: true,
-        opacity: 0.3,
+        opacity,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-      }),
-    );
+      });
     const radius = radiusOverride ?? this.fieldGroup?.scale.x ?? 9;
-    mesh.scale.setScalar(radius);
-    mesh.position.set(pos.x, pos.y, 2.62);
-    this.scene.add(mesh);
-    this.fieldPulses.push({ mesh, ttl: 0.18, maxTtl: 0.18 });
+    const disc = new THREE.Mesh(this.discGeo, fxMat(discOpacity));
+    disc.scale.setScalar(radius);
+    disc.position.set(pos.x, pos.y, 2.62);
+    this.scene.add(disc);
+    this.fieldPulses.push({ mesh: disc, ttl: 0.18, maxTtl: 0.18, baseOpacity: discOpacity });
+    // The rim: a ring snapping outward past the pulse edge. The disc alone
+    // washes out over bright backgrounds; the moving edge always reads.
+    const rim = new THREE.Mesh(this.ringGeo, fxMat(0.9));
+    rim.scale.setScalar(radius * 0.75);
+    rim.position.set(pos.x, pos.y, 2.63);
+    this.scene.add(rim);
+    this.fieldPulses.push({
+      mesh: rim,
+      ttl: 0.25,
+      maxTtl: 0.25,
+      baseOpacity: 0.9,
+      grow: { from: radius * 0.75, to: radius * 1.15 },
+    });
   }
 
   private updateFieldPulses(dt: number): void {
@@ -1155,7 +1216,9 @@ export class Renderer {
         (fx.mesh.material as THREE.Material).dispose();
         this.fieldPulses.splice(i, 1);
       } else {
-        (fx.mesh.material as THREE.MeshBasicMaterial).opacity = 0.3 * (fx.ttl / fx.maxTtl);
+        const t = 1 - fx.ttl / fx.maxTtl;
+        (fx.mesh.material as THREE.MeshBasicMaterial).opacity = fx.baseOpacity * (fx.ttl / fx.maxTtl);
+        if (fx.grow) fx.mesh.scale.setScalar(fx.grow.from + (fx.grow.to - fx.grow.from) * t);
       }
     }
   }

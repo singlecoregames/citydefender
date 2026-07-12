@@ -139,6 +139,12 @@ let last = performance.now();
 let acc = 0;
 const MAX_FRAME = 0.25;
 
+/** Boss-kill hit-stop: the sim freezes for this beat while rendering keeps
+ *  running (particles fly, the camera kicks), so the kill visibly LANDS.
+ *  Boss kills only — a stop on routine kills would stutter the whole night. */
+const BOSS_HITSTOP_SECONDS = 0.18;
+let hitStop = 0;
+
 function frame(now: number): void {
   acc += Math.min((now - last) / 1000, MAX_FRAME);
   last = now;
@@ -149,12 +155,17 @@ function frame(now: number): void {
       // Not simulating: drop queued input so a stale press/aim from the
       // night's last moments can't replay into the next night's first tick.
       pending = [];
+    } else if (hitStop > 0) {
+      // Frozen for the hit-stop beat. Queued input is kept, not dropped —
+      // a shot tapped during the freeze fires on the first live tick.
+      hitStop -= DT;
     } else {
       const events = sim.step(pending);
       pending = [];
       renderer.onEvents(events);
       for (const ev of events) {
         if (ev.type === 'bossKilled') {
+          hitStop = BOSS_HITSTOP_SECONDS;
           run.cores += ev.cores;
           saveRun(store, run);
         }
