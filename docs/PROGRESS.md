@@ -39,6 +39,18 @@
   킬 셰이크(대형 적/보스만 — `KILL_SHAKE` per-kind 맵, enemyKilled 이벤트에
   kind 추가), 필드 펄스 강화(디스크 플래시 0.3→0.45 + 바깥으로 스냅하는 림 링
   + 피격 적마다 오라 중심→적 지그재그 정전기 아크, fieldHit 이벤트에 from 추가)
+- **타격감 2차 — 사운드**: ZzFX 벤더링(`src/audio/zzfx.ts`, 지연 AudioContext
+  + 마스터 게인) + `AudioSystem`(`src/audio/sfx.ts`) — 렌더러와 나란히 같은
+  GameEvent 스트림 소비. 발사/폭발/킬 팝/필드 잽/도시 피격/보스 등장·격파/
+  승패 스팅어 + 빔 3종/어빌리티/실드/mirvSplit/healPulse 등. **킬 팝은 콤보
+  피치 사다리**(스택당 반음, 1옥타브 캡), 틱 단위 킬 배칭(N킬=팝 1개, 볼륨만
+  증가), 키별 스로틀, 음소거 버튼(#hud-mute) + localStorage, 제스처 언락
+- **타격감 2차 — 시각**: 피격 스케일 펀치(플래시 연동 ~14%), 폭발 충격파 링
+  (반경 밖으로 스냅), 캐논 머즐 플래시+포신 반동, 보스 사망 다중 버스트+대형
+  링+스크린 플래시(#fx-flash, 메가밤은 soft), 플로팅 킬 보상 숫자(DOM
+  #float-layer, 콤보 티어 색상, 최대 24개 캡), 콤보 마일스톤(10/25/50) HUD
+  펄스+티어 색+차임, 큰 콤보 브레이크 시 붉은 비네트 틱, 도시 HP≤34% 하트비트
+  비네트(#fx-vignette), 보스 등장 배너(night-banner 재사용, i18n bossWarning)
 - **M5 Tech 브랜치**: 수동 어빌리티 EMP(정지)/Mega Bomb(대폭발)/Time Dilation(둔화),
   쿨다운제, 1/2/3 단축키 + 하단 버튼
 - **트리 확장 1차** (economy/city/tech 보강, StatMod 계열 7노드):
