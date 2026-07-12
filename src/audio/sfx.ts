@@ -24,13 +24,17 @@ const MUTE_KEY = 'citydefender-muted';
 // [volume, randomness, frequency, attack, sustain, release, shape, shapeCurve,
 //  slide, deltaSlide, pitchJump, pitchJumpTime, repeatTime, noise, ...]
 // shapes: 0 sin, 1 triangle, 2 saw, 3 tan(buzz), 4 noise-ish
-const SOUNDS = {
+export const SOUNDS = {
   /** Cannon shot: short sine thump sliding down — a launch, not the impact. */
   fire: [0.4, 0.1, 130, 0.001, 0.03, 0.13, 0, 1.6, -9],
   /** Interceptor/flak blast: noisy boom, the core "I did damage" sound. */
   detonation: [0.5, 0.2, 90, 0.01, 0.05, 0.32, 4, 1.6, , , , , , 1.2],
-  /** Kill pop: bright triangle blip; frequency is scaled by the combo ladder. */
-  kill: [0.35, 0.05, 340, , 0.015, 0.07, 1, 1.5, , , , , , , , , , 0.9, 0.01],
+  /** Kill thock: a fast-falling sine with grit — percussive, not tonal. The
+   *  combo ladder still scales the start frequency, but the steep slide,
+   *  noise and wide randomness keep it reading as rising INTENSITY instead
+   *  of a xylophone scale (playtest: the clean triangle blip was "too
+   *  melodic" under the ladder). */
+  kill: [0.4, 0.15, 240, , 0.012, 0.08, 0, 1.8, -9, , , , , 0.6, , , , 0.85, 0.02],
   /** Static field pulse: buzzy electric zap. */
   fieldPulse: [0.22, 0.15, 850, , 0.015, 0.07, 3, 1.3],
   /** A city segment took the hit: heavy noise boom + descending alarm tail. */
