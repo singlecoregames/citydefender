@@ -55,8 +55,8 @@ interface Strings {
   costCore: string;
   costMax: (level: number) => string;
   costTierLocked: (tier: number) => string;
-  costGateLocked: (level: number) => string;
-  ttGateLocked: (name: string, level: number) => string;
+  jumpCheapest: string;
+  jumpPriciest: string;
   tierUnlocked: (world: number) => string;
   ability: Record<AbilityKind, string>;
   ttTierLocked: (tier: number) => string;
@@ -88,8 +88,8 @@ const EN: Strings = {
   costCore: 'CORE',
   costMax: (l) => `✓ MAX · ${l}`,
   costTierLocked: (tier) => `🔒 WORLD ${tier}`,
-  costGateLocked: (level) => `🔒 Lv ${level}`,
-  ttGateLocked: (name, level) => `🔒 Locked — raise ${name} to level ${level}`,
+  jumpCheapest: '▼ CHEAPEST',
+  jumpPriciest: '▲ PRICIEST',
   tierUnlocked: (world) => `⭐ WORLD ${world} REACHED — a new tier of nodes just unlocked in the tree.`,
   ability: { emp: 'EMP', megabomb: 'BOMB', freefire: 'FREE', surge: 'SURGE' },
   ttTierLocked: (tier) => `🔒 Tier ${tier} — unlocks in world ${tier}`,
@@ -122,8 +122,8 @@ const KO: Strings = {
   costCore: '코어',
   costMax: (l) => `✓ 최대 · ${l}`,
   costTierLocked: (tier) => `🔒 월드 ${tier}`,
-  costGateLocked: (level) => `🔒 Lv ${level}`,
-  ttGateLocked: (name, level) => `🔒 잠김 — ${name}을(를) 레벨 ${level}까지 올리세요`,
+  jumpCheapest: '▼ 최저가',
+  jumpPriciest: '▲ 최고가',
   tierUnlocked: (world) => `⭐ 월드 ${world} 도달 — 트리에 새 티어 노드가 해금되었습니다.`,
   ability: { emp: 'EMP', megabomb: '폭탄', freefire: '연사', surge: '서지' },
   ttTierLocked: (tier) => `🔒 티어 ${tier} — 월드 ${tier}에서 해금`,

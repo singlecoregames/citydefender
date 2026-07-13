@@ -53,12 +53,22 @@
         <div id="title-version">prototype — title pending</div>
       </div>
       <div id="dayscreen" class="hidden">
-        <button id="day-reset">RESET RUN</button>
-        <h1 id="day-title"></h1>
-        <p id="day-subtitle"></p>
-        <div id="day-bank">⬡ 0</div>
-        <div id="day-shop"></div>
-        <button id="day-next">NEXT NIGHT ▸</button>
+        <!-- Compact chrome: result line on top, the tree fills the rest, all
+             actions live on one bottom bar. The bank chip is re-parented
+             INTO #day-shop at build time (top-right overlay). -->
+        <div id="day-top">
+          <h1 id="day-title"></h1>
+          <p id="day-subtitle"></p>
+        </div>
+        <div id="day-shop"><div id="day-bank">⬡ 0</div></div>
+        <div id="day-bottom">
+          <button id="day-reset">RESET RUN</button>
+          <div id="day-jumps">
+            <button id="day-jump-cheap" class="day-jump"></button>
+            <button id="day-jump-rich" class="day-jump"></button>
+          </div>
+          <button id="day-next">NEXT NIGHT ▸</button>
+        </div>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

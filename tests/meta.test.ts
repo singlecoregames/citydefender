@@ -130,12 +130,15 @@ describe('skill tree / stats', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('graduation gates need the prerequisite at its required LEVEL', () => {
+  it('owning a prerequisite at any level unlocks its children (no level gates)', () => {
     const warhead = getNode('warhead')!;
     expect(isUnlocked(warhead, {})).toBe(false);
-    // warhead requires wide_blast at level 2 — level 1 is not enough.
-    expect(isUnlocked(warhead, { wide_blast: 1 })).toBe(false);
-    expect(isUnlocked(warhead, { wide_blast: 2 })).toBe(true);
+    // One level of the prereq is enough — depth is paced by price, not gates.
+    expect(isUnlocked(warhead, { wide_blast: 1 })).toBe(true);
+    // And the whole tree keeps that promise: no requirement asks for level 2+.
+    for (const node of TREE) {
+      for (const req of node.requires) expect(reqLevel(req)).toBe(1);
+    }
   });
 
   it('root nodes (no prerequisites) are always unlocked', () => {
@@ -254,14 +257,14 @@ describe('tree structure invariants (the Nodebuster/Shelldiver rules)', () => {
     }
   });
 
-  it('the open frontier stays small under greedy play', () => {
+  it('the open frontier stays bounded under greedy play', () => {
     // Greedy cheapest-first through the world-1 tree: at every step, the
-    // nodes a player actually weighs (unlocked, scrap-priced, within 3× of
-    // the cheapest option) must stay a handful — the whole point of the
-    // graduation gates and serial side-chains. UNSEEN nodes are the real
-    // reading burden, so they get the tighter cap; next levels of nodes the
-    // player already owns are cheap re-buys and get a looser one. (The old
-    // 5-way fan peaked at 24 simultaneous choices.)
+    // nodes a player actually weighs (unlocked, scrap-priced, in the same
+    // price class as the cheapest option) must stay bounded. Graduation
+    // gates used to squeeze this to ~5, but they were dropped (playtest:
+    // level-gates read as arbitrary) — pacing now rides on the depth price
+    // bands alone, which buys the looser cap below. The guard's real job is
+    // preventing a regression toward the old 5-way fan's 24-choice buffet.
     const levels: TreeLevels = { core: 1 };
     const weighedCounts: number[] = [];
     for (let step = 0; step < 90; step++) {
@@ -277,7 +280,7 @@ describe('tree structure invariants (the Nodebuster/Shelldiver rules)', () => {
       expect(
         fresh.length,
         `step ${step}: ${fresh.map((x) => x.n.id).join(',')}`,
-      ).toBeLessThanOrEqual(5);
+      ).toBeLessThanOrEqual(12);
       weighedCounts.push(weighed.length);
       // A player takes new content when it is in reach, else levels the
       // cheapest owned node — pure cheapest-first would hoard fresh nodes

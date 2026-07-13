@@ -3,10 +3,12 @@ import type { BuildingKind, TurretKind } from './types';
 
 export type TreeBranch = 'core' | 'cannon' | 'economy' | 'city' | 'automation' | 'tech';
 
-/** A prerequisite: either "node has at least 1 level" (plain id) or a
- *  GRADUATION GATE — "node has at least `level` levels" (Nodebuster-style:
- *  you finish a rung before the next one opens, which keeps the number of
- *  simultaneously open choices small). */
+/** A prerequisite: "node has at least 1 level" (plain id). The `{id, level}`
+ *  form (a graduation gate: prereq at level n) still parses for
+ *  compatibility, but the tree no longer uses it — playtest: "buy X to
+ *  level 2 to open Y" read as arbitrary, doubly so next to world locks.
+ *  Owning a node opens its children; the DEPTH-STEPPED PRICES are what
+ *  discourage rushing (see the band rule below). */
 export type NodeRequirement = string | { id: string; level: number };
 
 export function reqId(r: NodeRequirement): string {
@@ -69,8 +71,9 @@ export type TreeLevels = Record<string, number>;
  *   LEFT  OPS        — the boss-token abilities (never compete for scrap)
  *
  * Three rules keep the shop readable:
- *  1. Graduation gates: most next-ring nodes need the previous node at
- *     level 2-3, not just owned — you finish a rung before more opens.
+ *  1. Owning a node reveals and opens its children — no level gates. The
+ *     price bands (rule 3) are what pace depth: the next ring is always
+ *     ≥1.5× pricier, so rushing deep is possible but never optimal.
  *  2. Same-effect repeats sit IN SERIES along a ladder (a deeper, pricier
  *     copy), never side by side.
  *  3. Price bands step hard with graph depth (min of ring d ≥ 1.5 × max of
@@ -120,7 +123,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 280,
     costGrowth: 1.5,
-    requires: [{ id: 'static_charge', level: 2 }],
+    requires: ['static_charge'],
     effects: [{ stat: 'fieldRadius', op: 'mul', value: 0.1 }],
   },
   {
@@ -133,7 +136,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 520,
     costGrowth: 1.5,
-    requires: [{ id: 'wide_field', level: 2 }],
+    requires: ['wide_field'],
     effects: [{ stat: 'fieldPulseSeconds', op: 'mul', value: -0.07 }],
   },
   {
@@ -146,7 +149,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 1550,
     costGrowth: 1.6,
-    requires: [{ id: 'pulse_cycle', level: 2 }],
+    requires: ['pulse_cycle'],
     effects: [
       { stat: 'fieldRadius', op: 'mul', value: 0.12 },
       { stat: 'fieldPulseSeconds', op: 'mul', value: -0.06 },
@@ -178,7 +181,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 250,
     costGrowth: 1.45,
-    requires: [{ id: 'static_charge', level: 3 }],
+    requires: ['static_charge'],
     effects: [{ stat: 'explosionMaxRadius', op: 'mul', value: 0.08 }],
   },
   {
@@ -191,7 +194,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 490,
     costGrowth: 1.6,
-    requires: [{ id: 'blast_radius', level: 2 }],
+    requires: ['blast_radius'],
     effects: [{ stat: 'maxAmmo', op: 'add', value: 1 }],
   },
   {
@@ -217,7 +220,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 1440,
     costGrowth: 1.55,
-    requires: [{ id: 'drum_magazine', level: 2 }],
+    requires: ['drum_magazine'],
     effects: [{ stat: 'explosionMaxRadius', op: 'mul', value: 0.14 }],
   },
   {
@@ -230,7 +233,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 3150,
     costGrowth: 1.5,
-    requires: [{ id: 'autoloader', level: 2 }],
+    requires: ['autoloader'],
     effects: [{ stat: 'interceptorSpeed', op: 'mul', value: 0.1 }],
   },
   {
@@ -243,7 +246,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 3500,
     costGrowth: 2.0,
-    requires: [{ id: 'wide_blast', level: 2 }],
+    requires: ['wide_blast'],
     effects: [{ stat: 'explosionDamage', op: 'add', value: 1 }],
   },
   {
@@ -269,7 +272,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 8750,
     costGrowth: 1.7,
-    requires: [{ id: 'warhead', level: 2 }],
+    requires: ['warhead'],
     effects: [{ stat: 'overchargeRate', op: 'add', value: 0.04 }],
   },
   {
@@ -337,7 +340,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 3850,
     costGrowth: 1.8,
-    requires: [{ id: 'laser_focus', level: 2 }],
+    requires: ['laser_focus'],
     effects: [{ stat: 'laserRangeMul', op: 'mul', value: 0.15 }],
   },
   {
@@ -380,7 +383,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 300,
     costGrowth: 1.75,
-    requires: [{ id: 'turret_gatling', level: 2 }],
+    requires: ['turret_gatling'],
     effects: [{ stat: 'turretDamageMul', op: 'mul', value: 0.15 }],
   },
   {
@@ -393,7 +396,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 500,
     costGrowth: 1.75,
-    requires: [{ id: 'turret_power', level: 3 }],
+    requires: ['turret_power'],
     effects: [{ stat: 'turretFireRateMul', op: 'mul', value: 0.12 }],
   },
   {
@@ -406,7 +409,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 1500,
     costGrowth: 1.75,
-    requires: [{ id: 'turret_speed', level: 3 }],
+    requires: ['turret_speed'],
     effects: [{ stat: 'turretDamageMul', op: 'mul', value: 0.4 }],
   },
   {
@@ -419,7 +422,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 4550,
     costGrowth: 1.75,
-    requires: [{ id: 'overcharge_matrix', level: 2 }],
+    requires: ['overcharge_matrix'],
     effects: [{ stat: 'turretDamageMul', op: 'mul', value: 0.15 }],
   },
   {
@@ -432,7 +435,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 9800,
     costGrowth: 1.75,
-    requires: [{ id: 'turret_power2', level: 2 }],
+    requires: ['turret_power2'],
     effects: [{ stat: 'turretFireRateMul', op: 'mul', value: 0.12 }],
   },
   {
@@ -464,7 +467,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 260,
     costGrowth: 1.8,
-    requires: [{ id: 'turret_gatling', level: 3 }],
+    requires: ['turret_gatling'],
     effects: [{ stat: 'gatlingFireRateMul', op: 'mul', value: 0.18 }],
   },
   {
@@ -477,7 +480,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 490,
     costGrowth: 1.8,
-    requires: [{ id: 'gatling_spin', level: 3 }],
+    requires: ['gatling_spin'],
     effects: [{ stat: 'gatlingDamageMul', op: 'mul', value: 0.25 }],
   },
   {
@@ -491,7 +494,7 @@ export const TREE: readonly TreeNode[] = [
     baseCost: 4500000,
     costGrowth: 1,
     tier: 3,
-    requires: [{ id: 'gatling_belt', level: 3 }],
+    requires: ['gatling_belt'],
     effects: [],
   },
   {
@@ -546,7 +549,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 3500,
     costGrowth: 2.0,
-    requires: [{ id: 'turret_missile', level: 2 }],
+    requires: ['turret_missile'],
     effects: [{ stat: 'missileSalvoBonus', op: 'add', value: 1 }],
   },
   {
@@ -600,7 +603,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 1,
     baseCost: 3500,
     costGrowth: 1,
-    requires: [{ id: 'bld_radar', level: 2 }],
+    requires: ['bld_radar'],
     effects: [{ stat: 'dopplerTracking', op: 'add', value: 1 }],
   },
   {
@@ -653,7 +656,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 1370,
     costGrowth: 1.8,
-    requires: [{ id: 'turret_flak', level: 2 }],
+    requires: ['turret_flak'],
     effects: [{ stat: 'flakRadiusMul', op: 'mul', value: 0.15 }],
   },
   {
@@ -666,7 +669,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 3350,
     costGrowth: 1.8,
-    requires: [{ id: 'flak_payload', level: 2 }],
+    requires: ['flak_payload'],
     effects: [{ stat: 'flakFireRateMul', op: 'mul', value: 0.2 }],
   },
   {
@@ -694,22 +697,8 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 490,
     costGrowth: 1.6,
-    requires: [{ id: 'turret_power', level: 2 }],
+    requires: ['turret_power'],
     effects: [{ stat: 'turretRangeMul', op: 'mul', value: 0.12 }],
-  },
-  {
-    id: 'ability_megabomb',
-    name: 'Mega Bomb',
-    description: 'Manual: one huge explosion across the field. Levels add radius / damage / cut cooldown',
-    branch: 'tech',
-    col: 2,
-    row: 3,
-    maxLevel: 5,
-    baseCost: 1330,
-    costGrowth: 1.7,
-    unlockCores: 1,
-    requires: ['turret_flak'],
-    effects: [],
   },
   {
     id: 'turret_railgun',
@@ -722,7 +711,7 @@ export const TREE: readonly TreeNode[] = [
     baseCost: 3850,
     costGrowth: 1.9,
     unlockCores: 1,
-    requires: [{ id: 'turret_range', level: 3 }],
+    requires: ['turret_range'],
     effects: [],
   },
   {
@@ -735,7 +724,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 4200,
     costGrowth: 1.9,
-    requires: [{ id: 'turret_railgun', level: 2 }],
+    requires: ['turret_railgun'],
     effects: [{ stat: 'railgunPierceBonus', op: 'add', value: 2 }],
   },
   {
@@ -777,7 +766,7 @@ export const TREE: readonly TreeNode[] = [
     baseCost: 1400,
     costGrowth: 1.9,
     unlockCores: 1,
-    requires: [{ id: 'turret_flak', level: 2 }],
+    requires: ['turret_flak'],
     effects: [],
   },
   {
@@ -790,7 +779,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 3500,
     costGrowth: 1.85,
-    requires: [{ id: 'turret_tesla', level: 2 }],
+    requires: ['turret_tesla'],
     effects: [{ stat: 'teslaChainBonus', op: 'add', value: 1 }],
   },
   {
@@ -817,7 +806,7 @@ export const TREE: readonly TreeNode[] = [
     baseCost: 7200000,
     costGrowth: 1,
     tier: 3,
-    requires: [{ id: 'tesla_voltage', level: 2 }],
+    requires: ['tesla_voltage'],
     effects: [],
   },
 
@@ -846,7 +835,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 300,
     costGrowth: 1.5,
-    requires: [{ id: 'salvage', level: 4 }],
+    requires: ['salvage'],
     effects: [{ stat: 'nightBonusMul', op: 'mul', value: 0.2 }],
   },
   {
@@ -859,7 +848,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 5,
     baseCost: 490,
     costGrowth: 1.7,
-    requires: [{ id: 'war_bonds', level: 2 }],
+    requires: ['war_bonds'],
     effects: [{ stat: 'scrapMul', op: 'mul', value: 0.06 }],
   },
   {
@@ -872,7 +861,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 1440,
     costGrowth: 1.7,
-    requires: [{ id: 'refinery', level: 3 }],
+    requires: ['refinery'],
     effects: [{ stat: 'nightBonusMul', op: 'mul', value: 0.3 }],
   },
   {
@@ -885,7 +874,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 3850,
     costGrowth: 1.7,
-    requires: [{ id: 'reserves', level: 2 }],
+    requires: ['reserves'],
     effects: [{ stat: 'scrapMul', op: 'mul', value: 0.15 }],
   },
   {
@@ -933,7 +922,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 250,
     costGrowth: 1.5,
-    requires: [{ id: 'salvage', level: 2 }],
+    requires: ['salvage'],
     effects: [{ stat: 'multiKillScrap', op: 'add', value: 2 }],
   },
   {
@@ -999,7 +988,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 7350,
     costGrowth: 1.7,
-    requires: [{ id: 'bld_jammer', level: 2 }],
+    requires: ['bld_jammer'],
     effects: [{ stat: 'jammerRadiusMul', op: 'mul', value: 0.2 }],
   },
   {
@@ -1041,7 +1030,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 630,
     costGrowth: 1.9,
-    requires: [{ id: 'reinforced', level: 2 }],
+    requires: ['reinforced'],
     effects: [],
   },
   {
@@ -1080,7 +1069,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 3350,
     costGrowth: 1.9,
-    requires: [{ id: 'compact', level: 2 }],
+    requires: ['compact'],
     effects: [{ stat: 'cityMaxHp', op: 'add', value: 1 }],
   },
   {
@@ -1106,7 +1095,7 @@ export const TREE: readonly TreeNode[] = [
     maxLevel: 3,
     baseCost: 9100,
     costGrowth: 1.7,
-    requires: [{ id: 'bunker', level: 2 }],
+    requires: ['bunker'],
     effects: [{ stat: 'cityCount', op: 'add', value: 1 }],
   },
   {
@@ -1152,19 +1141,36 @@ export const TREE: readonly TreeNode[] = [
   },
 
   // ═══ LEFT · OPS — the boss-token abilities. Their unlocks cost ◆, so this
-  //     stub never competes with the scrap frontier. ═══════════════════════
+  //     stub never competes with the scrap frontier. MEGA BOMB leads the
+  //     chain: the FIRST boss token can buy an attack ability directly
+  //     (playtest: with it gated behind turret_flak deep in the workshop, a
+  //     N27 run had opened no attack ability at all). ═══════════════════════
+  {
+    id: 'ability_megabomb',
+    name: 'Mega Bomb',
+    description: 'Manual: one huge explosion across the field. Levels add radius / damage / cut cooldown',
+    branch: 'tech',
+    col: -1,
+    row: 0,
+    maxLevel: 5,
+    baseCost: 1330,
+    costGrowth: 1.7,
+    unlockCores: 1,
+    requires: ['core'],
+    effects: [],
+  },
   {
     id: 'ability_emp',
     name: 'EMP',
     description: 'Manual: freeze every enemy on screen briefly. Levels cut cooldown / extend freeze',
     branch: 'tech',
-    col: -1,
+    col: -2,
     row: 0,
     maxLevel: 5,
     baseCost: 300,
     costGrowth: 1.7,
     unlockCores: 1,
-    requires: ['core'],
+    requires: ['ability_megabomb'],
     effects: [],
   },
   {
@@ -1172,7 +1178,7 @@ export const TREE: readonly TreeNode[] = [
     name: 'Free Fire',
     description: 'Manual: a salvo of free shots — no drain, no reload. Levels add shots / cut cooldown',
     branch: 'tech',
-    col: -2,
+    col: -3,
     row: 0,
     maxLevel: 5,
     baseCost: 560,
@@ -1182,14 +1188,16 @@ export const TREE: readonly TreeNode[] = [
     effects: [],
   },
   {
+    // Deeper by one ring than before (megabomb now heads the chain), so the
+    // scrap prices below sit in the d4/d5 bands the depth test enforces.
     id: 'flux_capacitor',
     name: 'Flux Capacitor',
     description: '-8% all ability cooldowns',
     branch: 'tech',
-    col: -3,
+    col: -4,
     row: 0,
     maxLevel: 5,
-    baseCost: 490,
+    baseCost: 1400,
     costGrowth: 1.6,
     requires: ['ability_freefire'],
     effects: [{ stat: 'abilityCooldownMul', op: 'mul', value: -0.08 }],
@@ -1199,12 +1207,12 @@ export const TREE: readonly TreeNode[] = [
     name: 'Singularity Core',
     description: '-15% all ability cooldowns',
     branch: 'tech',
-    col: -4,
+    col: -5,
     row: 0,
     maxLevel: 3,
-    baseCost: 1500,
+    baseCost: 3200,
     costGrowth: 1.7,
-    requires: [{ id: 'flux_capacitor', level: 3 }],
+    requires: ['flux_capacitor'],
     effects: [{ stat: 'abilityCooldownMul', op: 'mul', value: -0.15 }],
   },
 ];

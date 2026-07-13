@@ -66,6 +66,8 @@ function applyStaticText(): void {
   document.getElementById('title-version')!.textContent = t().versionNote;
   document.getElementById('day-next')!.textContent = t().nextNight;
   document.getElementById('day-reset')!.textContent = t().resetRun;
+  document.getElementById('day-jump-cheap')!.textContent = t().jumpCheapest;
+  document.getElementById('day-jump-rich')!.textContent = t().jumpPriciest;
 }
 applyStaticText();
 
