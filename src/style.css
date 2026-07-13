@@ -431,12 +431,19 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  gap: 10px;
-  padding: 4vh 16px;
+  gap: 8px;
+  /* Chrome is deliberately thin: the tree viewport is the screen. */
+  padding: calc(8px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right))
+    calc(8px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
   background: rgba(24, 24, 24, 0.92);
   color: #dadada;
   text-align: center;
-  overflow-y: auto;
+  overflow: hidden;
+}
+
+#day-top {
+  flex: 0 0 auto;
+  line-height: 1.25;
 }
 
 #dayscreen.hidden {
@@ -444,8 +451,8 @@ body {
 }
 
 #day-title {
-  font-size: 34px;
-  letter-spacing: 5px;
+  font-size: clamp(18px, 3.2vh, 30px);
+  letter-spacing: 4px;
   text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
 }
 
@@ -458,21 +465,35 @@ body {
 }
 
 #day-subtitle {
-  font-size: 15px;
+  font-size: clamp(11px, 1.7vh, 14px);
   color: #9c9c9c;
 }
 
+#day-subtitle.hidden {
+  display: none;
+}
+
+/* Bank chip: overlaid on the tree viewport's top-right corner. */
 #day-bank {
-  font-size: 15px;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 4;
+  padding: 6px 12px;
+  font-size: clamp(13px, 2vh, 17px);
   color: #facf00;
   text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
-  margin-bottom: 2px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid #404040;
+  border-radius: 6px;
+  pointer-events: none;
 }
 
 #day-shop {
   position: relative;
-  width: min(1200px, 96vw);
-  height: 64vh;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid #404040;
   border-radius: 8px;
@@ -649,11 +670,41 @@ body {
   border-color: #8bbf40;
 }
 
-/* Run reset: small and muted in the corner; arming turns it loud red. */
+/* Bottom action bar: reset | frontier jumps | next night. */
+#day-bottom {
+  flex: 0 0 auto;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+#day-jumps {
+  display: flex;
+  gap: 8px;
+}
+
+.day-jump {
+  padding: 8px 14px;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #facf00;
+  background: transparent;
+  border: 1px solid #7d6a00;
+  border-radius: 4px;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.day-jump:hover {
+  border-color: #facf00;
+  background: rgba(250, 207, 0, 0.1);
+}
+
+/* Run reset: small and muted; arming turns it loud red. */
 #day-reset {
-  position: absolute;
-  top: calc(10px + env(safe-area-inset-top));
-  right: calc(12px + env(safe-area-inset-right));
   padding: 8px 12px;
   font-family: inherit;
   font-size: 11px;
@@ -678,7 +729,6 @@ body {
 }
 
 #day-next {
-  margin-top: 6px;
   padding: 8px 22px;
   font-family: inherit;
   font-size: 13px;

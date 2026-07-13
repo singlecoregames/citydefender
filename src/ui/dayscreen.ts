@@ -2,14 +2,11 @@ import { worldOf } from '../core/balance';
 import type { RunState } from '../core/run';
 import {
   BUILDING_NODES,
-  getNode,
   isRevealed,
   isUnlocked,
-  missingRequirement,
   nodeTier,
   nextPrice,
   reqId,
-  reqLevel,
   TREE,
   TURRET_NODES,
   TURRET_TWIN_NODES,
@@ -119,6 +116,43 @@ export class DayScreen {
       this.onNext(this.run);
     });
     this.wireResetButton(onReset);
+    // Frontier shortcuts: pan straight to the cheapest / priciest node the
+    // bank can afford right now (and open its tooltip — one more tap buys).
+    document
+      .getElementById('day-jump-cheap')!
+      .addEventListener('click', () => this.jumpToAffordable('min'));
+    document
+      .getElementById('day-jump-rich')!
+      .addEventListener('click', () => this.jumpToAffordable('max'));
+  }
+
+  /** Pan/centre on the cheapest or priciest node that is unlocked, unmaxed
+   *  and affordable right now. Scrap prices are compared among themselves;
+   *  ◆-priced unlocks only stand in when no scrap buy is possible (the two
+   *  currencies have no meaningful exchange rate to rank across). */
+  private jumpToAffordable(extreme: 'min' | 'max'): void {
+    const run = this.run;
+    if (!run) return;
+    const candidates = TREE.filter((n) => n.branch !== 'core')
+      .map((n) => ({ n, p: nextPrice(n, run.upgrades[n.id] ?? 0) }))
+      .filter(
+        (x) =>
+          x.p !== null &&
+          isUnlocked(x.n, run.upgrades, worldOf(run.night)) &&
+          bankOf(run, x.p.currency) >= x.p.amount,
+      );
+    const pool = candidates.some((x) => x.p!.currency === 'scrap')
+      ? candidates.filter((x) => x.p!.currency === 'scrap')
+      : candidates;
+    if (pool.length === 0) return;
+    const best = pool.reduce((a, b) =>
+      (extreme === 'min' ? b.p!.amount < a.p!.amount : b.p!.amount > a.p!.amount) ? b : a,
+    );
+    const p = this.nodePx(best.n);
+    this.tx = this.shopEl.clientWidth / 2 - p.x * this.scale;
+    this.ty = this.shopEl.clientHeight / 2 - p.y * this.scale;
+    this.applyTransform();
+    this.select(best.n);
   }
 
   /** Two-tap reset: the first tap arms the button (auto-disarms after 3s),
@@ -150,13 +184,13 @@ export class DayScreen {
     this.titleEl.textContent =
       outcome === 'victory' ? t().nightSurvived(clearedNight) : t().citiesLost;
     this.titleEl.className = outcome;
-    let subtitle = outcome === 'victory' ? t().daySubtitleVictory : t().daySubtitleDefeat;
-    // Crossing into a new world unlocks its tier — say so, loudly: the new
-    // nodes sit at the tree's edges where a silent unlock goes unnoticed.
-    if (outcome === 'victory' && worldOf(run.night) > worldOf(clearedNight)) {
-      subtitle = t().tierUnlocked(worldOf(run.night));
-    }
-    this.subtitleEl.textContent = subtitle;
+    // The top strip carries the RESULT only — no flavour line. The one
+    // exception: crossing into a new world unlocks its tier, and that must
+    // be said loudly (the new nodes sit at the tree's edges where a silent
+    // unlock goes unnoticed).
+    const tierNews = outcome === 'victory' && worldOf(run.night) > worldOf(clearedNight);
+    this.subtitleEl.textContent = tierNews ? t().tierUnlocked(worldOf(run.night)) : '';
+    this.subtitleEl.classList.toggle('hidden', !tierNews);
     // Unhide first so the container has a measurable size for centring.
     this.root.classList.remove('hidden');
     if (!this.built) this.buildTree();
@@ -255,6 +289,9 @@ export class DayScreen {
 
     this.addZoomButtons();
     this.enablePanZoom();
+    // The bank rides INSIDE the tree viewport as a top-right overlay chip
+    // (replaceChildren above detached it from its HTML slot).
+    this.shopEl.appendChild(this.bankEl);
 
     // Centre the core in the viewport.
     this.tx = this.shopEl.clientWidth / 2;
@@ -448,14 +485,7 @@ export class DayScreen {
     } else if (cost === null) {
       status = `<span class="tt-max">${t().ttMaxed(level, node.maxLevel)}</span>`;
     } else if (!isUnlocked(node, run.upgrades)) {
-      // Name the graduation gate so the player knows exactly what to level.
-      const missing = missingRequirement(node, run.upgrades);
-      const gate = missing ? getNode(reqId(missing)) : undefined;
-      status = `<span class="tt-locked">${
-        missing && gate
-          ? t().ttGateLocked(nodeName(gate), reqLevel(missing))
-          : t().ttLocked
-      }</span>`;
+      status = `<span class="tt-locked">${t().ttLocked}</span>`;
     } else if (nodeTier(node) > worldOf(run.night)) {
       status = `<span class="tt-locked">${t().ttTierLocked(nodeTier(node))}</span>`;
     } else if (bank >= cost) {
@@ -501,14 +531,12 @@ export class DayScreen {
     for (const node of TREE) {
       const els = this.nodeEls.get(node.id)!;
       const level = run.upgrades[node.id] ?? 0;
-      // Three gates, shown differently: nodes with an UNSTARTED prereq stay
-      // entirely hidden (fog — the tree unfolds one step ahead of ownership);
-      // a revealed node behind a graduation gate ("prereq at level n") is a
-      // locked silhouette naming its gate; and a prereq-met node in a
-      // not-yet-reached TIER is teased the same way — playtest finding:
-      // fully hiding tiers made the world-2 unlock invisible.
+      // Two states beyond "buyable": nodes with an unowned prereq stay
+      // entirely hidden (fog — the tree unfolds one step ahead of
+      // ownership), and a prereq-met node in a not-yet-reached TIER is a
+      // locked silhouette — playtest finding: fully hiding tiers made the
+      // world-2 unlock invisible.
       const revealed = node.branch === 'core' || isRevealed(node, run.upgrades);
-      const prereqMet = isUnlocked(node, run.upgrades);
       const tierOpen = nodeTier(node) <= worldOf(run.night);
       const price = nextPrice(node, level);
       const color = BRANCH_COLOR[node.branch];
@@ -537,12 +565,6 @@ export class DayScreen {
       if (node.branch === 'core') {
         stroke = color;
         costText = t().costCore;
-      } else if (!prereqMet) {
-        // Graduation gate: revealed but locked until the prereq levels up.
-        const missing = missingRequirement(node, run.upgrades);
-        stroke = '#333333';
-        opacity = '0.45';
-        costText = t().costGateLocked(reqLevel(missing ?? node.requires[0]!));
       } else if (!tierOpen) {
         // Teased: visible so the player knows what the next world opens,
         // but unmistakably locked until its world is reached.
@@ -577,8 +599,12 @@ export class DayScreen {
     }
 
     for (const { line, to } of this.lineEls) {
-      // A line only exists once its destination node is revealed.
-      if (!isRevealed(to, run.upgrades)) {
+      // A line only exists once its destination is actually IN PLAY: fogged
+      // nodes and locked next-world silhouettes get no line — half-visible
+      // edges read as connections to nothing (playtest feedback).
+      const inPlay =
+        isRevealed(to, run.upgrades) && nodeTier(to) <= worldOf(run.night);
+      if (!inPlay) {
         line.setAttribute('display', 'none');
         continue;
       }

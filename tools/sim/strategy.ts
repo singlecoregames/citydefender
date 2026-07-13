@@ -218,15 +218,32 @@ function shopSmart(run: RunState): string[] {
   const bought: string[] = [];
   // Boss tokens first: they never compete with scrap plans.
   spendCores(run, bought);
-  // Chase the build order, stopping (= saving) at the first unaffordable goal.
   for (;;) {
     const goal = nextGoal(run);
-    if (!goal || bank(run, goal.price.currency) < goal.price.amount) break;
-    buy(run, goal, bought);
+    // Build order finished: fall back to greedy spending.
+    if (goal === null) {
+      greedySpend(run, bought);
+      return bought;
+    }
+    if (bank(run, goal.price.currency) >= goal.price.amount) {
+      buy(run, goal, bought);
+      continue;
+    }
+    // Saving toward the milestone — but loose change still flows. The old
+    // level-gates made the unlock walk buy cheap prereq LEVELS on the way
+    // to each goal; when the gates went, that power stream silently went
+    // with them and world-1 runs starved (sim: 8-fail stall on N19 with
+    // thousands banked). Anything costing ≤25% of the goal barely delays
+    // it and keeps the build growing — which is how a person saves.
+    const change = affordable(run).filter(
+      (c) =>
+        c.price.currency === 'scrap' &&
+        c.node.id !== SINK_ID &&
+        c.price.amount <= goal.price.amount * 0.25,
+    );
+    if (change.length === 0) return bought;
+    buy(run, cheapest(change), bought);
   }
-  // Once the build order is finished, fall back to greedy spending.
-  if (nextGoal(run) === null) greedySpend(run, bought);
-  return bought;
 }
 
 /** Spend until nothing is affordable. Returns the node ids bought, in order
