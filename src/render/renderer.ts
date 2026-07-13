@@ -527,6 +527,11 @@ export class Renderer {
   onEvents(events: readonly GameEvent[]): void {
     for (const ev of events) {
       if (ev.type === 'cityHit') this.shake = Math.max(this.shake, 1.6);
+      // A leak through the broken line hurts the HQ — nearly a city hit.
+      if (ev.type === 'hqHit') {
+        this.shake = Math.max(this.shake, 1.3);
+        this.particles.burst(ev.pos.x, ev.pos.y, 0xe91d39, 8);
+      }
       if (ev.type === 'groundImpact') this.shake = Math.max(this.shake, 0.5);
       if (ev.type === 'beam') this.spawnBeam(ev.kind, ev.points);
       if (ev.type === 'fired') this.cannonFired();

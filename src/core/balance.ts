@@ -59,18 +59,51 @@ export const FIELD = {
   /** Aura radius (enemy half-extents are added on top, like every hit test).
    *  Maxed tree (Wide Field ×5, Field Coils ×3) reaches ≈ 12.4. */
   radius: 5.5,
-  /** Base damage per pulse (see also the static_charge / static_link nodes). */
-  damage: 1,
+  /** Base damage per pulse (see also the static_charge / static_link nodes).
+   *  Retuned with pulseSeconds below: 1 dmg @ 2.0s felt sluggish (playtest),
+   *  so the cadence rose ×1.67 and per-pulse damage fell to keep base DPS.
+   *  The Static Link component needs no retune — its formula pays
+   *  rate × turretDps × pulseSeconds, DPS-neutral under any cadence. */
+  damage: 0.6,
   /** Seconds between pulses. A ready field with nothing in range HOLDS its
    *  charge — the first enemy to wander in is zapped immediately. Maxed
-   *  tree (Pulse Cycle ×5, Field Coils ×3) reaches ≈ 1.15s. */
-  pulseSeconds: 2.0,
+   *  tree (Pulse Cycle ×5, Field Coils ×3) reaches ≈ 0.69s. */
+  pulseSeconds: 1.2,
   /** Zapped enemies move at this speed factor while the static lingers... */
   slowFactor: 0.6,
-  /** ...for this long after the pulse. Bosses are immune to the slow
-   *  (their descent IS the fight timer) but still take the damage. */
-  slowSeconds: 0.8,
+  /** ...for this long after the pulse. Trimmed 0.8 → 0.6 alongside the
+   *  faster cadence: at 0.8 the maxed tree (≈0.69s pulses) would hit
+   *  permanent slow. Uptime still rises (40% → 50% at base) — intended,
+   *  the slow is half the reason the faster field feels responsive. Bosses
+   *  are immune to the slow (their descent IS the fight timer) but still
+   *  take the damage. */
+  slowSeconds: 0.6,
 } as const;
+
+/** HQ integrity: the command post's global hp pool BEHIND the ground
+ *  segments. An impact on a DEAD segment is no longer free — it leaks
+ *  through the broken line and drains the HQ; the night is lost when the
+ *  HQ falls, not when the last segment does. This is what makes
+ *  "sacrifice every segment but one" a losing plan instead of the optimal
+ *  one (playtest): with 3 segments standing the HQ never takes a point. */
+export const HQ = {
+  baseHp: 24,
+  /** HQ damage per dead-ground impact AT FULL BREACH. The actual leak
+   *  scales with how much of the line is down: leakDamage × dead/(total−1).
+   *  One broken segment of three leaks at half strength — sustained
+   *  pressure; everything-but-one broken leaks at full — a countdown. This
+   *  split is what lets the pool punish the sacrifice strategy without
+   *  executing normal battle damage (sim: flat leaks ended boss nights at
+   *  ~50s with two segments standing, and no pool size fixed both at once). */
+  leakDamage: 1,
+  /** HQ self-repair per second (capped at max). */
+  regenPerSec: 0.2,
+} as const;
+
+/** HQ damage for one dead-ground impact, given the line's current state. */
+export function hqLeakDamage(deadSegments: number, totalSegments: number): number {
+  return HQ.leakDamage * (deadSegments / Math.max(1, totalSegments - 1));
+}
 
 /** Idle seconds before auto-fire arms at the given node level (0 = locked). */
 export function autoFireThresholdFor(level: number): number {
@@ -398,7 +431,19 @@ export const BOSS = {
    *  Playtest feedback drove the simplification: three currencies with
    *  formula-based trickles were unreadable. */
   coresPerKill: 1,
+  /** Boss-hp pity: each consecutive defeat on a boss night shaves the
+   *  boss's hp, capped. Volume/scrap pity never touched the boss itself,
+   *  and on gate nights the boss IS the wall — sim + playtest both showed
+   *  N30 retries not converging (7-8 straight at full 10000 hp while N29
+   *  cleared first try). First-try difficulty is untouched. */
+  hpPityPerFail: 0.07,
+  hpPityCap: 0.3,
 } as const;
+
+/** Boss hp multiplier after `failStreak` consecutive defeats on this night. */
+export function bossHpPityFactor(failStreak: number): number {
+  return 1 - Math.min(BOSS.hpPityCap, BOSS.hpPityPerFail * failStreak);
+}
 
 export const ECONOMY = {
   /** Multiplier applied to all scrap when a night ends in defeat. */

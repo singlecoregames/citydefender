@@ -180,7 +180,7 @@ describe('skill tree / stats', () => {
   });
 
   it('field / hold-fire nodes resolve their stats', () => {
-    expect(resolveStats({ static_charge: 2 }).fieldDamage).toBeCloseTo(FIELD.damage + 1, 5);
+    expect(resolveStats({ static_charge: 2 }).fieldDamage).toBeCloseTo(FIELD.damage + 0.6, 5);
     expect(resolveStats({ wide_field: 5 }).fieldRadius).toBeCloseTo(FIELD.radius * 1.1 ** 5, 5);
     expect(resolveStats({ pulse_cycle: 5 }).fieldPulseSeconds).toBeCloseTo(
       FIELD.pulseSeconds * 0.93 ** 5,

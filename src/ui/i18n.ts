@@ -139,7 +139,7 @@ const TREE_KO: Record<string, { name: string; description: string }> = {
   blast_radius: { name: '폭발 반경', description: '폭발 반경 +8%' },
   autoloader: { name: '자동 장전기', description: '재장전 시간 -7%' },
   turret_laser: { name: '레이저', description: '레이저 터렛 배치: 짧은 사거리, 빗나가지 않음 (레벨 = 피해 증가)' },
-  static_charge: { name: '정전기 충전', description: '필드 펄스 피해 +0.5' },
+  static_charge: { name: '정전기 충전', description: '필드 펄스 피해 +0.3' },
   wide_field: { name: '광역 필드', description: '필드 반경 +10%' },
   pulse_cycle: { name: '펄스 사이클', description: '펄스 쿨다운 -7%' },
   static_link: { name: '정전 링크', description: '필드 펄스에 전체 터렛 DPS의 +4%가 피해로 추가' },

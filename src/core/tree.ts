@@ -103,7 +103,7 @@ export const TREE: readonly TreeNode[] = [
   {
     id: 'static_charge',
     name: 'Static Charge',
-    description: '+0.5 field pulse damage',
+    description: '+0.3 field pulse damage',
     branch: 'cannon',
     col: 0,
     row: -1,
@@ -111,7 +111,7 @@ export const TREE: readonly TreeNode[] = [
     baseCost: 20,
     costGrowth: 1.4,
     requires: ['core'],
-    effects: [{ stat: 'fieldDamage', op: 'add', value: 0.5 }],
+    effects: [{ stat: 'fieldDamage', op: 'add', value: 0.3 }],
   },
   {
     id: 'wide_field',

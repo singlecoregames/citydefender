@@ -167,6 +167,8 @@ export type GameEvent =
   | { type: 'healPulse'; pos: Vec2; radius: number }
   | { type: 'groundImpact'; pos: Vec2 }
   | { type: 'cityHit'; cityId: number; destroyed: boolean }
+  /** An impact on dead ground leaked through to the HQ. */
+  | { type: 'hqHit'; pos: Vec2; hpLeft: number }
   /** The static field pulsed (ring flash at the aura). */
   | { type: 'fieldPulse'; pos: Vec2 }
   /** The pulse zapped this enemy (spark feedback); `from` is the aura's
@@ -217,6 +219,9 @@ export interface GameState {
   /** Static Field: the cursor-following damage aura. */
   field: FieldState;
   cities: City[];
+  /** HQ integrity: the global pool behind the segments. Impacts on dead
+   *  ground drain it; the night is lost when it reaches 0 (see balance.HQ). */
+  hq: { hp: number; maxHp: number };
   interceptors: Interceptor[];
   explosions: Explosion[];
   enemies: EnemyMissile[];
