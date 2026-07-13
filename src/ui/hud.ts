@@ -9,8 +9,6 @@ export class Hud {
   private readonly waveEl = document.getElementById('hud-wave')!;
   private readonly ammoEl = document.getElementById('hud-ammo')!;
   private readonly comboEl = document.getElementById('hud-combo')!;
-  private readonly hqEl = document.getElementById('hud-hq')!;
-  private readonly hqFill = document.getElementById('hud-hq-fill')!;
   private pipCount = 0;
   /** Idle auto-fire gauge: a thin bar under the ammo pips that fills while
    *  the full magazine sits untouched, and stays lit during auto-fire. */
@@ -32,7 +30,6 @@ export class Hud {
     this.waveEl.textContent =
       t().nightWave(worldOf(state.night), nightInWorld(state.night), wave, state.director.totalWaves) + boss;
     this.renderCombo(state.combo);
-    this.renderHq(state);
     this.syncPips(state.cannon.maxAmmo);
     for (let i = 0; i < this.pipCount; i++) {
       this.ammoEl.children[i]!.classList.toggle('full', i < state.cannon.ammo);
@@ -48,22 +45,6 @@ export class Hud {
   }
 
   private prevCombo = 0;
-
-  /** HQ integrity bar: hidden while the wall holds (full hp AND every
-   *  segment alive — the pool only matters once the line has broken).
-   *  Once it shows, it stays for the night: a bar that blinks in and out
-   *  reads as a glitch. */
-  private renderHq(state: GameState): void {
-    const frac = state.hq.hp / state.hq.maxHp;
-    const lineBroken = state.cities.some((c) => c.hp <= 0);
-    if (frac >= 1 && !lineBroken) {
-      this.hqEl.classList.add('hidden');
-      return;
-    }
-    this.hqEl.classList.remove('hidden');
-    (this.hqFill as HTMLElement).style.width = `${Math.max(0, frac) * 100}%`;
-    this.hqEl.classList.toggle('critical', frac <= 0.4);
-  }
 
   /** Combo meter: hidden until a streak of 2, then count + scrap multiplier.
    *  Tier classes recolour it as the streak grows, and crossing a milestone

@@ -60,11 +60,13 @@ export const FIELD = {
    *  Maxed tree (Wide Field ×5, Field Coils ×3) reaches ≈ 12.4. */
   radius: 5.5,
   /** Base damage per pulse (see also the static_charge / static_link nodes).
-   *  Retuned with pulseSeconds below: 1 dmg @ 2.0s felt sluggish (playtest),
-   *  so the cadence rose ×1.67 and per-pulse damage fell to keep base DPS.
-   *  The Static Link component needs no retune — its formula pays
+   *  Stays at 1 despite the faster cadence below: 0.6 (naive DPS parity)
+   *  broke the "one pulse kills an hp-1 enemy" breakpoint the whole early
+   *  game is tuned around — the scripted player stopped clearing night 1.
+   *  The resulting early-field buff is deliberate and sim-checked. The
+   *  Static Link component needs no retune either way — its formula pays
    *  rate × turretDps × pulseSeconds, DPS-neutral under any cadence. */
-  damage: 0.6,
+  damage: 1,
   /** Seconds between pulses. A ready field with nothing in range HOLDS its
    *  charge — the first enemy to wander in is zapped immediately. Maxed
    *  tree (Pulse Cycle ×5, Field Coils ×3) reaches ≈ 0.69s. */
@@ -80,30 +82,12 @@ export const FIELD = {
   slowSeconds: 0.6,
 } as const;
 
-/** HQ integrity: the command post's global hp pool BEHIND the ground
- *  segments. An impact on a DEAD segment is no longer free — it leaks
- *  through the broken line and drains the HQ; the night is lost when the
- *  HQ falls, not when the last segment does. This is what makes
- *  "sacrifice every segment but one" a losing plan instead of the optimal
- *  one (playtest): with 3 segments standing the HQ never takes a point. */
-export const HQ = {
-  baseHp: 24,
-  /** HQ damage per dead-ground impact AT FULL BREACH. The actual leak
-   *  scales with how much of the line is down: leakDamage × dead/(total−1).
-   *  One broken segment of three leaks at half strength — sustained
-   *  pressure; everything-but-one broken leaks at full — a countdown. This
-   *  split is what lets the pool punish the sacrifice strategy without
-   *  executing normal battle damage (sim: flat leaks ended boss nights at
-   *  ~50s with two segments standing, and no pool size fixed both at once). */
-  leakDamage: 1,
-  /** HQ self-repair per second (capped at max). */
-  regenPerSec: 0.2,
-} as const;
-
-/** HQ damage for one dead-ground impact, given the line's current state. */
-export function hqLeakDamage(deadSegments: number, totalSegments: number): number {
-  return HQ.leakDamage * (deadSegments / Math.max(1, totalSegments - 1));
-}
+// NOTE: an "HQ integrity" mechanic lived here briefly (a global hp pool
+// drained by impacts on dead ground, as the counter to the one-segment
+// sacrifice strategy). Playtest verdict: too punishing in normal play even
+// with breach-scaled leaks — rolled back wholesale. If the sacrifice
+// strategy needs a counter again, try the ECONOMIC lever first (scrap
+// multiplier scaled by living segments) instead of a survival clock.
 
 /** Idle seconds before auto-fire arms at the given node level (0 = locked). */
 export function autoFireThresholdFor(level: number): number {

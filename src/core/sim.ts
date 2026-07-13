@@ -10,8 +10,6 @@ import {
   bossHpPityFactor,
   autoFireThresholdFor,
   BOSS,
-  HQ,
-  hqLeakDamage,
   WORLDS,
   BOSS_NIGHT_INTERVAL,
   BUILDING,
@@ -175,7 +173,6 @@ export class Sim {
 
     this.tickAbilities();
     this.regenAmmo();
-    this.regenHq();
     this.tickField();
     this.tickAutoFire();
     this.updateDrones();
@@ -233,15 +230,6 @@ export class Sim {
       c.ammo++;
       c.reloadTimer += this.cfg.stats.reloadSeconds;
     }
-  }
-
-  /** HQ self-repair: a slow trickle back toward max, so one broken segment
-   *  is sustained pressure rather than a hard countdown — while a mostly
-   *  broken line leaks far faster than the trickle heals (see balance.HQ). */
-  private regenHq(): void {
-    const hq = this.state.hq;
-    if (hq.hp <= 0 || hq.hp >= hq.maxHp) return;
-    hq.hp = Math.min(hq.maxHp, hq.hp + HQ.regenPerSec * DT);
   }
 
   // --- static field (the pointer stream) ---
@@ -1030,10 +1018,7 @@ export class Sim {
   }
 
   /** Threat Analysis: true when this enemy's projected ground impact would
-   *  damage a living segment. Enemies climbing or hovering are non-threats.
-   *  Dead-ground leaks (HQ damage) deliberately don't count: the node keeps
-   *  its meaning — protect the LINE first; a leaking front is already the
-   *  player's cue to fall back and intercept everything. */
+   *  damage a living segment. Enemies climbing or hovering are non-threats. */
   private threatensCity(e: EnemyMissile): boolean {
     // A crossing cruise bobs through negative vel.y without being committed
     // to any impact point yet — it only becomes a threat once it dives.
@@ -1314,31 +1299,16 @@ export class Sim {
     const s = this.state;
     s.events.push({ type: 'groundImpact', pos: { x: e.pos.x, y: e.pos.y } });
     const seg = this.segmentAt(e.pos.x);
+    if (!seg || seg.hp <= 0) return; // dead ground: crater fx only
 
-    // Shield Generator soaks the whole impact for one charge — living
-    // segment or broken line alike (it absorbs ground impacts, full stop).
+    // Shield Generator soaks the whole impact for one charge.
     const shield = s.buildings.find((b) => b.kind === 'shield');
-    const soak = (): boolean => {
-      if (!shield || shield.charges <= 0) return false;
+    if (shield && shield.charges > 0) {
       shield.charges--;
-      s.events.push({ type: 'shieldAbsorbed', cityId: seg?.id ?? 0 });
-      return true;
-    };
-
-    if (!seg || seg.hp <= 0) {
-      // Dead ground is NOT free: the impact leaks through the broken line
-      // and drains the HQ — the reason "keep one segment, ditch the rest"
-      // is a losing plan. The leak scales with the breach width (see
-      // hqLeakDamage), and the night ends when the HQ falls (checkNightEnd).
-      if (soak()) return;
-      const dead = s.cities.filter((c) => c.hp <= 0).length;
-      s.hq.hp = Math.max(0, s.hq.hp - hqLeakDamage(dead, s.cities.length));
-      s.events.push({ type: 'hqHit', pos: { x: e.pos.x, y: e.pos.y }, hpLeft: s.hq.hp });
-      this.breakCombo(); // taking damage breaks the streak
+      s.events.push({ type: 'shieldAbsorbed', cityId: seg.id });
       return;
     }
 
-    if (soak()) return;
     seg.hp--;
     s.cityDamageTaken++;
     s.scrap += this.cfg.stats.cityHitScrap; // War Insurance compensation
@@ -1347,8 +1317,7 @@ export class Sim {
   }
 
   /** A boss touching the ground is an immediate total loss: every segment is
-   *  flattened and the HQ falls with them, which the end-of-tick check turns
-   *  into the night's defeat. */
+   *  flattened, which the end-of-tick check turns into the night's defeat. */
   private bossReachesGround(e: EnemyMissile): void {
     const s = this.state;
     s.events.push({ type: 'groundImpact', pos: { x: e.pos.x, y: e.pos.y } });
@@ -1358,7 +1327,6 @@ export class Sim {
       seg.hp = 0;
       s.events.push({ type: 'cityHit', cityId: seg.id, destroyed: true });
     }
-    s.hq.hp = 0;
     this.breakCombo();
   }
 
@@ -1417,10 +1385,8 @@ export class Sim {
 
   private checkNightEnd(): void {
     const s = this.state;
-    // The night is lost when the HQ falls — not when the last segment does.
-    // With every segment gone the whole ground leaks, so the HQ pool is a
-    // short countdown, not a second life.
-    if (s.hq.hp <= 0) {
+    const citiesAlive = s.cities.some((c) => c.hp > 0);
+    if (!citiesAlive) {
       s.scrap = Math.floor(s.scrap * defeatScrapFactorFor(this.cfg.failStreak));
       this.endNight('defeat');
       return;
@@ -1473,7 +1439,6 @@ function createInitialState(cfg: NightConfig): GameState {
     // Ground segments ("cities"): equal slices of the full field width, each
     // with its own hp. Upgrades raise the count, splitting damage finer.
     cities: groundSegments(cfg.stats),
-    hq: { hp: cfg.stats.hqMaxHp, maxHp: cfg.stats.hqMaxHp },
     interceptors: [],
     explosions: [],
     enemies: [],
