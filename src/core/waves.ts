@@ -71,8 +71,12 @@ export function generateNight(night: number, failStreak = 0): WaveSpec[] {
   // The first two boss nights thin their waves harder: they're fought with
   // zero/one specials unlocked (tokens COME from these bosses), and the sim
   // showed unlucky seeds stuck 8 straight on N10 at the regular 0.75.
+  // WORLD GATES (every 30th) also thin harder: the gate is a boss-DPS exam,
+  // and the sim showed N30 attempts dying to the flood at ~45s — before the
+  // boss check even happened — which no amount of boss pity could fix.
   const pity = 1 - Math.min(VOLUME_PITY.cap, VOLUME_PITY.perFail * failStreak);
-  const countMul = (bossNight ? (night <= 20 ? 0.55 : 0.75) : 1) * pity;
+  const bossMul = night <= 20 ? 0.55 : night % 30 === 0 ? 0.65 : 0.75;
+  const countMul = (bossNight ? bossMul : 1) * pity;
   for (let w = 0; w < count; w++) {
     waves.push({
       count: Math.min(

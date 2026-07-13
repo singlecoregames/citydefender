@@ -47,6 +47,8 @@ export const SOUNDS = {
   cityHitAlarm: [0.4, 0.05, 520, 0.02, 0.12, 0.3, 2, 1, -14],
   /** Impact on already-dead ground: just a dull thud. */
   groundImpact: [0.2, 0.2, 70, 0.01, 0.03, 0.18, 4, 1.4],
+  /** A leak into the HQ: metallic warning knock, between thud and alarm. */
+  hqHit: [0.5, 0.1, 240, 0.005, 0.05, 0.3, 2, 1.4, -6, , , , , 0.5],
   /** Boss horn: low saw swelling in, with a slow tremolo. */
   bossSpawned: [0.55, 0.02, 62, 0.15, 0.4, 0.45, 2, 1.3, , , , , 0.14, , , , , 1, , 0.4],
   /** Boss kill fanfare: two rising pitch jumps. */
@@ -159,6 +161,9 @@ export class AudioSystem {
           break;
         case 'groundImpact':
           this.play('groundImpact');
+          break;
+        case 'hqHit':
+          this.play('hqHit');
           break;
         case 'bossSpawned':
           this.play('bossSpawned');
