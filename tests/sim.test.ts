@@ -11,7 +11,6 @@ import {
   ENEMY,
   EXPLOSION,
   FIELD,
-  HQ,
   TICK_RATE,
   TURRETS,
 } from '../src/core/balance';
@@ -337,115 +336,15 @@ describe('cities and night flow', () => {
     expect(city.hp).toBe(0);
   });
 
-  it('the night is lost when the HQ falls, with reduced scrap', () => {
+  it('losing all cities ends the night in defeat with reduced scrap', () => {
     const sim = new Sim(1);
     sim.state.scrap = 100;
-    // Dead segments alone no longer end the night — the HQ pool does.
     for (const c of sim.state.cities) c.hp = 0;
-    expect(sim.step([]).some((e) => e.type === 'nightEnded')).toBe(false);
-    sim.state.hq.hp = 0;
     const events = sim.step([]);
     expect(sim.state.phase).toBe('ended');
     expect(sim.state.outcome).toBe('defeat');
     expect(sim.state.scrap).toBe(60);
     expect(events.some((e) => e.type === 'nightEnded')).toBe(true);
-  });
-
-  it('impacts on dead ground leak into the HQ (they are not free)', () => {
-    const cfg = defaultNightConfig(1);
-    cfg.waves = [];
-    const sim = new Sim(1, cfg);
-    sim.state.cities[0]!.hp = 0; // the left third is rubble
-    const leftX = sim.state.cities[0]!.x;
-    const hqBefore = sim.state.hq.hp;
-    sim.state.combo = 10;
-    sim.state.enemies.push({
-      id: 900,
-      kind: 'ballistic',
-      pos: { x: leftX, y: 6 },
-      origin: { x: leftX, y: 100 },
-      vel: { x: 0, y: -20 },
-      hp: 1,
-      maxHp: 1,
-      scrapReward: 5,
-    });
-    const events: GameEvent[] = [];
-    for (let i = 0; i < 10; i++) events.push(...sim.step([]));
-    // One broken segment of three leaks at HALF strength (breach scaling);
-    // the slow HQ regen ticks a hair back within the window.
-    expect(sim.state.hq.hp).toBeCloseTo(hqBefore - 0.5, 1);
-    const hit = events.find((e) => e.type === 'hqHit');
-    expect(hit!.type === 'hqHit' && hit!.hpLeft).toBe(hqBefore - 0.5);
-    expect(events.some((e) => e.type === 'comboBroken')).toBe(true); // damage is damage
-    expect(events.some((e) => e.type === 'cityHit')).toBe(false); // no living segment touched
-  });
-
-  it('the leak scales with the breach: everything-but-one broken = full damage', () => {
-    const cfg = defaultNightConfig(1);
-    cfg.waves = [];
-    const sim = new Sim(1, cfg);
-    sim.state.cities[0]!.hp = 0;
-    sim.state.cities[1]!.hp = 0; // 2 of 3 down — the sacrifice layout
-    const leftX = sim.state.cities[0]!.x;
-    const hqBefore = sim.state.hq.hp;
-    sim.state.enemies.push({
-      id: 902,
-      kind: 'ballistic',
-      pos: { x: leftX, y: 6 },
-      origin: { x: leftX, y: 100 },
-      vel: { x: 0, y: -20 },
-      hp: 1,
-      maxHp: 1,
-      scrapReward: 5,
-    });
-    run(sim, 10);
-    expect(sim.state.hq.hp).toBeCloseTo(hqBefore - 1, 1);
-  });
-
-  it('the HQ slowly regenerates while damaged (never past max)', () => {
-    const cfg = defaultNightConfig(1);
-    cfg.waves = [];
-    const sim = new Sim(1, cfg);
-    // Park a distant idler so the empty wave list can't end the night early.
-    sim.state.enemies.push({
-      id: 999,
-      kind: 'ballistic',
-      pos: { x: 90, y: 95 },
-      origin: { x: 90, y: 100 },
-      vel: { x: 0, y: 0 },
-      hp: 999,
-      maxHp: 999,
-      scrapReward: 0,
-    });
-    sim.state.hq.hp = sim.state.hq.maxHp - 2;
-    run(sim, TICK_RATE * 5);
-    expect(sim.state.hq.hp).toBeCloseTo(sim.state.hq.maxHp - 2 + HQ.regenPerSec * 5, 2);
-    sim.state.hq.hp = sim.state.hq.maxHp;
-    run(sim, TICK_RATE);
-    expect(sim.state.hq.hp).toBe(sim.state.hq.maxHp); // capped
-  });
-
-  it('the Shield Generator soaks dead-ground leaks too', () => {
-    const cfg = defaultNightConfig(1);
-    cfg.waves = [];
-    cfg.buildings = [{ kind: 'shield', level: 1 }];
-    const sim = new Sim(1, cfg);
-    sim.state.cities[0]!.hp = 0;
-    const leftX = sim.state.cities[0]!.x;
-    const charges = sim.state.buildings[0]!.charges;
-    sim.state.enemies.push({
-      id: 901,
-      kind: 'ballistic',
-      pos: { x: leftX, y: 6 },
-      origin: { x: leftX, y: 100 },
-      vel: { x: 0, y: -20 },
-      hp: 1,
-      maxHp: 1,
-      scrapReward: 5,
-    });
-    run(sim, 10);
-    expect(sim.state.hq.hp).toBe(sim.state.hq.maxHp); // soaked, no leak
-    expect(sim.state.buildings[0]!.charges).toBe(charges - 1);
   });
 
   it('defeat pity raises the payout with each retry, capped at full value', () => {
@@ -454,7 +353,7 @@ describe('cities and night flow', () => {
       cfg.failStreak = failStreak;
       const sim = new Sim(1, cfg);
       sim.state.scrap = 100;
-      sim.state.hq.hp = 0;
+      for (const c of sim.state.cities) c.hp = 0;
       sim.step([]);
       return sim.state.scrap;
     };
@@ -472,7 +371,7 @@ describe('cities and night flow', () => {
 
   it('stepping after the night ends is a no-op', () => {
     const sim = new Sim(1);
-    sim.state.hq.hp = 0;
+    for (const c of sim.state.cities) c.hp = 0;
     sim.step([]);
     const snapshot = JSON.stringify({ ...sim.state, events: [] });
     sim.step([{ type: 'fire', x: 0, y: 60 }]);
@@ -1011,7 +910,6 @@ describe('boss nights', () => {
     const events: GameEvent[] = [];
     for (let i = 0; i < 10; i++) events.push(...sim.step([]));
     expect(sim.state.cities.every((c) => c.hp <= 0)).toBe(true);
-    expect(sim.state.hq.hp).toBe(0); // the HQ falls with the line
     expect(events.filter((e) => e.type === 'cityHit').length).toBe(sim.state.cities.length);
     expect(events.some((e) => e.type === 'nightEnded' && e.outcome === 'defeat')).toBe(true);
   });

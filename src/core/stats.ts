@@ -1,4 +1,4 @@
-import { CANNON, CITY, ECONOMY, EXPLOSION, FIELD, HQ } from './balance';
+import { CANNON, CITY, ECONOMY, EXPLOSION, FIELD } from './balance';
 
 /**
  * The fully-resolved numbers a single night's sim runs on. Base values come
@@ -29,9 +29,6 @@ export interface DerivedStats {
   cityMaxHp: number;
   /** How many segments the ground is split into (more = finer damage). */
   cityCount: number;
-  /** HQ integrity: the global pool drained by impacts on dead ground
-   *  (see balance.HQ). The night is lost when it reaches 0. */
-  hqMaxHp: number;
   /** Global multipliers applied to every deployed turret (which turrets exist
    *  is decided by the tree's turret nodes, not by stats). */
   turretDamageMul: number;
@@ -113,7 +110,6 @@ export function baseStats(): DerivedStats {
     nightBonusMul: 1,
     cityMaxHp: CITY.hp,
     cityCount: CITY.baseCount,
-    hqMaxHp: HQ.baseHp,
     turretDamageMul: 1,
     turretFireRateMul: 1,
     turretRangeMul: 1,

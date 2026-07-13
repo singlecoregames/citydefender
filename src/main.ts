@@ -235,14 +235,12 @@ function frame(now: number): void {
   audio.update(sim.state);
 
   // Low-HP heartbeat: the screen edges pulse red while the ground is nearly
-  // gone OR the HQ is bleeding out (only during play — the day screen
-  // shouldn't throb).
+  // gone (only during play — the day screen shouldn't throb).
   const hpNow = sim.state.cities.reduce((a, c) => a + c.hp, 0);
   const hpMax = sim.state.cities.reduce((a, c) => a + c.maxHp, 0);
-  const inDanger = hpNow / hpMax <= 0.34 || sim.state.hq.hp / sim.state.hq.maxHp <= 0.4;
   vignetteEl.classList.toggle(
     'danger',
-    sim.state.phase === 'playing' && !titleScreen.visible && sim.state.hq.hp > 0 && inDanger,
+    sim.state.phase === 'playing' && !titleScreen.visible && hpNow > 0 && hpNow / hpMax <= 0.34,
   );
 
   renderer.render(sim.state);
