@@ -86,10 +86,20 @@ function migrate(env: SaveEnvelope): RunState {
   // ~12 per campaign), so clamp hoards earned under the old trickle.
   delete upgrades['data_broker'];
   delete upgrades['core_overclock'];
+  // The Decoy Beacon was removed (it funnelled fire onto the segment under
+  // it, engineering the sacrifice strategy) — refund what it cost, at its
+  // old price curve (16800 × 1.8^level, pretty-rounded).
+  const decoyLevel = Math.min(3, upgrades['bld_decoy'] ?? 0);
+  let decoyRefund = 0;
+  if (decoyLevel > 0) {
+    decoyRefund = [0, 16800, 47040, 101470][decoyLevel]!;
+    delete upgrades['bld_decoy'];
+  }
   const migrated = {
     ...base,
     ...env.run,
     cores: Math.min(env.run.cores ?? 0, 12),
+    scrap: (env.run.scrap ?? 0) + decoyRefund,
     upgrades,
   };
   // Strip retired fields so old saves don't haunt the state.

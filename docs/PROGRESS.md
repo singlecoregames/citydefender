@@ -79,6 +79,15 @@
     40%→50%로 상승). Static Link는 공식상 자동 중립(rate×DPS×주기)이라 무조정.
   - 풀 시뮬 3시드×N120 (HQ 롤백 + 최종 필드값): 동일 진행(N110 벽), 총 실패
     61-65 → **47-48**, 플레이타임 7h → 6h35m. 첫 트라이 난이도 무변화.
+- **유인기 제거 + 대체 2종** (피드백: 유인기가 우측 칸에 화력 30-46%를
+  몰아줘 "1칸 몰빵"을 설계 수준에서 유발 — x=90이 우측 칸 바로 위):
+  - **전선 배당(bld_dividend)**: 유인기 자리(city, 16.8k×3). 모든 scrap ×
+    (1 + 8%/lvl × 생존칸비율) — 몰빵 카운터의 경제 레버를 옵트인 보너스로.
+    scaledScrap에서 실시간 반영(밤 중 칸이 죽으면 즉시 감소).
+  - **처형 프로토콜(execution_protocol)**: automation 티어2 (arsenal_core
+    옆, 250k×3). HP 5%/lvl 이하 비보스 즉사 — 리제너레이터 힐백/armored
+    칩전 카운터, 후반 오버킬 낭비 절약. executeThreshold 스탯 신설.
+  - 세이브 마이그레이션: bld_decoy 레벨 감지 → 구 가격 커브로 scrap 환불.
 - **M5 Tech 브랜치**: 수동 어빌리티 EMP(정지)/Mega Bomb(대폭발)/Time Dilation(둔화),
   쿨다운제, 1/2/3 단축키 + 하단 버튼
 - **트리 확장 1차** (economy/city/tech 보강, StatMod 계열 7노드):
@@ -173,7 +182,8 @@
 - **트리 확장 3차** (레이더/재머/디코이/서지, 6노드):
   Radar Array(건물, 포탑 조준오차 ×0.85^lvl) + Doppler Tracking(phase 무적 관통,
   isUntouchable()) / Jammer Tower(건물, 반경 45 슬로우 필드 12%+6%/lvl) +
-  Wide Spectrum(반경 +20%) / Decoy Beacon(건물 x=90, 스폰 30%+8%/lvl 유인) /
+  Wide Spectrum(반경 +20%) / ~~Decoy Beacon~~(유인기 — 몰빵 유발로 제거,
+  전선 배당으로 대체·환불 마이그레이션) /
   Scrap Surge(4번째 수동 어빌, 4키, 10s scrap 2배 — scaledScrap에 적용).
   건물 파생값(spreadMul/jammerField/decoyLure)은 Sim 생성자에서 1회 캐시
 

@@ -193,7 +193,14 @@ const TREE_KO: Record<string, { name: string; description: string }> = {
   missile_salvo: { name: '일제사격 거치대', description: '일제 발사 미사일 +1' },
   bunker: { name: '벙커', description: '지반 HP +1' },
   war_insurance: { name: '전쟁 보험', description: '지면 피격당 스크랩 +10 보상' },
-  bld_decoy: { name: '미끼 비콘', description: '배치: 적 30%가 지면 대신 비콘을 노림 (레벨 = +8%)' },
+  bld_dividend: {
+    name: '전선 배당',
+    description: '배치: 모든 scrap 획득 +8%/레벨 — 생존한 지면 칸 비율에 비례',
+  },
+  execution_protocol: {
+    name: '처형 프로토콜',
+    description: 'HP가 레벨당 5% 이하로 떨어진 적 즉시 처치 (보스 제외)',
+  },
   bld_repair: { name: '수리소', description: '배치: 40초마다 지반 HP 1 수리 (레벨업 시 시간 단축)' },
   bastion_core: { name: '요새 코어', description: '지반 HP +2' },
   districts: { name: '구역화', description: '지반을 +1 구역으로 분할 — 피해가 더 국지적으로 들어옴' },

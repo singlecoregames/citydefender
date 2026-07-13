@@ -98,8 +98,8 @@ export class Sim {
   private readonly spreadMul: number;
   /** Jammer Tower slow field (null = not deployed). */
   private readonly jammerField: { x: number; y: number; radius: number; factor: number } | null;
-  /** Decoy Beacon lure (null = not deployed). */
-  private readonly decoyLure: { x: number; chance: number } | null;
+  /** Frontline Dividend level (0 = not deployed) — see scaledScrap. */
+  private readonly dividendLevel: number;
   /** Estimated total turret damage/sec, the base for Overcharge Shot. */
   private readonly turretDps: number;
 
@@ -126,15 +126,7 @@ export class Sim {
               BUILDING_TUNING.jammer.slowPerLevel * (jammer.level - 1)),
         }
       : null;
-    const decoy = config.buildings.find((b) => b.kind === 'decoy');
-    this.decoyLure = decoy
-      ? {
-          x: BUILDINGS.decoy.x,
-          chance:
-            BUILDING_TUNING.decoy.pullBase +
-            BUILDING_TUNING.decoy.pullPerLevel * (decoy.level - 1),
-        }
-      : null;
+    this.dividendLevel = config.buildings.find((b) => b.kind === 'dividend')?.level ?? 0;
   }
 
   /** Advance the simulation by exactly one tick (1/60s). */
@@ -547,11 +539,7 @@ export class Sim {
     }
     const living = s.cities.filter((c) => c.hp > 0);
     let targetX: number;
-    if (this.decoyLure && this.rng.next() < this.decoyLure.chance) {
-      // Decoy Beacon: lured enemies dive at the beacon, away from the cities.
-      const j = BUILDING_TUNING.decoy.jitter;
-      targetX = this.decoyLure.x + this.rng.range(-j, j);
-    } else if (living.length > 0 && this.rng.next() < 0.7) {
+    if (living.length > 0 && this.rng.next() < 0.7) {
       targetX = living[this.rng.int(0, living.length - 1)]!.x + this.rng.range(-3, 3);
     } else {
       targetX = this.rng.range(-WORLD.halfWidth * 0.9, WORLD.halfWidth * 0.9);
@@ -1151,6 +1139,15 @@ export class Sim {
     if (enemy.armor) dmg = Math.max(dmg * ENEMY.armored.minDamageFrac, dmg - enemy.armor);
     if (enemy.kind === 'regenerator') enemy.regenTimer = 0; // interrupt healing
     enemy.hp -= dmg;
+    // Execution Protocol: a hit that leaves a non-boss below the threshold
+    // finishes it — no heal-back, no chip war, no overkill soak.
+    if (
+      enemy.hp > 0 &&
+      enemy.kind !== 'boss' &&
+      enemy.hp <= enemy.maxHp * this.cfg.stats.executeThreshold
+    ) {
+      enemy.hp = 0;
+    }
     if (enemy.hp <= 0) {
       const index = s.enemies.indexOf(enemy);
       if (index >= 0) s.enemies.splice(index, 1);
@@ -1378,7 +1375,17 @@ export class Sim {
 
   private scaledScrap(base: number): number {
     const surge = this.state.ability.surge > 0 ? ABILITIES.surge.factor : 1;
-    return Math.max(1, Math.round(base * this.cfg.stats.scrapMul * surge));
+    // Frontline Dividend: all scrap scales with how much of the line still
+    // stands — the standing-line bonus that replaced the Decoy Beacon.
+    let dividend = 1;
+    if (this.dividendLevel > 0) {
+      const living = this.state.cities.filter((c) => c.hp > 0).length;
+      dividend +=
+        BUILDING_TUNING.dividend.ratePerLevel *
+        this.dividendLevel *
+        (living / this.state.cities.length);
+    }
+    return Math.max(1, Math.round(base * this.cfg.stats.scrapMul * surge * dividend));
   }
 
   // --- night end ---
@@ -1528,7 +1535,7 @@ function kindFireRateMul(kind: TurretKind, stats: DerivedStats): number {
 
 /** Seconds between Repair Bay heals at a given level (shrinks to a floor). */
 /** Build the night's ground segments: cityCount equal slices of the field,
- *  each with cityMaxHp. `x` is the segment centre (used by aiming/decoy). */
+ *  each with cityMaxHp. `x` is the segment centre (used by spawn aiming). */
 function groundSegments(stats: DerivedStats): City[] {
   const n = Math.max(1, Math.round(stats.cityCount));
   const w = (WORLD.halfWidth * 2) / n;
