@@ -1190,7 +1190,7 @@ describe('support buildings', () => {
 });
 
 describe('phase-3 buildings and Scrap Surge', () => {
-  type BKind = 'harvester' | 'shield' | 'repair' | 'radar' | 'jammer' | 'decoy';
+  type BKind = 'harvester' | 'shield' | 'repair' | 'radar' | 'jammer' | 'dividend';
   function cfgWith(buildings: { kind: BKind; level: number }[] = []) {
     const cfg = defaultNightConfig(1);
     cfg.waves = [];
@@ -1238,32 +1238,46 @@ describe('phase-3 buildings and Scrap Surge', () => {
     expect(without.state.enemies).toHaveLength(1); // untouchable without it
   });
 
-  it('Decoy Beacon redirects a share of spawns toward the beacon', () => {
-    const DECOY_X = 90;
-    const wave = { count: 40, spawnIntervalRange: [0.05, 0.06] as [number, number], hpScale: 1, speedScale: 1, rewardScale: 1 };
-    const landingXs = (decoy: boolean): number[] => {
-      const cfg = cfgWith(decoy ? [{ kind: 'decoy', level: 4 }] : []); // 54% pull
-      cfg.waves = [{ ...wave }];
-      const sim = new Sim(7, cfg);
-      const xs: number[] = [];
-      for (let i = 0; i < TICK_RATE * 10 && xs.length < 30; i++) {
-        sim.step([]);
-        for (const e of sim.state.enemies) {
-          if (xs.length >= 30) break;
-          // Project the dive to the ground: x at y=0.
-          const t = e.pos.y / -e.vel.y;
-          if (e.vel.y < 0) xs.push(e.pos.x + e.vel.x * t);
-        }
-        sim.state.enemies.length = 0; // measure each spawn once
-      }
-      return xs;
+  it('Frontline Dividend boosts kill scrap by the living-segment fraction', () => {
+    const kill = (dividend: boolean, deadSegments: number): number => {
+      const sim = new Sim(1, cfgWith(dividend ? [{ kind: 'dividend', level: 3 }] : []));
+      for (let i = 0; i < deadSegments; i++) sim.state.cities[i]!.hp = 0;
+      sim.state.enemies.push({
+        id: 9001, kind: 'ballistic', pos: { x: 0, y: 50 }, origin: { x: 0, y: 100 },
+        vel: { x: 0, y: 0 }, hp: 1, maxHp: 1, scrapReward: 100,
+      });
+      sim.state.explosions.push({
+        id: 1, pos: { x: 0, y: 50 }, age: 0.3, maxRadius: 8, damage: 10, hitEnemyIds: [],
+      });
+      run(sim, 2);
+      return sim.state.scrap;
     };
-    const near = (xs: number[]) => xs.filter((x) => Math.abs(x - DECOY_X) <= 8).length;
-    const withDecoy = near(landingXs(true));
-    const without = near(landingXs(false));
-    // 54% of 30 spawns ≈ 16 expected near the decoy; ~0–2 by chance without.
-    expect(withDecoy).toBeGreaterThanOrEqual(8);
-    expect(withDecoy).toBeGreaterThan(without + 5);
+    expect(kill(false, 0)).toBe(100); // no building: unchanged
+    expect(kill(true, 0)).toBe(124); // level 3, full line: +24%
+    // The bonus tracks the LIVE state of the line: 1 of 3 segments left.
+    expect(kill(true, 2)).toBe(108); // +24% × 1/3 = +8%
+  });
+
+  it('Execution Protocol finishes non-boss enemies below the threshold, never bosses', () => {
+    const survivor = (kind: 'regenerator' | 'boss'): number => {
+      const cfg = cfgWith();
+      cfg.stats = { ...cfg.stats, executeThreshold: 0.15 };
+      const sim = new Sim(1, cfg);
+      sim.state.enemies.push({
+        id: 9001, kind, pos: { x: 0, y: 50 }, origin: { x: 0, y: 100 },
+        vel: { x: 0, y: 0 }, hp: 4, maxHp: 20, scrapReward: 5,
+        regenTimer: 0, spawnTimer: 9999,
+      });
+      sim.state.explosions.push({
+        id: 1, pos: { x: 0, y: 50 }, age: 0.3, maxRadius: 20, damage: 1, hitEnemyIds: [],
+      });
+      run(sim, 2);
+      return sim.state.enemies.length;
+    };
+    // 4 - 1 = 3 hp ≤ 15% of 20 → executed outright...
+    expect(survivor('regenerator')).toBe(0);
+    // ...but a boss at the same fraction just takes the hit.
+    expect(survivor('boss')).toBe(1);
   });
 
   it('Scrap Surge doubles kill scrap while active', () => {

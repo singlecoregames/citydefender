@@ -439,6 +439,23 @@ export const TREE: readonly TreeNode[] = [
     effects: [{ stat: 'turretFireRateMul', op: 'mul', value: 0.12 }],
   },
   {
+    // Global finisher: anything (except bosses) that falls below the
+    // threshold dies outright. Counters the regenerator's heal-back and the
+    // armored chip war, and stops late floods from soaking overkill shots.
+    id: 'execution_protocol',
+    name: 'Execution Protocol',
+    description: 'Enemies below 5% hp per level die instantly (bosses excluded)',
+    branch: 'automation',
+    col: 1,
+    row: 7,
+    maxLevel: 3,
+    baseCost: 250000,
+    costGrowth: 1.8,
+    tier: 2,
+    requires: ['arsenal_core'],
+    effects: [{ stat: 'executeThreshold', op: 'add', value: 0.05 }],
+  },
+  {
     id: 'arsenal_core',
     name: 'Arsenal Core',
     description: '+50% ALL damage (turrets and blasts)',
@@ -1099,9 +1116,14 @@ export const TREE: readonly TreeNode[] = [
     effects: [{ stat: 'cityCount', op: 'add', value: 1 }],
   },
   {
-    id: 'bld_decoy',
-    name: 'Decoy Beacon',
-    description: 'Deploy: lures 30% of enemies to aim at it instead of the ground (lvl = +8%)',
+    // Replaced the Decoy Beacon in this slot: the decoy redirected 30-46% of
+    // all fire onto the segment under it (x=90 IS the right segment), which
+    // engineered the one-segment-sacrifice degenerate strategy instead of
+    // countering it. The dividend inverts the incentive — a standing line
+    // pays, globally, with no spatial redirection at all.
+    id: 'bld_dividend',
+    name: 'Frontline Dividend',
+    description: 'Deploy: +8% all scrap per level, scaled by how much of the ground still stands',
     branch: 'city',
     col: 5,
     row: 2,
@@ -1269,7 +1291,7 @@ export const BUILDING_NODES: Record<string, BuildingKind> = {
   bld_repair: 'repair',
   bld_radar: 'radar',
   bld_jammer: 'jammer',
-  bld_decoy: 'decoy',
+  bld_dividend: 'dividend',
 };
 
 export interface BuildingSpec {

@@ -182,8 +182,8 @@ export const BUILDINGS: Record<BuildingKind, BuildingKindSpec> = {
   radar: { x: -55 },
   /** Jammer Tower: slows enemies inside its field. */
   jammer: { x: 55 },
-  /** Decoy Beacon: lures a share of enemies to target it instead of cities. */
-  decoy: { x: 90 },
+  /** Frontline Dividend: global scrap boost scaled by the standing line. */
+  dividend: { x: 90 },
 } as const;
 
 /** Per-kind building tuning, separate from positions for the balance sim. */
@@ -195,8 +195,12 @@ export const BUILDING_TUNING = {
   radar: { spreadMulPerLevel: 0.85 },
   /** Slow = slowBase + slowPerLevel×(lvl−1), applied inside radius. */
   jammer: { radius: 45, slowBase: 0.12, slowPerLevel: 0.06 },
-  /** Each spawn rolls pullBase + pullPerLevel×(lvl−1) to aim at the decoy. */
-  decoy: { pullBase: 0.3, pullPerLevel: 0.08, jitter: 6 },
+  /** All scrap × (1 + ratePerLevel × level × living-segment fraction):
+   *  the anti-sacrifice economic lever as an opt-in building — a standing
+   *  line PAYS, instead of a broken one punishing. (Replaced the Decoy
+   *  Beacon, which funnelled 30-46% of all fire onto the segment under it
+   *  and thereby engineered the very sacrifice strategy.) */
+  dividend: { ratePerLevel: 0.08 },
 } as const;
 
 /** Children spawned mid-air (splitter death splits, carrier/boss sheds)

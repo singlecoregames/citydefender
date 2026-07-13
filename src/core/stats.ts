@@ -58,6 +58,9 @@ export interface DerivedStats {
   multiKillScrap: number;
   /** >0: turrets may target and damage phased enemies (Doppler Tracking). */
   dopplerTracking: number;
+  /** Non-boss enemies at or below this hp fraction die outright when hit
+   *  (Execution Protocol). */
+  executeThreshold: number;
   /** Multiplier on the Jammer Tower's field radius (Wide Spectrum). */
   jammerRadiusMul: number;
   /** Manual explosions add this fraction of total turret DPS as bonus damage
@@ -130,6 +133,7 @@ export function baseStats(): DerivedStats {
     waveClearScrap: 0,
     multiKillScrap: 0,
     dopplerTracking: 0,
+    executeThreshold: 0,
     jammerRadiusMul: 1,
     overchargeRate: 0,
     comboRetention: 0,

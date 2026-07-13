@@ -82,7 +82,7 @@ const BUILDING_COLORS: Record<BuildingKind, number> = {
   repair: SNKRX.green, // green — sustain
   radar: SNKRX.fg, // white — tech
   jammer: SNKRX.purple, // purple — area denial
-  decoy: SNKRX.red, // enemy-red — it wants to be shot at
+  dividend: SNKRX.yellow, // scrap-gold — it pays out
 };
 
 /** Per-kind enemy colours. Same palette as the player side — in SNKRX the
@@ -205,15 +205,15 @@ const GLYPHS: Record<TurretKind | BuildingKind, string[]> = {
     '1..1..1',
     '.......',
   ], // static waves
-  decoy: [
-    '...1...',
-    '...1...',
-    '...1...',
-    '...1...',
-    '...1...',
-    '.......',
-    '...1...',
-  ], // shoot me!
+  dividend: [
+    '..111..',
+    '.1...1.',
+    '1..1..1',
+    '1.111.1',
+    '1..1..1',
+    '.1...1.',
+    '..111..',
+  ], // a scrap hex coin
 };
 
 /** Stable per-turret identity for the mesh cache: a turret is uniquely fixed

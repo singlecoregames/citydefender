@@ -311,6 +311,15 @@ describe('save / load', () => {
     expect(deserialize('{"version":1}').night).toBe(1);
   });
 
+  it('migrates away the removed Decoy Beacon, refunding its cost', () => {
+    const run = newRun(1);
+    run.scrap = 500;
+    run.upgrades['bld_decoy'] = 2;
+    const restored = deserialize(JSON.stringify({ version: 1, run }));
+    expect(restored.upgrades['bld_decoy']).toBeUndefined();
+    expect(restored.scrap).toBe(500 + 47040); // 16800 + 30240, the old curve
+  });
+
   it('fills defaults for partial saves', () => {
     const restored = deserialize(JSON.stringify({ version: SAVE_VERSION, run: { night: 3, scrap: 10 } }));
     expect(restored.night).toBe(3);
